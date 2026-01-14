@@ -1,0 +1,7 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+CAPSTONE.ipynb
+.ipynb_checkpoints/
