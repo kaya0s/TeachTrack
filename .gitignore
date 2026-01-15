@@ -5,3 +5,4 @@ __pycache__/
 
 CAPSTONE.ipynb
 .ipynb_checkpoints/
+test_api_script.py

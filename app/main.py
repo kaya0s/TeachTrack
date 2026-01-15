@@ -1,20 +1,22 @@
-"""
-CAPSTONE FastAPI Project
-
-This is the initial setup for our CAPSTONE backend using FastAPI.
-It includes a simple root endpoint as a starting point for further development.
-
-Author: kaya0s
-"""
-
 from fastapi import FastAPI
+from app.api import auth, users
+from app.core.config import settings
+from app.db.database import Base, engine
+
+# Create the database tables
+Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="CAPSTONE Backend",
+    title=settings.PROJECT_NAME,
     description="FastAPI backend setup for CAPSTONE project",
-    version="0.1.0"
+    version="0.1.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+# Include routers
+app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
+app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 
 @app.get("/")
 def read_root():
@@ -24,7 +26,7 @@ def read_root():
     Returns:
         dict: A welcome message confirming the API is running.
     """
-    return {"message": "Hello, FastAPI!"}
+    return {"message": "Hello, FastAPI! Auth is ready."}
 
 @app.get("/intro")
 def project_intro():
