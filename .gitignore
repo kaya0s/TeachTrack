@@ -3,6 +3,21 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Jupyter Notebook files
 CAPSTONE.ipynb
 .ipynb_checkpoints/
+
+#extra files for this project
+DESIGN_SPEC.md
+NOTES.md
+
+#test files for this project
 test_api_script.py
+test_system_flow.py
+
+#environment variables
+.env
+
+#weights
+ml_engine/weights/best.pt
+

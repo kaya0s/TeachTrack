@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import auth, users
+from app.api import auth, users, classroom, session
 from app.core.config import settings
 from app.db.database import Base, engine
 
@@ -17,6 +17,8 @@ app = FastAPI(
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(classroom.router, prefix=f"{settings.API_V1_STR}/classroom", tags=["classroom"])
+app.include_router(session.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
 
 @app.get("/")
 def read_root():
