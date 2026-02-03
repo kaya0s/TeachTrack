@@ -18,46 +18,10 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Visual Studio Code related
+.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Environment variables
-.env
-.env.local
-.env.*
-!.env.example
-
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Mac
-.DS_Store
-
-# Flutter/Dart
+# Flutter/Dart related
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -66,10 +30,49 @@ Desktop.ini
 .pub/
 build/
 
-# Log files
-*.log
+# Android related
+**/android/**/generated/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+*.jks
+*.keystore
+*.ap_
+*.apk
+*.aab
+local.properties
 
-# IDEA
-.idea/
-*.iml
+# iOS related
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/DerivedData/
+**/ios/.symlinks/
+**/ios/Pods/
+**/ios/SDKCheck.stamp
 
+# macOS related
+**/macos/Flutter/ephemeral/
+**/macos/DerivedData/
+**/macos/Pods/
+
+# Linux/Windows related
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# Symbolication/Obfuscation related
+app.*.symbols
+app.*.map.json
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# OS generated files
+Thumbs.db
+Desktop.ini
