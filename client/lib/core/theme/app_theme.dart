@@ -19,8 +19,8 @@ class AppTheme {
 
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    final primary = primaryColor;
-    final secondary = secondaryColor;
+    const primary = primaryColor;
+    const secondary = secondaryColor;
     final background = isDark ? const Color(0xFF0F172A) : backgroundColor;
     final surface = isDark ? const Color(0xFF1E293B) : Colors.white;
     final text = isDark ? Colors.white : textColor;

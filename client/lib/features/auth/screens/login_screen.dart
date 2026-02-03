@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/auth_provider.dart';
 import 'register_screen.dart';
-import '../../../core/theme/theme_provider.dart';
+import '../widgets/auth_background.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -50,45 +50,21 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, child) {
-              return IconButton(
-                icon: Icon(
-                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                  color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
-                ),
-                onPressed: () {
-                  themeProvider.toggleTheme(!themeProvider.isDarkMode);
-                },
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: SafeArea(
+    return AuthBackground(
+      child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 60),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  Icons.school_rounded,
-                  size: 40,
-                  color: Theme.of(context).primaryColor,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 64,
+                  width: 64,
+                  fit: BoxFit.cover,
                 ),
               ),
               const SizedBox(height: 24),

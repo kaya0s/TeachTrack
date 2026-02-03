@@ -20,9 +20,9 @@ class DashboardScreen extends StatelessWidget {
             pinned: true,
             backgroundColor: Theme.of(context).primaryColor,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
+              title: const Text(
                 'TeachTrack',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
               ),
               background: Container(
                 decoration: BoxDecoration(
