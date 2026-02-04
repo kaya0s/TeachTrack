@@ -12,3 +12,5 @@ requests
 ultralytics
 opencv-python
 python-dotenv
+google-auth
+fastapi-mail

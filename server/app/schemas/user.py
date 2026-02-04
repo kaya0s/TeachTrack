@@ -29,3 +29,18 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+class VerifyCode(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResetPassword(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+class GoogleLogin(BaseModel):
+    id_token: str

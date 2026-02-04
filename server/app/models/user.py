@@ -12,6 +12,8 @@ class User(Base):
     hashed_password = Column(String(255))
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    reset_code = Column(String(6), nullable=True)
+    reset_code_expires = Column(Integer, nullable=True) # Unix timestamp
 
     subjects = relationship("Subject", back_populates="teacher")
     sections = relationship("ClassSection", back_populates="teacher")
