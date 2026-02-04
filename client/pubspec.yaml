@@ -18,6 +18,10 @@ dependencies:
   intl: ^0.18.1
   fl_chart: ^0.65.0
   google_fonts: ^6.1.0
+  google_sign_in: ^6.1.6
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  fluttertoast: ^9.0.0
 
 dev_dependencies:
   flutter_test:
@@ -28,9 +32,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo_white.png"
+  image_path: "assets/images/ml_bg.png"
   adaptive_icon_background: "#1A237E"
-  adaptive_icon_foreground: "assets/images/logo_white.png"
+  adaptive_icon_foreground: "assets/images/ml_bg.png"
   min_sdk_android: 21
 
 flutter:

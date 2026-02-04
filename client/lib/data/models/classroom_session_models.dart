@@ -1,14 +1,16 @@
 class SubjectModel {
   final int id;
   final String name;
+  final String? code;
   final String? description;
 
-  SubjectModel({required this.id, required this.name, this.description});
+  SubjectModel({required this.id, required this.name, this.code, this.description});
 
   factory SubjectModel.fromJson(Map<String, dynamic> json) {
     return SubjectModel(
       id: json['id'],
       name: json['name'],
+      code: json['code'],
       description: json['description'],
     );
   }

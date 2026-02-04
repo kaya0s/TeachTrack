@@ -42,4 +42,40 @@ class AuthRepository {
     final response = await _apiClient.get('/users/me');
     return UserModel.fromJson(response.data);
   }
+
+  Future<TokenModel> loginWithGoogle(String idToken) async {
+    final response = await _apiClient.post(
+      '/login/google',
+      data: {'id_token': idToken},
+    );
+    return TokenModel.fromJson(response.data);
+  }
+
+  Future<void> forgotPassword(String email) async {
+    await _apiClient.post(
+      '/forgot-password',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> verifyResetCode(String email, String code) async {
+    await _apiClient.post(
+      '/verify-reset-code',
+      data: {
+        'email': email,
+        'code': code,
+      },
+    );
+  }
+
+  Future<void> resetPassword(String email, String code, String newPassword) async {
+    await _apiClient.post(
+      '/reset-password',
+      data: {
+        'email': email,
+        'code': code,
+        'new_password': newPassword,
+      },
+    );
+  }
 }

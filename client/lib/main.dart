@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/di/injection.dart' as di;
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
@@ -8,8 +9,13 @@ import 'features/auth/provider/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/screens/dashboard_screen.dart';
 
+import 'features/classroom/provider/classroom_provider.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp();
   
   // Load environment variables
   await dotenv.load(fileName: ".env");
@@ -22,6 +28,9 @@ void main() async {
       providers: [
         ChangeNotifierProvider(
           create: (_) => AuthProvider(di.sl(), di.sl())..checkAuth(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ClassroomProvider(di.sl()),
         ),
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(),

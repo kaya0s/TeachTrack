@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../provider/auth_provider.dart';
 import '../widgets/auth_background.dart';
 
@@ -22,8 +23,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text.trim();
 
     if (username.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields")),
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      Fluttertoast.showToast(
+        msg: "Please fill in all fields",
+        backgroundColor: isDark ? Colors.white : Colors.black87,
+        textColor: isDark ? Colors.black87 : Colors.white,
       );
       return;
     }
@@ -33,8 +37,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pop(context); // Go back to login or it will auto-switch to dashboard in main.dart
     } else if (mounted) {
       final error = context.read<AuthProvider>().error;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? "Registration failed"), backgroundColor: Colors.red),
+      Fluttertoast.showToast(
+        msg: error ?? "Registration failed",
+        backgroundColor: Colors.redAccent,
+        textColor: Colors.white,
       );
     }
   }
@@ -43,8 +49,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final success = await context.read<AuthProvider>().signInWithGoogle();
     if (!success && mounted) {
       final error = context.read<AuthProvider>().error;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? "Google Sign-In failed"), backgroundColor: Colors.red),
+      Fluttertoast.showToast(
+        msg: error ?? "Google Sign-In failed",
+        backgroundColor: Colors.redAccent,
+        textColor: Colors.white,
       );
     }
   }
@@ -59,91 +67,149 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  height: 64,
-                  width: 64,
-                  fit: BoxFit.cover,
+              const SizedBox(height: 20),
+              // Updated Logo Section
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/images/ml_bg.png',
+                    height: 80,
+                    width: 80,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                "Create Account",
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Teach",
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                  ),
+                  Text(
+                    "Track",
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -1,
+                        ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
-                "Join TeachTrack to start monitoring your classes",
+                "Create an account to start monitoring",
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                  fontSize: 16,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 40),
-              TextField(
+              const SizedBox(height: 32),
+              // Input Fields
+              TextFormField(
                 controller: _usernameController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Username",
-                  prefixIcon: Icon(Icons.person_outline),
+                  prefixIcon: const Icon(Icons.person_outline_rounded),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
                 ),
               ),
-              const SizedBox(height: 20),
-              TextField(
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Email Address",
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
                 ),
               ),
-              const SizedBox(height: 20),
-              TextField(
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: "Password",
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                     ),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
                 ),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: auth.status == AuthStatus.authenticating ? null : _handleRegister,
-                child: auth.status == AuthStatus.authenticating
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text("Create Account", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              // Action Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: auth.status == AuthStatus.authenticating ? null : _handleRegister,
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                  ),
+                  child: auth.status == AuthStatus.authenticating
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          "Create Account",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                ),
               ),
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(child: Divider(color: Theme.of(context).dividerColor.withOpacity(0.1))),
+                  Expanded(child: Divider(color: Theme.of(context).dividerColor.withOpacity(0.2))),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       "OR",
                       style: TextStyle(
                         color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                       ),
                     ),
                   ),
-                  Expanded(child: Divider(color: Theme.of(context).dividerColor.withOpacity(0.1))),
+                  Expanded(child: Divider(color: Theme.of(context).dividerColor.withOpacity(0.2))),
                 ],
               ),
               const SizedBox(height: 24),
@@ -152,7 +218,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                  side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.2)),
                   backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.white,
                 ),
                 child: Row(
@@ -163,19 +229,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       height: 24,
                       errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, size: 24),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Text(
-                      "Continue with Google",
+                      "Google Account",
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -191,12 +257,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       "Sign In",
                       style: TextStyle(
                         color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

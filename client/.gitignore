@@ -29,8 +29,17 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 build/
+doc/api/
+ios/Flutter/.last_build_id
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/SDKCheck.stamp
 
 # Android related
+.gradle/
 **/android/**/generated/
 **/android/app/debug/
 **/android/app/profile/
@@ -41,18 +50,16 @@ build/
 *.apk
 *.aab
 local.properties
+captures/
 
 # iOS related
-**/ios/Flutter/.last_build_id
-**/ios/Flutter/Generated.xcconfig
-**/ios/Flutter/flutter_export_environment.sh
-**/ios/Flutter/App.framework
-**/ios/Flutter/Flutter.framework
-**/ios/Flutter/Flutter.podspec
 **/ios/DerivedData/
 **/ios/.symlinks/
 **/ios/Pods/
-**/ios/SDKCheck.stamp
+**/ios/.pub/
+**/ios/DerivedData/
+*.moved-aside
+*.xcuserstate
 
 # macOS related
 **/macos/Flutter/ephemeral/
@@ -62,6 +69,8 @@ local.properties
 # Linux/Windows related
 **/linux/flutter/ephemeral/
 **/windows/flutter/ephemeral/
+cmake-build-debug/
+cmake-build-release/
 
 # Symbolication/Obfuscation related
 app.*.symbols

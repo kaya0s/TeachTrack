@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "288942149142",
+    "project_id": "teachtrack-f9c54",
+    "storage_bucket": "teachtrack-f9c54.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288942149142:android:07368fc3e0f174086cef37",
+        "android_client_info": {
+          "package_name": "com.kayaos.client"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "288942149142-ndl6jq79j9i0f5q21qoer8544280ak62.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8w5XFiYB2k3i8nvfImNrZRTqSzenS5BM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "288942149142-ndl6jq79j9i0f5q21qoer8544280ak62.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

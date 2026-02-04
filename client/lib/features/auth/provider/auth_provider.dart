@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/api/api_client.dart';
@@ -102,17 +105,67 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // TODO: Implement Google Sign-In logic
-      // For now, simulate a delay
-      await Future.delayed(const Duration(seconds: 1));
-      _error = "Google Sign-In not implemented yet";
+      final googleSignIn = GoogleSignIn(
+        serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID'],
+        scopes: ['email'],
+      );
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return false;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        _error = "Could not get ID token from Google";
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return false;
+      }
+
+      final tokenData = await _authRepository.loginWithGoogle(idToken);
+      await _storage.write(key: 'access_token', value: tokenData.accessToken);
+      _user = await _authRepository.getMe();
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = "Google Sign-In failed: $e";
       _status = AuthStatus.unauthenticated;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<bool> forgotPassword(String email) async {
+    try {
+      await _authRepository.forgotPassword(email);
+      return true;
     } catch (e) {
-      _error = "Google Sign-In failed";
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
+      _error = "Failed to send reset code: $e";
+      return false;
+    }
+  }
+
+  Future<bool> verifyResetCode(String email, String code) async {
+    try {
+      await _authRepository.verifyResetCode(email, code);
+      return true;
+    } catch (e) {
+      _error = "Invalid or expired code";
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String email, String code, String newPassword) async {
+    try {
+      await _authRepository.resetPassword(email, code, newPassword);
+      return true;
+    } catch (e) {
+      _error = "Failed to reset password: $e";
       return false;
     }
   }
