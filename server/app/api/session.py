@@ -1,7 +1,14 @@
 from datetime import datetime, timedelta
 from typing import List, Any
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import threading
+import time
+
+import cv2
+import numpy as np
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from ultralytics import YOLO
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.api import deps
@@ -31,6 +38,92 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+MODEL_PATH = os.getenv("MODEL_PATH", "ml_engine/weights/best.pt")
+DETECT_INTERVAL_SECONDS = int(os.getenv("DETECT_INTERVAL_SECONDS", "3"))
+DETECTOR_HEARTBEAT_TIMEOUT_SECONDS = int(os.getenv("DETECTOR_HEARTBEAT_TIMEOUT_SECONDS", "15"))
+_model = None
+_model_lock = threading.Lock()
+_detectors = {}
+_detectors_lock = threading.Lock()
+
+def _get_model() -> YOLO:
+    global _model
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                if not os.path.exists(MODEL_PATH):
+                    raise RuntimeError(f"Model not found at {MODEL_PATH}")
+                _model = YOLO(MODEL_PATH)
+    return _model
+
+def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
+    try:
+        model = _get_model()
+    except Exception as exc:
+        logger.error(f"Detector failed to load model for session {session_id}: {exc}")
+        return
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        logger.error(f"Detector failed to open webcam for session {session_id}")
+        return
+
+    last_send_time = 0.0
+
+    try:
+        while not stop_event.is_set():
+            with _detectors_lock:
+                entry = _detectors.get(session_id)
+                last_heartbeat = entry.get("last_heartbeat") if entry else None
+            if last_heartbeat is None or (time.time() - last_heartbeat) > DETECTOR_HEARTBEAT_TIMEOUT_SECONDS:
+                logger.info(f"Detector heartbeat expired for session {session_id}. Stopping.")
+                break
+
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.2)
+                continue
+
+            current_time = time.time()
+            if current_time - last_send_time < DETECT_INTERVAL_SECONDS:
+                continue
+
+            results = model(frame, verbose=False)
+
+            counts = {
+                "raising_hand": 0,
+                "sleeping": 0,
+                "writing": 0,
+                "using_phone": 0,
+                "attentive": 0,
+                "undetected": 0,
+            }
+
+            for box in results[0].boxes:
+                cls_id = int(box.cls[0])
+                conf = float(box.conf[0])
+                if conf < 0.5:
+                    continue
+                class_name = model.names[cls_id]
+                normalized = class_name.lower().replace(" ", "_")
+                if normalized in counts:
+                    counts[normalized] += 1
+
+            try:
+                db = next(get_db())
+                _process_behavior_log(db, session_id, BehaviorLogCreate(**counts))
+            except Exception as exc:
+                logger.error(f"Detector failed to log metrics for session {session_id}: {exc}")
+            finally:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+            last_send_time = current_time
+    finally:
+        cap.release()
 
 @router.post("/start", response_model=SessionSchema)
 def start_session(
@@ -66,6 +159,7 @@ def stop_session(
     
     session.is_active = False
     session.end_time = datetime.now()
+    _stop_detector_if_running(session_id)
     _record_session_history(db, session, current_user.id, "END")
     db.commit()
     db.refresh(session)
@@ -98,18 +192,147 @@ def log_behavior_metrics(
     # For a machine script, maybe skip auth or use a machine token. 
     # We will enforce existence of session only.
 ) -> Any:
+    _get_active_session_or_404(db, session_id)
+    _process_behavior_log(db, session_id, log_in)
+    return {"status": "logged"}
+
+@router.post("/{session_id}/detector/start", status_code=200)
+def start_webcam_detector(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    _get_active_session_or_404(db, session_id)
+    with _detectors_lock:
+        existing = _detectors.get(session_id)
+        if existing and existing["thread"].is_alive():
+            existing["last_heartbeat"] = time.time()
+            return {"status": "already_running"}
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=_run_webcam_detector,
+            args=(session_id, stop_event),
+            daemon=True,
+        )
+        _detectors[session_id] = {"thread": thread, "stop": stop_event, "last_heartbeat": time.time()}
+        thread.start()
+    return {"status": "started"}
+
+@router.post("/{session_id}/detector/stop", status_code=200)
+def stop_webcam_detector(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    _get_active_session_or_404(db, session_id)
+    with _detectors_lock:
+        existing = _detectors.get(session_id)
+        if not existing:
+            return {"status": "not_running"}
+        existing["stop"].set()
+        _detectors.pop(session_id, None)
+    return {"status": "stopped"}
+
+@router.post("/{session_id}/detector/heartbeat", status_code=200)
+def heartbeat_webcam_detector(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    _get_active_session_or_404(db, session_id)
+    with _detectors_lock:
+        existing = _detectors.get(session_id)
+        if not existing:
+            return {"status": "not_running"}
+        existing["last_heartbeat"] = time.time()
+    return {"status": "ok"}
+
+@router.get("/{session_id}/detector/status", status_code=200)
+def get_webcam_detector_status(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    _get_active_session_or_404(db, session_id)
+    with _detectors_lock:
+        existing = _detectors.get(session_id)
+        if existing and existing["thread"].is_alive():
+            return {"status": "running"}
+    return {"status": "stopped"}
+
+@router.post("/{session_id}/detect", status_code=200)
+async def detect_behavior_metrics(
+    session_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    _get_active_session_or_404(db, session_id)
+
+    try:
+        raw = await file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unable to read uploaded image")
+
+    image_array = np.frombuffer(raw, dtype=np.uint8)
+    frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise HTTPException(status_code=400, detail="Invalid image data")
+
+    try:
+        model = _get_model()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    results = model(frame, verbose=False)
+
+    counts = {
+        "raising_hand": 0,
+        "sleeping": 0,
+        "writing": 0,
+        "using_phone": 0,
+        "attentive": 0,
+        "undetected": 0,
+    }
+
+    for box in results[0].boxes:
+        cls_id = int(box.cls[0])
+        conf = float(box.conf[0])
+        if conf < 0.5:
+            continue
+        class_name = model.names[cls_id]
+        normalized = class_name.lower().replace(" ", "_")
+        if normalized in counts:
+            counts[normalized] += 1
+
+    log_in = BehaviorLogCreate(**counts)
+    _process_behavior_log(db, session_id, log_in)
+
+    return {"status": "logged", "counts": counts}
+
+def _get_active_session_or_404(db: Session, session_id: int) -> ClassSession:
     session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if not session.is_active:
         raise HTTPException(status_code=400, detail="Session is not active")
+    return session
 
+def _stop_detector_if_running(session_id: int) -> None:
+    with _detectors_lock:
+        existing = _detectors.get(session_id)
+        if not existing:
+            return
+        existing["stop"].set()
+        _detectors.pop(session_id, None)
+
+def _process_behavior_log(db: Session, session_id: int, log_in: BehaviorLogCreate) -> None:
     # 1. Calc total detected
-    total = (log_in.raising_hand + log_in.sleeping + log_in.writing + 
+    total = (log_in.raising_hand + log_in.sleeping + log_in.writing +
              log_in.using_phone + log_in.attentive)
     # Undetected is separate from "detected behaviors" usuallly, but user said "undetected students"
     # log_in.undetected is tracked separately.
-    
+
     # Create Log
     log = BehaviorLog(
         session_id=session_id,
@@ -117,23 +340,23 @@ def log_behavior_metrics(
         total_detected=total
     )
     db.add(log)
-    db.commit() # Commit to get timestamp/ID
+    db.commit()  # Commit to get timestamp/ID
     db.refresh(log)
-    
+
     logger.info(f"📡 Received Log for Session {session_id}: Sleep={log_in.sleeping}, Phone={log_in.using_phone}, Total={total}")
 
     # 2. Alert Logic
     # Check Sleeping
     if total > 0 and log_in.sleeping > 0:
         ratio = log_in.sleeping / total
-        if ratio > 0.3 and total >= 5: # >30% sleeping
+        if ratio > 0.3 and total >= 5:  # >30% sleeping
             msg = f"High sleeping detected: {log_in.sleeping} students ({int(ratio*100)}%)."
             _trigger_alert(db, session_id, AlertType.SLEEPING, msg, AlertSeverity.WARNING)
-            
+
     # Check Phone
     if total > 0 and log_in.using_phone > 0:
         ratio = log_in.using_phone / total
-        if ratio > 0.2: # >20% using phone
+        if ratio > 0.2:  # >20% using phone
             msg = f"Phone usage usage spike: {log_in.using_phone} students ({int(ratio*100)}%)."
             _trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING)
 
@@ -152,8 +375,6 @@ def log_behavior_metrics(
 
     # Rollup Metrics (1-minute window)
     _update_session_metrics(db, session_id, log.timestamp)
-
-    return {"status": "logged"}
 
 def _trigger_alert(db: Session, session_id: int, a_type: AlertType, msg: str, severity: AlertSeverity):
     # Cooldown check: Check last alert of this type in last 5 mins
