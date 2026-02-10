@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from ultralytics import YOLO
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.api import deps
@@ -31,6 +32,7 @@ from app.schemas.session import (
     SessionMetricRow, EngagementEvent as EngagementEventSchema,
     SessionHistory as SessionHistorySchema,
     AlertHistory as AlertHistorySchema,
+    SessionSummary as SessionSummarySchema,
 )
 
 # Configure Logging
@@ -39,9 +41,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+load_dotenv()
+
 MODEL_PATH = os.getenv("MODEL_PATH", "ml_engine/weights/best.pt")
 DETECT_INTERVAL_SECONDS = int(os.getenv("DETECT_INTERVAL_SECONDS", "3"))
 DETECTOR_HEARTBEAT_TIMEOUT_SECONDS = int(os.getenv("DETECTOR_HEARTBEAT_TIMEOUT_SECONDS", "15"))
+SERVER_CAMERA_ENABLED = os.getenv("SERVER_CAMERA_ENABLED", "true").lower() == "true"
+SERVER_CAMERA_PREVIEW = os.getenv("SERVER_CAMERA_PREVIEW", "false").lower() == "true"
+SERVER_CAMERA_INDEX = int(os.getenv("SERVER_CAMERA_INDEX", "0"))
 _model = None
 _model_lock = threading.Lock()
 _detectors = {}
@@ -58,15 +65,19 @@ def _get_model() -> YOLO:
     return _model
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
+    if not SERVER_CAMERA_ENABLED:
+        logger.warning(f"Detector not started for session {session_id}: SERVER_CAMERA_ENABLED=false")
+        return
+
     try:
         model = _get_model()
     except Exception as exc:
         logger.error(f"Detector failed to load model for session {session_id}: {exc}")
         return
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(SERVER_CAMERA_INDEX)
     if not cap.isOpened():
-        logger.error(f"Detector failed to open webcam for session {session_id}")
+        logger.error(f"Detector failed to open webcam index {SERVER_CAMERA_INDEX} for session {session_id}")
         return
 
     last_send_time = 0.0
@@ -90,6 +101,15 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
                 continue
 
             results = model(frame, verbose=False)
+
+            if SERVER_CAMERA_PREVIEW:
+                try:
+                    annotated = results[0].plot()
+                    cv2.imshow("TeachTrack Detector", annotated)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                except Exception as exc:
+                    logger.error(f"Preview error for session {session_id}: {exc}")
 
             counts = {
                 "raising_hand": 0,
@@ -124,6 +144,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
             last_send_time = current_time
     finally:
         cap.release()
+        if SERVER_CAMERA_PREVIEW:
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                pass
 
 @router.post("/start", response_model=SessionSchema)
 def start_session(
@@ -179,6 +204,51 @@ def get_active_session(
         raise HTTPException(status_code=404, detail="No active session")
     return session
 
+@router.get("", response_model=List[SessionSummarySchema])
+def list_sessions(
+    limit: int = 50,
+    include_active: bool = True,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    query = db.query(ClassSession).options(
+        joinedload(ClassSession.subject),
+        joinedload(ClassSession.section),
+    ).filter(ClassSession.teacher_id == current_user.id)
+
+    if not include_active:
+        query = query.filter(ClassSession.is_active == False)
+
+    sessions = query.order_by(ClassSession.start_time.desc()).limit(max(1, min(limit, 200))).all()
+
+    summaries = []
+    for session in sessions:
+        stats = db.query(
+            func.sum(BehaviorLog.attentive),
+            func.sum(BehaviorLog.writing),
+            func.sum(BehaviorLog.raising_hand),
+            func.sum(BehaviorLog.total_detected)
+        ).filter(BehaviorLog.session_id == session.id).first()
+
+        avg_eng = 0.0
+        if stats[3] and stats[3] > 0:
+            positives = (stats[0] or 0) + (stats[1] or 0) + (stats[2] or 0)
+            avg_eng = (positives / stats[3]) * 100
+
+        summaries.append({
+            "id": session.id,
+            "subject_id": session.subject_id,
+            "section_id": session.section_id,
+            "subject_name": session.subject.name if session.subject else "Unknown",
+            "section_name": session.section.name if session.section else "Unknown",
+            "start_time": session.start_time,
+            "end_time": session.end_time,
+            "is_active": session.is_active,
+            "average_engagement": round(avg_eng, 2),
+        })
+
+    return summaries
+
 # -- Data Ingestion form ML Script -- 
 # Note: In production, you might use an API Key instead of User Token for the script,
 # but for now we assume the script authenticates or we allow open access if secured by network.
@@ -202,6 +272,8 @@ def start_webcam_detector(
     db: Session = Depends(get_db),
     current_user = Depends(deps.get_current_active_user),
 ) -> Any:
+    if not SERVER_CAMERA_ENABLED:
+        raise HTTPException(status_code=400, detail="Server camera disabled by SERVER_CAMERA_ENABLED")
     _get_active_session_or_404(db, session_id)
     with _detectors_lock:
         existing = _detectors.get(session_id)
