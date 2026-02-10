@@ -23,14 +23,16 @@ class ClassroomProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final results = await Future.wait<dynamic>([
-        _repository.getSubjects(),
-        _repository.getSections(),
-      ]);
-      _subjects = results[0] as List<SubjectModel>;
-      _sections = results[1] as List<SectionModel>;
+      _subjects = await _repository.getSubjects();
+      try {
+        _sections = await _repository.getSections();
+      } catch (e) {
+        debugPrint("Error fetching sections: $e");
+        _error = "Sections Error: $e";
+      }
     } catch (e) {
-      _error = e.toString();
+      debugPrint("Error fetching subjects: $e");
+      _error = "Subjects Error: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -50,9 +52,21 @@ class ClassroomProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> addSection(String name) async {
+  Future<bool> addSection(int subjectId, String name) async {
     try {
-      final section = await _repository.createSection(name);
+      final section = await _repository.createSection(subjectId, name);
+      // Find subject and add section to it
+      final subjectIndex = _subjects.indexWhere((s) => s.id == subjectId);
+      if (subjectIndex != -1) {
+        final subject = _subjects[subjectIndex];
+        _subjects[subjectIndex] = SubjectModel(
+          id: subject.id,
+          name: subject.name,
+          code: subject.code,
+          description: subject.description,
+          sections: [...subject.sections, section],
+        );
+      }
       _sections.add(section);
       notifyListeners();
       return true;

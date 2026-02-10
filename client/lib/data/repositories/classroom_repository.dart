@@ -29,10 +29,11 @@ class ClassroomRepository {
     return SubjectModel.fromJson(response.data);
   }
 
-  Future<SectionModel> createSection(String name) async {
+  Future<SectionModel> createSection(int subjectId, String name) async {
     final response = await _apiClient.post(
       '/classroom/sections',
       data: {
+        'subject_id': subjectId,
         'name': name,
       },
     );
