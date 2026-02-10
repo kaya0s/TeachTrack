@@ -2,83 +2,144 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color primaryColor = Color(0xFF6366F1); // Indigo
-  static const Color secondaryColor = Color(0xFF10B981); // Emerald
-  static const Color backgroundColor = Color(0xFFF8FAFC);
-  static const Color cardColor = Colors.white;
-  static const Color errorColor = Color(0xFFEF4444);
-  static const Color textColor = Color(0xFF1E293B);
+  static const Color _lightBackground = Color(0xFFF8FAFC);
+  static const Color _lightSurface = Color(0xFFFFFFFF);
+  static const Color _lightSurfaceAlt = Color(0xFFF1F5F9);
+  static const Color _lightText = Color(0xFF0F172A);
+  static const Color _lightMuted = Color(0xFF64748B);
+  static const Color _lightBorder = Color(0xFFE2E8F0);
 
-  static ThemeData get lightTheme {
-    return _buildTheme(Brightness.light);
-  }
+  static const Color _darkBackground = Color(0xFF0B0F14);
+  static const Color _darkSurface = Color(0xFF111827);
+  static const Color _darkSurfaceAlt = Color(0xFF0F172A);
+  static const Color _darkText = Color(0xFFE2E8F0);
+  static const Color _darkMuted = Color(0xFF94A3B8);
+  static const Color _darkBorder = Color(0xFF1F2937);
 
-  static ThemeData get darkTheme {
-    return _buildTheme(Brightness.dark);
-  }
+  static const Color _error = Color(0xFFEF4444);
+
+  static ThemeData get lightTheme => _buildTheme(Brightness.light);
+  static ThemeData get darkTheme => _buildTheme(Brightness.dark);
 
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    const primary = primaryColor;
-    const secondary = secondaryColor;
-    final background = isDark ? const Color(0xFF0F172A) : backgroundColor;
-    final surface = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final text = isDark ? Colors.white : textColor;
+    final primary = isDark ? _darkText : _lightText;
+    final onPrimary = isDark ? _darkBackground : Colors.white;
+    final secondary = isDark ? _darkMuted : _lightMuted;
+    final background = isDark ? _darkBackground : _lightBackground;
+    final surface = isDark ? _darkSurface : _lightSurface;
+    final surfaceAlt = isDark ? _darkSurfaceAlt : _lightSurfaceAlt;
+    final border = isDark ? _darkBorder : _lightBorder;
+    final text = isDark ? _darkText : _lightText;
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+      colorScheme: ColorScheme(
         brightness: brightness,
         primary: primary,
+        onPrimary: onPrimary,
         secondary: secondary,
+        onSecondary: text,
+        error: _error,
+        onError: Colors.white,
         surface: surface,
-        error: errorColor,
+        onSurface: text,
+        background: background,
+        onBackground: text,
       ),
       scaffoldBackgroundColor: background,
-      textTheme: GoogleFonts.outfitTextTheme(
+      appBarTheme: AppBarTheme(
+        backgroundColor: background,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoogleFonts.sora(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: text,
+        ),
+        iconTheme: IconThemeData(color: text),
+      ),
+      textTheme: GoogleFonts.soraTextTheme(
         isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
       ).apply(
         bodyColor: text,
         displayColor: text,
       ),
+      dividerColor: border,
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: border, width: 1),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surfaceAlt,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: primary, width: 2),
+        ),
+        contentPadding: const EdgeInsets.all(18),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 56),
+          foregroundColor: onPrimary,
+          minimumSize: const Size(double.infinity, 54),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 0,
         ),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade200),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: text,
+          side: BorderSide(color: border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          minimumSize: const Size(double.infinity, 54),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.all(20),
       ),
-      cardTheme: CardThemeData(
-        color: surface,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: surface,
+        selectedItemColor: primary,
+        unselectedItemColor: secondary,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade100, width: 1),
-        ),
+        type: BottomNavigationBarType.fixed,
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: NoTransitionsBuilder(),
+          TargetPlatform.iOS: NoTransitionsBuilder(),
+        },
       ),
     );
+  }
+}
+
+class NoTransitionsBuilder extends PageTransitionsBuilder {
+  const NoTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }

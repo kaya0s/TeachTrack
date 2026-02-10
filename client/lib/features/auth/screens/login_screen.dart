@@ -69,52 +69,40 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              // Updated Logo Section
               Container(
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).primaryColor.withOpacity(0.2),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 12),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(22),
                   child: Image.asset(
                     'assets/images/ml_bg.png',
-                    height: 100,
-                    width: 100,
+                    height: 96,
+                    width: 96,
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Teach",
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -1,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                  ),
-                  Text(
-                    "Track",
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: -1,
-                        ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              Text(
+                "TeachTrack",
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.6,
+                    ),
               ),
               const SizedBox(height: 12),
               Text(
-                "Experience Smarter Engagement Monitoring",
+                "Smarter engagement monitoring for modern classrooms.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
@@ -169,9 +157,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   },
                   style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
                   ),
-                  child: const Text("Forgot Password?", style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    "Forgot Password?",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -272,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       "Create Account",
                       style: TextStyle(
-                        color: Theme.of(context).primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),

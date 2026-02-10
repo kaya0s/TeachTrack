@@ -70,20 +70,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 20),
-              // Updated Logo Section
               Container(
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).primaryColor.withOpacity(0.2),
-                      blurRadius: 20,
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 16,
                       offset: const Offset(0, 10),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(18),
                   child: Image.asset(
                     'assets/images/ml_bg.png',
                     height: 80,
@@ -93,25 +94,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Teach",
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -1,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                  ),
-                  Text(
-                    "Track",
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: -1,
-                        ),
-                  ),
-                ],
+              Text(
+                "TeachTrack",
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.6,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -256,7 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text(
                       "Sign In",
                       style: TextStyle(
-                        color: Theme.of(context).primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
