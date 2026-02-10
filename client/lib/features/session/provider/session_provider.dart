@@ -84,6 +84,33 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> startServerDetector() async {
+    if (_activeSession == null) return;
+    try {
+      await _repository.startServerDetector(_activeSession!.id);
+    } catch (e) {
+      debugPrint("Error starting server detector: $e");
+    }
+  }
+
+  Future<void> stopServerDetector() async {
+    if (_activeSession == null) return;
+    try {
+      await _repository.stopServerDetector(_activeSession!.id);
+    } catch (e) {
+      debugPrint("Error stopping server detector: $e");
+    }
+  }
+
+  Future<void> heartbeatServerDetector() async {
+    if (_activeSession == null) return;
+    try {
+      await _repository.heartbeatServerDetector(_activeSession!.id);
+    } catch (e) {
+      debugPrint("Error heartbeating server detector: $e");
+    }
+  }
+
   @override
   void dispose() {
     _metricsTimer?.cancel();

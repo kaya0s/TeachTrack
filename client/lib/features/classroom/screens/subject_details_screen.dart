@@ -128,7 +128,9 @@ class SubjectDetailsScreen extends StatelessWidget {
       if (success) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const MonitoringScreen()),
+          MaterialPageRoute(
+            builder: (context) => MonitoringScreen(sessionId: sessionProvider.activeSession!.id),
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

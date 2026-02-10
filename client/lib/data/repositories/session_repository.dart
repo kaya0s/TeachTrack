@@ -1,6 +1,5 @@
 import '../../core/api/api_client.dart';
 import '../models/classroom_session_models.dart';
-
 class SessionRepository {
   final ApiClient _apiClient;
 
@@ -34,5 +33,17 @@ class SessionRepository {
   Future<SessionMetricsModel> getSessionMetrics(int sessionId) async {
     final response = await _apiClient.get('/sessions/$sessionId/metrics');
     return SessionMetricsModel.fromJson(response.data);
+  }
+
+  Future<void> startServerDetector(int sessionId) async {
+    await _apiClient.post('/sessions/$sessionId/detector/start');
+  }
+
+  Future<void> stopServerDetector(int sessionId) async {
+    await _apiClient.post('/sessions/$sessionId/detector/stop');
+  }
+
+  Future<void> heartbeatServerDetector(int sessionId) async {
+    await _apiClient.post('/sessions/$sessionId/detector/heartbeat');
   }
 }
