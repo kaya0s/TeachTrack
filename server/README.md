@@ -57,6 +57,12 @@ CREATE DATABASE capstone_db;
 ```
 The application will automatically create tables on startup.
 
+### 4.1 Migrations (Engagement + History)
+If you already have a database, run the migration script to add engagement metrics and history tables:
+```bash
+python migrate_engagement.py
+```
+
 ### 5. Running the Server
 
 Start the live server with hot-reload enabled:
