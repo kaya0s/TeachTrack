@@ -47,7 +47,12 @@ class ApiClient {
   dynamic _handleError(DioException e) {
     String message = "Something went wrong";
     if (e.response != null) {
-      message = e.response?.data['detail'] ?? "Server error: ${e.response?.statusCode}";
+      final data = e.response?.data;
+      if (data is Map) {
+        message = data['detail']?.toString() ?? "Server error: ${e.response?.statusCode}";
+      } else {
+        message = "Server error: ${e.response?.statusCode}";
+      }
     } else {
       message = e.message ?? "Connection error";
     }
