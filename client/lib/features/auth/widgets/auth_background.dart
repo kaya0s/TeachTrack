@@ -19,31 +19,34 @@ class AuthBackground extends StatelessWidget {
 
     return Stack(
       children: [
-        // Background Image
-        Positioned.fill(
-          child: Image.asset(
-            'assets/images/ml_bg.png',
-            fit: BoxFit.cover,
-          ),
-        ),
-        // Gradient Overlay
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  (isDark ? theme.scaffoldBackgroundColor : Colors.white).withOpacity(0.7),
-                  (isDark ? theme.scaffoldBackgroundColor : Colors.white).withOpacity(0.9),
-                  isDark ? theme.scaffoldBackgroundColor : Colors.white,
+                  isDark ? const Color(0xFF0B0F14) : const Color(0xFFF8FAFC),
+                  isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
                 ],
-                stops: const [0.0, 0.4, 0.8],
               ),
             ),
           ),
         ),
-        // Content
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0.7, -0.6),
+                radius: 1.2,
+                colors: [
+                  (isDark ? Colors.white : Colors.black).withOpacity(0.06),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
         Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
