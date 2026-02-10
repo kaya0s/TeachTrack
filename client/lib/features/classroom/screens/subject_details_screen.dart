@@ -56,7 +56,15 @@ class SubjectDetailsScreen extends StatelessWidget {
               final section = currentSubject.sections[index];
               return Card(
                 child: ListTile(
-                  leading: const Icon(Icons.groups),
+                  leading: Container(
+                    height: 40,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.groups, color: Theme.of(context).colorScheme.primary),
+                  ),
                   title: Text(section.name),
                   subtitle: const Text("Select to start monitoring"),
                   trailing: const Icon(Icons.play_arrow_rounded),
