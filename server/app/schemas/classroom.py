@@ -1,8 +1,24 @@
+from __future__ import annotations
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-# Shared properties
+# --- Section ---
+class SectionBase(BaseModel):
+    name: str
+
+class SectionCreate(SectionBase):
+    subject_id: int
+
+class Section(SectionBase):
+    id: int
+    subject_id: Optional[int]
+    teacher_id: int
+    created_at: Optional[datetime]
+    class Config:
+        from_attributes = True
+
+# --- Subject ---
 class SubjectBase(BaseModel):
     name: str
     code: Optional[str] = None
@@ -13,22 +29,8 @@ class SubjectCreate(SubjectBase):
 class Subject(SubjectBase):
     id: int
     teacher_id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# Class Section
-class SectionBase(BaseModel):
-    name: str
-
-class SectionCreate(SectionBase):
-    pass
-
-class Section(SectionBase):
-    id: int
-    teacher_id: int
-    created_at: datetime
+    created_at: Optional[datetime]
+    sections: List[Section] = [] # Now Section is defined
 
     class Config:
         from_attributes = True

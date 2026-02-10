@@ -1,6 +1,6 @@
 from typing import List, Any
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.api import deps
 from app.db.database import get_db
 from app.models.classroom import Subject, ClassSection

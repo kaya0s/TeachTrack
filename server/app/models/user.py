@@ -1,6 +1,7 @@
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.db.database import Base
 
 class User(Base):
@@ -14,6 +15,7 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     reset_code = Column(String(6), nullable=True)
     reset_code_expires = Column(Integer, nullable=True) # Unix timestamp
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     subjects = relationship("Subject", back_populates="teacher")
     sections = relationship("ClassSection", back_populates="teacher")

@@ -1,4 +1,3 @@
-from fastapi import FastAPI
 from app.api import auth, users, classroom, session
 from app.core.config import settings
 from app.db.database import Base, engine
@@ -7,12 +6,28 @@ from app.db.database import Base, engine
 Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="FastAPI backend setup for CAPSTONE project",
     version="0.1.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global Error: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
