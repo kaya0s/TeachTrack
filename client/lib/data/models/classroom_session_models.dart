@@ -3,8 +3,15 @@ class SubjectModel {
   final String name;
   final String? code;
   final String? description;
+  final List<SectionModel> sections;
 
-  SubjectModel({required this.id, required this.name, this.code, this.description});
+  SubjectModel({
+    required this.id,
+    required this.name,
+    this.code,
+    this.description,
+    this.sections = const [],
+  });
 
   factory SubjectModel.fromJson(Map<String, dynamic> json) {
     return SubjectModel(
@@ -12,6 +19,9 @@ class SubjectModel {
       name: json['name'],
       code: json['code'],
       description: json['description'],
+      sections: (json['sections'] as List? ?? [])
+          .map((e) => SectionModel.fromJson(e))
+          .toList(),
     );
   }
 }
@@ -19,13 +29,15 @@ class SubjectModel {
 class SectionModel {
   final int id;
   final String name;
+  final int subjectId;
 
-  SectionModel({required this.id, required this.name});
+  SectionModel({required this.id, required this.name, required this.subjectId});
 
   factory SectionModel.fromJson(Map<String, dynamic> json) {
     return SectionModel(
       id: json['id'],
       name: json['name'],
+      subjectId: json['subject_id'] ?? 0,
     );
   }
 }
