@@ -35,6 +35,17 @@ class SessionRepository {
     return SessionMetricsModel.fromJson(response.data);
   }
 
+  Future<List<SessionSummaryModel>> getSessionHistory({bool includeActive = false, int limit = 50}) async {
+    final response = await _apiClient.get(
+      '/sessions',
+      queryParameters: {
+        'include_active': includeActive,
+        'limit': limit,
+      },
+    );
+    return (response.data as List).map((e) => SessionSummaryModel.fromJson(e)).toList();
+  }
+
   Future<void> startServerDetector(int sessionId) async {
     await _apiClient.post('/sessions/$sessionId/detector/start');
   }

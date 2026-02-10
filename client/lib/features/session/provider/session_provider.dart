@@ -13,11 +13,17 @@ class SessionProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Timer? _metricsTimer;
+  List<SessionSummaryModel> _history = [];
+  bool _historyLoading = false;
+  String? _historyError;
 
   SessionModel? get activeSession => _activeSession;
   SessionMetricsModel? get metrics => _metrics;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  List<SessionSummaryModel> get history => _history;
+  bool get historyLoading => _historyLoading;
+  String? get historyError => _historyError;
 
   Future<void> checkActiveSession() async {
     _isLoading = true;
@@ -26,9 +32,15 @@ class SessionProvider extends ChangeNotifier {
       _activeSession = await _repository.getActiveSession();
       if (_activeSession != null) {
         startMetricsPolling();
+      } else {
+        _metrics = null;
+        _metricsTimer?.cancel();
       }
     } catch (e) {
       _error = e.toString();
+      _activeSession = null;
+      _metrics = null;
+      _metricsTimer?.cancel();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -66,6 +78,18 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  void clearSessionState() {
+    _activeSession = null;
+    _metrics = null;
+    _metricsTimer?.cancel();
+    _isLoading = false;
+    _error = null;
+    _history = [];
+    _historyLoading = false;
+    _historyError = null;
+    notifyListeners();
+  }
+
   void startMetricsPolling() {
     _metricsTimer?.cancel();
     fetchMetrics(); // Initial fetch
@@ -81,6 +105,20 @@ class SessionProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching metrics: $e");
+    }
+  }
+
+  Future<void> fetchSessionHistory({bool includeActive = false}) async {
+    _historyLoading = true;
+    _historyError = null;
+    notifyListeners();
+    try {
+      _history = await _repository.getSessionHistory(includeActive: includeActive);
+    } catch (e) {
+      _historyError = e.toString();
+    } finally {
+      _historyLoading = false;
+      notifyListeners();
     }
   }
 

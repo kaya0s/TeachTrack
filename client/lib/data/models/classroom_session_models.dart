@@ -164,3 +164,41 @@ class SessionMetricsModel {
     );
   }
 }
+
+class SessionSummaryModel {
+  final int id;
+  final int subjectId;
+  final int sectionId;
+  final String subjectName;
+  final String sectionName;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final bool isActive;
+  final double averageEngagement;
+
+  SessionSummaryModel({
+    required this.id,
+    required this.subjectId,
+    required this.sectionId,
+    required this.subjectName,
+    required this.sectionName,
+    required this.startTime,
+    this.endTime,
+    required this.isActive,
+    required this.averageEngagement,
+  });
+
+  factory SessionSummaryModel.fromJson(Map<String, dynamic> json) {
+    return SessionSummaryModel(
+      id: json['id'],
+      subjectId: json['subject_id'],
+      sectionId: json['section_id'],
+      subjectName: json['subject_name'],
+      sectionName: json['section_name'],
+      startTime: DateTime.parse(json['start_time']),
+      endTime: json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
+      isActive: json['is_active'],
+      averageEngagement: (json['average_engagement'] as num).toDouble(),
+    );
+  }
+}

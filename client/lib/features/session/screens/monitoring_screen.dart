@@ -59,12 +59,15 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
             actions: [
               TextButton(
                 onPressed: () => _confirmStop(context, session),
-                child: const Text("STOP", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                child: Text(
+                  "Stop",
+                  style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -96,9 +99,9 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                     itemBuilder: (context, index) {
                       final alert = metrics.alerts[index];
                       return Card(
-                        color: Colors.red.shade50,
+                        color: Theme.of(context).colorScheme.error.withOpacity(0.08),
                         child: ListTile(
-                          leading: const Icon(Icons.warning, color: Colors.red),
+                          leading: Icon(Icons.warning, color: Theme.of(context).colorScheme.error),
                           title: Text(alert.message),
                           subtitle: Text(alert.alertType),
                         ),
@@ -116,12 +119,12 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   Widget _buildServerCameraCard() {
     return Card(
       elevation: 0,
-      color: Colors.blue.shade50,
+      color: Colors.transparent,
       child: const Padding(
         padding: EdgeInsets.all(16.0),
         child: Row(
           children: [
-            Icon(Icons.videocam, color: Colors.blue),
+            Icon(Icons.videocam, color: Colors.blueGrey),
             SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -138,14 +141,14 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   Widget _buildStatusCard(BuildContext context, SessionModel session) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).primaryColor.withOpacity(0.1),
+      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
-            const Icon(Icons.radio_button_checked, color: Colors.red),
+            Icon(Icons.radio_button_checked, color: Theme.of(context).colorScheme.error),
             const SizedBox(width: 12),
-            const Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
             const Spacer(),
             Text("Started: ${session.startTime.hour}:${session.startTime.minute.toString().padLeft(2, '0')}"),
           ],
@@ -154,6 +157,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     );
   }
 
+
   Widget _buildEngagementCard(BuildContext context, SessionMetricsModel metrics) {
     return Card(
       child: Padding(
@@ -161,7 +165,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         child: Column(
           children: [
             Text("${metrics.averageEngagement.toInt()}%",
-                style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
+                style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
             const Text("Average Engagement"),
             const SizedBox(height: 16),
             LinearProgressIndicator(
@@ -260,7 +264,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   );
                 },
                 child: LineChart(
-                  key: ValueKey<int>(metrics.totalLogs),
                   LineChartData(
                   minY: 0,
                   maxY: chartMaxY == 0 ? 5 : chartMaxY,
@@ -335,6 +338,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                     _lineBar(phoneSpots, const Color(0xFFF57C00)),
                   ],
                 ),
+                  key: ValueKey<int>(metrics.totalLogs),
                 ),
               ),
             ),
