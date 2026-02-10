@@ -10,18 +10,31 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/screens/dashboard_screen.dart';
 
 import 'features/classroom/provider/classroom_provider.dart';
+import 'features/session/provider/session_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase (optional)
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint("Firebase initialization failed: $e");
+  }
   
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Failed to load .env: $e");
+  }
   
   // Initialize dependency injection
-  await di.init();
+  try {
+    await di.init();
+  } catch (e) {
+    debugPrint("Dependency injection failed: $e");
+  }
   
   runApp(
     MultiProvider(
@@ -31,6 +44,9 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => ClassroomProvider(di.sl()),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => SessionProvider(di.sl())..checkActiveSession(),
         ),
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../classroom/provider/classroom_provider.dart';
+import '../../classroom/screens/subject_details_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -136,70 +137,126 @@ class _ClassesTabState extends State<_ClassesTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ClassroomProvider>(
-      builder: (context, classroom, child) {
-        if (classroom.isLoading && classroom.subjects.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Scaffold(
+      body: Consumer<ClassroomProvider>(
+        builder: (context, classroom, child) {
+          if (classroom.isLoading && classroom.subjects.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (classroom.error != null && classroom.subjects.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text("Error: ${classroom.error}"),
-                TextButton(
-                  onPressed: () => classroom.fetchClassroomData(),
-                  child: const Text("Retry"),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (classroom.subjects.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.class_outlined, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                const Text("No classes found", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text("Add your subjects and sections to get started."),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () => classroom.fetchClassroomData(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: classroom.subjects.length,
-            itemBuilder: (context, index) {
-              final subject = classroom.subjects[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Icon(Icons.book, color: Theme.of(context).primaryColor),
+          if (classroom.error != null && classroom.subjects.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text("Error: ${classroom.error}"),
+                  TextButton(
+                    onPressed: () => classroom.fetchClassroomData(),
+                    child: const Text("Retry"),
                   ),
-                  title: Text(subject.name),
-                  subtitle: Text(subject.code ?? 'No Code'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // Navigate to subject details or section list
-                  },
-                ),
-              );
-            },
+                ],
+              ),
+            );
+          }
+
+          if (classroom.subjects.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.class_outlined, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text("No classes found", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text("Add your subjects and sections to get started."),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () => classroom.fetchClassroomData(),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: classroom.subjects.length,
+              itemBuilder: (context, index) {
+                final subject = classroom.subjects[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                      child: Icon(Icons.book, color: Theme.of(context).primaryColor),
+                    ),
+                    title: Text(subject.name),
+                    subtitle: Text(subject.code ?? 'No Code'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SubjectDetailsScreen(subject: subject),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddSubjectDialog(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showAddSubjectDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final codeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add New Subject"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Subject Name"),
+            ),
+            TextField(
+              controller: codeController,
+              decoration: const InputDecoration(labelText: "Subject Code (Optional)"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
           ),
-        );
-      },
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isNotEmpty) {
+                final success = await context.read<ClassroomProvider>().addSubject(
+                  nameController.text,
+                  codeController.text.isEmpty ? null : codeController.text,
+                );
+                if (success && context.mounted) {
+                  Navigator.pop(context);
+                }
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
     );
   }
 }
