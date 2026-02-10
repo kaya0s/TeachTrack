@@ -6,23 +6,26 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:client/main.dart';
-import 'package:client/core/di/injection.dart' as di;
+import 'package:teachtrack/main.dart';
+import 'package:teachtrack/core/di/injection.dart' as di;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
   setUpAll(() async {
+    FlutterSecureStorage.setMockInitialValues({});
     // Avoid loading actual .env during tests if possible, or mock it
-    dotenv.testLoad(fileInput: 'API_URL=http://localhost:8000');
+    dotenv.testLoad(fileInput: 'BASE_URL=http://localhost:8000');
     await di.init();
   });
 
   testWidgets('App smoke test - verifies login screen shows', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const TeachTrackApp());
+    await tester.pump(const Duration(milliseconds: 1400));
 
     // Verify that our login screen text is present.
-    expect(find.text('Welcome Back'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
+    expect(find.text('Forgot Password?'), findsOneWidget);
   });
 }
