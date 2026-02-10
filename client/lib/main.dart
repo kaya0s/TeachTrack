@@ -6,8 +6,7 @@ import 'core/di/injection.dart' as di;
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/auth/provider/auth_provider.dart';
-import 'features/auth/screens/login_screen.dart';
-import 'features/dashboard/screens/dashboard_screen.dart';
+import 'core/widgets/splash_gate.dart';
 
 import 'features/classroom/provider/classroom_provider.dart';
 import 'features/session/provider/session_provider.dart';
@@ -70,16 +69,7 @@ class TeachTrackApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
-          home: Consumer<AuthProvider>(
-            builder: (context, auth, _) {
-              if (auth.status == AuthStatus.initial) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              return auth.isAuthenticated ? const DashboardScreen() : const LoginScreen();
-            },
-          ),
+          home: const SplashGate(),
         );
       },
     );
