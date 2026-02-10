@@ -1,4 +1,4 @@
-name: client
+name: teachtrack
 description: A Flutter login application with FastAPI integration
 publish_to: 'none'
 version: 1.0.0+1
