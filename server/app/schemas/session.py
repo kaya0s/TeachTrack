@@ -94,6 +94,20 @@ class SessionMetricRow(BaseModel):
     class Config:
         from_attributes = True
 
+class SessionSummary(BaseModel):
+    id: int
+    subject_id: int
+    section_id: int
+    subject_name: str
+    section_name: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    is_active: bool
+    average_engagement: float
+
+    class Config:
+        from_attributes = True
+
 class EngagementEvent(BaseModel):
     id: int
     session_id: int
