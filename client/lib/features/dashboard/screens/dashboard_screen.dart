@@ -219,7 +219,7 @@ class _ClassesTabState extends State<_ClassesTab> {
                     : width >= 680
                         ? 2
                         : 1;
-                final ratio = crossAxisCount == 1 ? 1.6 : 1.15;
+                final ratio = crossAxisCount == 1 ? 1.28 : 1.15;
 
                 return CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -607,7 +607,7 @@ class _ClassesTabState extends State<_ClassesTab> {
   }
 }
 
-class _SubjectCard extends StatelessWidget {
+class _SubjectCard extends StatefulWidget {
   final SubjectModel subject;
   final VoidCallback onTap;
 
@@ -617,7 +617,157 @@ class _SubjectCard extends StatelessWidget {
   });
 
   @override
+  State<_SubjectCard> createState() => _SubjectCardState();
+}
+
+class _SubjectCardState extends State<_SubjectCard> {
+  bool _isStarting = false;
+
+  Future<void> _startMonitoringFromCard(SectionModel section) async {
+    if (_isStarting) return;
+    setState(() => _isStarting = true);
+
+    final session = context.read<SessionProvider>();
+    final success = await session.startSession(
+      widget.subject.id,
+      section.id,
+    );
+
+    if (!mounted) return;
+    setState(() => _isStarting = false);
+
+    if (success) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              MonitoringScreen(sessionId: session.activeSession!.id),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Failed to start session: ${session.error}")),
+    );
+  }
+
+  Future<void> _showSectionsPicker() async {
+    final subject = widget.subject;
+
+    await showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).dividerColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            subject.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "${subject.sections.length} section${subject.sections.length == 1 ? '' : 's'}",
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (subject.sections.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
+                      child: Text("No sections available."),
+                    ),
+                  if (subject.sections.isNotEmpty)
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: subject.sections.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final section = subject.sections[index];
+                          return Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Theme.of(context)
+                                    .dividerColor
+                                    .withOpacity(0.35),
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: const Icon(Icons.groups_rounded),
+                              title: Text(section.name),
+                              trailing: FilledButton.tonal(
+                                onPressed: _isStarting
+                                    ? null
+                                    : () async {
+                                        setSheetState(() => _isStarting = true);
+                                        await _startMonitoringFromCard(section);
+                                        if (!mounted) return;
+                                        setSheetState(
+                                            () => _isStarting = false);
+                                        if (sheetContext.mounted) {
+                                          Navigator.pop(sheetContext);
+                                        }
+                                      },
+                                child: _isStarting
+                                    ? const SizedBox(
+                                        height: 14,
+                                        width: 14,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Text('Start'),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subject = widget.subject;
     final imageUrl = _resolveImageUrl(subject.coverImageUrl);
     final theme = Theme.of(context);
 
@@ -628,7 +778,7 @@ class _SubjectCard extends StatelessWidget {
       shadowColor: Colors.black.withOpacity(0.08),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -673,21 +823,60 @@ class _SubjectCard extends StatelessWidget {
                       subject.description?.trim().isNotEmpty == true
                           ? subject.description!
                           : 'No description available.',
-                      maxLines: 3,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
                     ),
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.groups_rounded,
+                        Icon(Icons.view_list_rounded,
                             size: 16, color: theme.colorScheme.primary),
                         const SizedBox(width: 6),
                         Text(
-                          '${subject.sections.length} section${subject.sections.length == 1 ? '' : 's'}',
+                          "Sections",
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: _showSectionsPicker,
+                          child: Ink(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              color:
+                                  theme.colorScheme.primary.withOpacity(0.08),
+                              border: Border.all(
+                                color:
+                                    theme.colorScheme.primary.withOpacity(0.28),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.groups_rounded,
+                                    size: 15, color: theme.colorScheme.primary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "${subject.sections.length}",
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 17,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
