@@ -184,36 +184,28 @@ class _ClassesTabState extends State<_ClassesTab> {
                 final subject = classroom.subjects[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: Container(
-                      height: 42,
-                      width: 42,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.35),
-                        ),
-                      ),
-                      child: Icon(Icons.book, color: Theme.of(context).colorScheme.primary, size: 22),
+                  child: ExpansionTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      child: Icon(Icons.book, color: Theme.of(context).colorScheme.onPrimaryContainer),
                     ),
-                    title: Text(
-                      subject.name,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                    ),
-                    subtitle: Text(
-                      subject.code ?? 'No Code',
-                      style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: Theme.of(context).textTheme.bodySmall?.color),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SubjectDetailsScreen(subject: subject),
-                        ),
+                    title: Text(subject.name),
+                    subtitle: Text(subject.code ?? 'No Code'),
+                    children: subject.sections.map((section) {
+                      return ListTile(
+                        leading: const Icon(Icons.groups_outlined),
+                        title: Text(section.name),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SubjectDetailsScreen(subject: subject),
+                            ),
+                          );
+                        },
                       );
-                    },
+                    }).toList(),
                   ),
                 );
               },
@@ -281,10 +273,11 @@ class _ActiveSessionsTab extends StatefulWidget {
   State<_ActiveSessionsTab> createState() => _ActiveSessionsTabState();
 }
 
-class _ActiveSessionsTabState extends State<_ActiveSessionsTab> {
+class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = context.read<SessionProvider>();
       session.checkActiveSession();
@@ -292,6 +285,24 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> {
         context.read<ClassroomProvider>().fetchClassroomData();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      final session = context.read<SessionProvider>();
+      final classroom = context.read<ClassroomProvider>();
+      session.checkActiveSession();
+      if (classroom.subjects.isEmpty) {
+        classroom.fetchClassroomData();
+      }
+    }
   }
 
   Future<void> _confirmStopSession(BuildContext context, SessionProvider session) async {
@@ -389,12 +400,6 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildMetricsSummary(context, metrics),
-                const SizedBox(height: 12),
-                _buildEngagementChart(context, metrics),
-                const SizedBox(height: 12),
-                _buildAlertsPreview(context, metrics),
-                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -423,67 +428,152 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> {
           );
         }
 
-        if (classroom.isLoading && classroom.subjects.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (classroom.subjects.isEmpty) {
-          return Center(
+        final isLoading = classroom.isLoading && classroom.subjects.isEmpty;
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.class_outlined, size: 64, color: Colors.grey.shade400),
+                Icon(Icons.sensors_off_rounded, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                const Text("No classes found", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "No Active Session",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
-                const Text("Add your subjects and sections to get started."),
+                Text(
+                  isLoading ? "Loading subjects..." : "Start a session to begin live monitoring.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _showStartSessionSheet(context, session, classroom),
+                    child: isLoading
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          )
+                        : const Text("Start Session"),
+                  ),
+                ),
               ],
             ),
-          );
-        }
+          ),
+        );
+      },
+    );
+  }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: classroom.subjects.length,
-          itemBuilder: (context, index) {
-            final subject = classroom.subjects[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ExpansionTile(
-                leading: CircleAvatar(
-                  backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                  child: Icon(Icons.book, color: Theme.of(context).primaryColor),
-                ),
-                title: Text(subject.name),
-                subtitle: Text(subject.code ?? 'No Code'),
-                children: subject.sections.map((section) {
-                  return ListTile(
-                    leading: const Icon(Icons.groups_outlined),
-                    title: Text(section.name),
-                    trailing: const Icon(Icons.play_arrow_rounded),
-                    onTap: () async {
-                      final success = await context.read<SessionProvider>().startSession(
-                        subject.id,
-                        section.id,
-                      );
-                      if (!context.mounted) return;
-                      if (success) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MonitoringScreen(
-                              sessionId: context.read<SessionProvider>().activeSession!.id,
-                            ),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Failed to start session: ${session.error}")),
-                        );
-                      }
+  Future<void> _showStartSessionSheet(
+    BuildContext context,
+    SessionProvider session,
+    ClassroomProvider classroom,
+  ) async {
+    if (classroom.subjects.isEmpty) {
+      await classroom.fetchClassroomData();
+      if (!context.mounted) return;
+      if (classroom.subjects.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No subjects available. Add a subject first.")),
+        );
+        return;
+      }
+    }
+
+    final subjects = classroom.subjects;
+    SubjectModel selectedSubject = subjects.first;
+    SectionModel? selectedSection =
+        selectedSubject.sections.isNotEmpty ? selectedSubject.sections.first : null;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Start Session",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<SubjectModel>(
+                    initialValue: selectedSubject,
+                    decoration: const InputDecoration(labelText: "Subject"),
+                    items: subjects
+                        .map((subject) =>
+                            DropdownMenuItem(value: subject, child: Text(subject.name)))
+                        .toList(),
+                    onChanged: (subject) {
+                      if (subject == null) return;
+                      setSheetState(() {
+                        selectedSubject = subject;
+                        selectedSection = subject.sections.isNotEmpty ? subject.sections.first : null;
+                      });
                     },
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<SectionModel>(
+                    initialValue: selectedSection,
+                    decoration: const InputDecoration(labelText: "Section"),
+                    items: selectedSubject.sections
+                        .map((section) =>
+                            DropdownMenuItem(value: section, child: Text(section.name)))
+                        .toList(),
+                    onChanged: (section) {
+                      setSheetState(() => selectedSection = section);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: selectedSection == null
+                          ? null
+                          : () async {
+                              final success = await session.startSession(
+                                selectedSubject.id,
+                                selectedSection!.id,
+                              );
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
+                              if (success) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => MonitoringScreen(
+                                      sessionId: session.activeSession!.id,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Failed to start session: ${session.error}")),
+                                );
+                              }
+                            },
+                      child: const Text("Start Session"),
+                    ),
+                  ),
+                ],
               ),
             );
           },

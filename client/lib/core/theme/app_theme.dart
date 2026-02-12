@@ -45,8 +45,6 @@ class AppTheme {
         onError: Colors.white,
         surface: surface,
         onSurface: text,
-        background: background,
-        onBackground: text,
       ),
       scaffoldBackgroundColor: background,
       appBarTheme: AppBarTheme(

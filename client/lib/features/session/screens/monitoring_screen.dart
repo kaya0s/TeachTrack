@@ -117,10 +117,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   Widget _buildServerCameraCard() {
-    return Card(
+    return const Card(
       elevation: 0,
       color: Colors.transparent,
-      child: const Padding(
+      child: Padding(
         padding: EdgeInsets.all(16.0),
         child: Row(
           children: [
