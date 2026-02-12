@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/models/classroom_session_models.dart';
 import '../../../data/repositories/session_repository.dart';
 import 'dart:async';
+import '../../../core/services/foreground_session_service.dart';
 
 class SessionProvider extends ChangeNotifier {
   final SessionRepository _repository;
@@ -32,15 +33,18 @@ class SessionProvider extends ChangeNotifier {
       _activeSession = await _repository.getActiveSession();
       if (_activeSession != null) {
         startMetricsPolling();
+        await ForegroundSessionService.startOrUpdate(session: _activeSession!);
       } else {
         _metrics = null;
         _metricsTimer?.cancel();
+        await ForegroundSessionService.stop();
       }
     } catch (e) {
       _error = e.toString();
       _activeSession = null;
       _metrics = null;
       _metricsTimer?.cancel();
+      await ForegroundSessionService.stop();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -54,6 +58,7 @@ class SessionProvider extends ChangeNotifier {
     try {
       _activeSession = await _repository.startSession(subjectId, sectionId);
       startMetricsPolling();
+      await ForegroundSessionService.startOrUpdate(session: _activeSession!);
       return true;
     } catch (e) {
       _error = e.toString();
@@ -71,6 +76,7 @@ class SessionProvider extends ChangeNotifier {
       _activeSession = null;
       _metrics = null;
       _metricsTimer?.cancel();
+      await ForegroundSessionService.stop();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -87,6 +93,7 @@ class SessionProvider extends ChangeNotifier {
     _history = [];
     _historyLoading = false;
     _historyError = null;
+    ForegroundSessionService.stop();
     notifyListeners();
   }
 
@@ -102,6 +109,10 @@ class SessionProvider extends ChangeNotifier {
     if (_activeSession == null) return;
     try {
       _metrics = await _repository.getSessionMetrics(_activeSession!.id);
+      await ForegroundSessionService.startOrUpdate(
+        session: _activeSession!,
+        metrics: _metrics,
+      );
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching metrics: $e");
