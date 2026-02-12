@@ -108,7 +108,7 @@ class BehaviorLogModel {
       usingPhone: json['using_phone'],
       attentive: json['attentive'],
       undetected: json['undetected'],
-      totalDetected: json['total_detected'],
+      totalDetected: json['total_detected']
     );
   }
 }

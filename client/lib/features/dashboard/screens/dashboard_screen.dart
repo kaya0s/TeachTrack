@@ -385,225 +385,221 @@ class _ClassesTabState extends State<_ClassesTab> {
   }
 
   void _showAddSubjectDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final imagePicker = ImagePicker();
-    XFile? pickedImage;
-    Uint8List? pickedImageBytes;
-    bool isSubmitting = false;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          Future<void> pickFrom(ImageSource source) async {
-            final selected = await imagePicker.pickImage(
-              source: source,
-              imageQuality: 85,
-              maxWidth: 1600,
-            );
-            if (selected == null) return;
-            final bytes = await selected.readAsBytes();
-            setDialogState(() {
-              pickedImage = selected;
-              pickedImageBytes = bytes;
-            });
-          }
+      builder: (_) => const _AddSubjectSheet(),
+    );
+  }
+}
 
-          return AnimatedPadding(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
-            ),
-            child: FractionallySizedBox(
-              widthFactor: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 42,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).dividerColor,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          "Add New Subject",
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: nameController,
-                          decoration:
-                              const InputDecoration(labelText: "Subject Name"),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: descriptionController,
-                          minLines: 3,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: "Description (Optional)",
-                            alignLabelWithHint: true,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          "Cover Image",
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            width: double.infinity,
-                            height: 160,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withOpacity(0.4),
-                            child: pickedImageBytes == null
-                                ? Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.photo_library_outlined,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text("No image selected"),
-                                    ],
-                                  )
-                                : Image.memory(
-                                    pickedImageBytes!,
-                                    fit: BoxFit.cover,
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: isSubmitting
-                                  ? null
-                                  : () => pickFrom(ImageSource.gallery),
-                              icon: const Icon(Icons.photo_library_outlined),
-                              label: const Text("Gallery"),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: isSubmitting
-                                  ? null
-                                  : () => pickFrom(ImageSource.camera),
-                              icon: const Icon(Icons.photo_camera_outlined),
-                              label: const Text("Camera"),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: isSubmitting
-                                    ? null
-                                    : () => Navigator.pop(dialogContext),
-                                child: const Text("Cancel"),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: isSubmitting
-                                    ? null
-                                    : () async {
-                                        final subjectName =
-                                            nameController.text.trim();
-                                        if (subjectName.isEmpty) return;
+class _AddSubjectSheet extends StatefulWidget {
+  const _AddSubjectSheet();
 
-                                        setDialogState(
-                                            () => isSubmitting = true);
-                                        final success = await dialogContext
-                                            .read<ClassroomProvider>()
-                                            .addSubject(
-                                              name: subjectName,
-                                              description: descriptionController
-                                                      .text
-                                                      .trim()
-                                                      .isEmpty
-                                                  ? null
-                                                  : descriptionController.text
-                                                      .trim(),
-                                              coverImagePath: pickedImage?.path,
-                                            );
-                                        setDialogState(
-                                            () => isSubmitting = false);
+  @override
+  State<_AddSubjectSheet> createState() => _AddSubjectSheetState();
+}
 
-                                        if (!dialogContext.mounted) return;
-                                        if (success) {
-                                          Navigator.pop(dialogContext);
-                                        } else {
-                                          final error = dialogContext
-                                                  .read<ClassroomProvider>()
-                                                  .error ??
-                                              "Failed to add subject";
-                                          ScaffoldMessenger.of(dialogContext)
-                                              .showSnackBar(
-                                            SnackBar(content: Text(error)),
-                                          );
-                                        }
-                                      },
-                                child: isSubmitting
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2),
-                                      )
-                                    : const Text("Save"),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+class _AddSubjectSheetState extends State<_AddSubjectSheet> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFrom(ImageSource source) async {
+    final selected = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (selected == null || !mounted) return;
+    final bytes = await selected.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedImage = selected;
+      _pickedImageBytes = bytes;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+    final subjectName = _nameController.text.trim();
+    if (subjectName.isEmpty) return;
+
+    setState(() => _isSubmitting = true);
+    final classroomProvider = context.read<ClassroomProvider>();
+    final success = await classroomProvider.addSubject(
+      name: subjectName,
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+      coverImagePath: _pickedImage?.path,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    if (success) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    final error = classroomProvider.error ?? "Failed to add subject";
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: FractionallySizedBox(
+        widthFactor: 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).dividerColor,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "Add New Subject",
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _nameController,
+                    decoration:
+                        const InputDecoration(labelText: "Subject Name"),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _descriptionController,
+                    minLines: 3,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: "Description (Optional)",
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "Cover Image",
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      height: 160,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withOpacity(0.4),
+                      child: _pickedImageBytes == null
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.photo_library_outlined,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text("No image selected"),
+                              ],
+                            )
+                          : Image.memory(_pickedImageBytes!, fit: BoxFit.cover),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => _pickFrom(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: const Text("Gallery"),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => _pickFrom(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: const Text("Camera"),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isSubmitting
+                              ? null
+                              : () => Navigator.pop(context),
+                          child: const Text("Cancel"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting ? null : _submit,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text("Save"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
-    ).then((_) {
-      nameController.dispose();
-      descriptionController.dispose();
-    });
+    );
   }
 }
 
