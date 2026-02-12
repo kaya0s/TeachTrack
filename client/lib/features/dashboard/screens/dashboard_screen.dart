@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -8,6 +10,7 @@ import '../../session/provider/session_provider.dart';
 import '../../session/screens/monitoring_screen.dart';
 import '../../session/screens/session_history_screen.dart';
 import '../../../data/models/classroom_session_models.dart';
+import '../../../core/config/env_config.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -56,7 +59,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SessionHistoryScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const SessionHistoryScreen()),
               );
             },
           ),
@@ -90,7 +94,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               showSelectedLabels: true,
               showUnselectedLabels: true,
               selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
+              unselectedItemColor: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.color
+                  ?.withOpacity(0.6),
               backgroundColor: Colors.transparent,
               elevation: 0,
               items: const [
@@ -126,12 +134,28 @@ class _ClassesTab extends StatefulWidget {
 }
 
 class _ClassesTabState extends State<_ClassesTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ClassroomProvider>().fetchClassroomData();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesSearch(SubjectModel subject, String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) return true;
+
+    return subject.name.toLowerCase().contains(normalizedQuery);
   }
 
   @override
@@ -165,9 +189,12 @@ class _ClassesTabState extends State<_ClassesTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.class_outlined, size: 64, color: Colors.grey.shade400),
+                  Icon(Icons.class_outlined,
+                      size: 64, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text("No classes found", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text("No classes found",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   const Text("Add your subjects and sections to get started."),
                 ],
@@ -175,38 +202,175 @@ class _ClassesTabState extends State<_ClassesTab> {
             );
           }
 
+          final filteredSubjects = classroom.subjects
+              .where((subject) => _matchesSearch(subject, _searchQuery))
+              .toList();
+          final theme = Theme.of(context);
+          final totalCount = classroom.subjects.length;
+          final resultCount = filteredSubjects.length;
+
           return RefreshIndicator(
             onRefresh: () => classroom.fetchClassroomData(),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: classroom.subjects.length,
-              itemBuilder: (context, index) {
-                final subject = classroom.subjects[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ExpansionTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                      child: Icon(Icons.book, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                    ),
-                    title: Text(subject.name),
-                    subtitle: Text(subject.code ?? 'No Code'),
-                    children: subject.sections.map((section) {
-                      return ListTile(
-                        leading: const Icon(Icons.groups_outlined),
-                        title: Text(section.name),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SubjectDetailsScreen(subject: subject),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final crossAxisCount = width >= 1100
+                    ? 3
+                    : width >= 680
+                        ? 2
+                        : 1;
+                final ratio = crossAxisCount == 1 ? 1.6 : 1.15;
+
+                return CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    theme.colorScheme.primaryContainer,
+                                    theme.colorScheme.secondaryContainer,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    height: 42,
+                                    width: 42,
+                                    decoration: BoxDecoration(
+                                      color: theme
+                                          .colorScheme.onPrimaryContainer
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.class_rounded,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Your Classes",
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: theme
+                                                .colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _searchQuery.isEmpty
+                                              ? "$totalCount subjects available"
+                                              : "$resultCount of $totalCount subjects",
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: theme
+                                                .colorScheme.onPrimaryContainer
+                                                .withOpacity(0.82),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          );
-                        },
-                      );
-                    }).toList(),
-                  ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _searchController,
+                              onChanged: (value) =>
+                                  setState(() => _searchQuery = value),
+                              decoration: InputDecoration(
+                                hintText: 'Search subjects',
+                                prefixIcon: const Icon(Icons.search_rounded),
+                                suffixIcon: _searchQuery.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                        icon: const Icon(Icons.close_rounded),
+                                      ),
+                                filled: true,
+                                fillColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.primary,
+                                    width: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (filteredSubjects.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text('No classes match your search.'),
+                        ),
+                      ),
+                    if (filteredSubjects.isNotEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: ratio,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final subject = filteredSubjects[index];
+                              return _SubjectCard(
+                                subject: subject,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          SubjectDetailsScreen(
+                                              subject: subject),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                            childCount: filteredSubjects.length,
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
@@ -222,48 +386,371 @@ class _ClassesTabState extends State<_ClassesTab> {
 
   void _showAddSubjectDialog(BuildContext context) {
     final nameController = TextEditingController();
-    final codeController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final imagePicker = ImagePicker();
+    XFile? pickedImage;
+    Uint8List? pickedImageBytes;
+    bool isSubmitting = false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Add New Subject"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Subject Name"),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> pickFrom(ImageSource source) async {
+            final selected = await imagePicker.pickImage(
+              source: source,
+              imageQuality: 85,
+              maxWidth: 1600,
+            );
+            if (selected == null) return;
+            final bytes = await selected.readAsBytes();
+            setDialogState(() {
+              pickedImage = selected;
+              pickedImageBytes = bytes;
+            });
+          }
+
+          return AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
             ),
-            TextField(
-              controller: codeController,
-              decoration: const InputDecoration(labelText: "Subject Code (Optional)"),
+            child: FractionallySizedBox(
+              widthFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 42,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).dividerColor,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          "Add New Subject",
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: nameController,
+                          decoration:
+                              const InputDecoration(labelText: "Subject Name"),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: descriptionController,
+                          minLines: 3,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: "Description (Optional)",
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          "Cover Image",
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: double.infinity,
+                            height: 160,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withOpacity(0.4),
+                            child: pickedImageBytes == null
+                                ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.photo_library_outlined,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text("No image selected"),
+                                    ],
+                                  )
+                                : Image.memory(
+                                    pickedImageBytes!,
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () => pickFrom(ImageSource.gallery),
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: const Text("Gallery"),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () => pickFrom(ImageSource.camera),
+                              icon: const Icon(Icons.photo_camera_outlined),
+                              label: const Text("Camera"),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () => Navigator.pop(dialogContext),
+                                child: const Text("Cancel"),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () async {
+                                        final subjectName =
+                                            nameController.text.trim();
+                                        if (subjectName.isEmpty) return;
+
+                                        setDialogState(
+                                            () => isSubmitting = true);
+                                        final success = await dialogContext
+                                            .read<ClassroomProvider>()
+                                            .addSubject(
+                                              name: subjectName,
+                                              description: descriptionController
+                                                      .text
+                                                      .trim()
+                                                      .isEmpty
+                                                  ? null
+                                                  : descriptionController.text
+                                                      .trim(),
+                                              coverImagePath: pickedImage?.path,
+                                            );
+                                        setDialogState(
+                                            () => isSubmitting = false);
+
+                                        if (!dialogContext.mounted) return;
+                                        if (success) {
+                                          Navigator.pop(dialogContext);
+                                        } else {
+                                          final error = dialogContext
+                                                  .read<ClassroomProvider>()
+                                                  .error ??
+                                              "Failed to add subject";
+                                          ScaffoldMessenger.of(dialogContext)
+                                              .showSnackBar(
+                                            SnackBar(content: Text(error)),
+                                          );
+                                        }
+                                      },
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Text("Save"),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ).then((_) {
+      nameController.dispose();
+      descriptionController.dispose();
+    });
+  }
+}
+
+class _SubjectCard extends StatelessWidget {
+  final SubjectModel subject;
+  final VoidCallback onTap;
+
+  const _SubjectCard({
+    required this.subject,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = _resolveImageUrl(subject.coverImageUrl);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(18),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.08),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 6,
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(18)),
+                child: imageUrl == null
+                    ? _SubjectImagePlaceholder(title: subject.name)
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2));
+                        },
+                        errorBuilder: (_, __, ___) =>
+                            _SubjectImagePlaceholder(title: subject.name),
+                      ),
+              ),
+            ),
+            Expanded(
+              flex: 5,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      subject.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subject.description?.trim().isNotEmpty == true
+                          ? subject.description!
+                          : 'No description available.',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Icon(Icons.groups_rounded,
+                            size: 16, color: theme.colorScheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${subject.sections.length} section${subject.sections.length == 1 ? '' : 's'}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                final success = await context.read<ClassroomProvider>().addSubject(
-                  nameController.text,
-                  codeController.text.isEmpty ? null : codeController.text,
-                );
-                if (success && context.mounted) {
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text("Save"),
-          ),
-        ],
       ),
     );
   }
+}
+
+class _SubjectImagePlaceholder extends StatelessWidget {
+  final String title;
+
+  const _SubjectImagePlaceholder({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = title.trim().isEmpty
+        ? '?'
+        : title
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer,
+            Theme.of(context).colorScheme.secondaryContainer,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+      ),
+    );
+  }
+}
+
+String? _resolveImageUrl(String? rawPath) {
+  if (rawPath == null || rawPath.trim().isEmpty) return null;
+  final path = rawPath.trim();
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+
+  final base = EnvConfig.baseUrl.replaceAll(RegExp(r'/$'), '');
+  final normalizedPath = path.startsWith('/') ? path : '/$path';
+  return '$base$normalizedPath';
 }
 
 class _ActiveSessionsTab extends StatefulWidget {
@@ -273,7 +760,8 @@ class _ActiveSessionsTab extends StatefulWidget {
   State<_ActiveSessionsTab> createState() => _ActiveSessionsTabState();
 }
 
-class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBindingObserver {
+class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -305,12 +793,14 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
     }
   }
 
-  Future<void> _confirmStopSession(BuildContext context, SessionProvider session) async {
+  Future<void> _confirmStopSession(
+      BuildContext context, SessionProvider session) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("End Session?"),
-        content: const Text("This will stop the current session and save its results."),
+        content: const Text(
+            "This will stop the current session and save its results."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -335,7 +825,6 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
     return Consumer2<SessionProvider, ClassroomProvider>(
       builder: (context, session, classroom, child) {
         final activeSession = session.activeSession;
-        final metrics = session.metrics;
 
         if (activeSession != null) {
           return RefreshIndicator(
@@ -348,7 +837,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
               children: [
                 Text(
                   "Active Session",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
                 Card(
@@ -360,10 +852,14 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                           height: 52,
                           width: 52,
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.08),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Icon(Icons.sensors_rounded, color: Theme.of(context).colorScheme.primary),
+                          child: Icon(Icons.sensors_rounded,
+                              color: Theme.of(context).colorScheme.primary),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -377,7 +873,11 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                               const SizedBox(height: 4),
                               Text(
                                 "Live metrics are updating.",
-                                style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color),
                               ),
                             ],
                           ),
@@ -389,7 +889,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => MonitoringScreen(sessionId: activeSession.id),
+                                builder: (context) => MonitoringScreen(
+                                    sessionId: activeSession.id),
                               ),
                             );
                           },
@@ -435,7 +936,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.sensors_off_rounded, size: 64, color: Colors.grey.shade400),
+                Icon(Icons.sensors_off_rounded,
+                    size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
                 const Text(
                   "No Active Session",
@@ -443,15 +945,19 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  isLoading ? "Loading subjects..." : "Start a session to begin live monitoring.",
+                  isLoading
+                      ? "Loading subjects..."
+                      : "Start a session to begin live monitoring.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                  style: TextStyle(
+                      color: Theme.of(context).textTheme.bodySmall?.color),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _showStartSessionSheet(context, session, classroom),
+                    onPressed: () =>
+                        _showStartSessionSheet(context, session, classroom),
                     child: isLoading
                         ? const SizedBox(
                             height: 18,
@@ -479,7 +985,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
       if (!context.mounted) return;
       if (classroom.subjects.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No subjects available. Add a subject first.")),
+          const SnackBar(
+              content: Text("No subjects available. Add a subject first.")),
         );
         return;
       }
@@ -487,93 +994,294 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
 
     final subjects = classroom.subjects;
     SubjectModel selectedSubject = subjects.first;
-    SectionModel? selectedSection =
-        selectedSubject.sections.isNotEmpty ? selectedSubject.sections.first : null;
+    SectionModel? selectedSection = selectedSubject.sections.isNotEmpty
+        ? selectedSubject.sections.first
+        : null;
+    bool isStarting = false;
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            return Padding(
+            final sections = selectedSubject.sections;
+
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
+                bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Start Session",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              child: FractionallySizedBox(
+                widthFactor: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(28)),
                   ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<SubjectModel>(
-                    initialValue: selectedSubject,
-                    decoration: const InputDecoration(labelText: "Subject"),
-                    items: subjects
-                        .map((subject) =>
-                            DropdownMenuItem(value: subject, child: Text(subject.name)))
-                        .toList(),
-                    onChanged: (subject) {
-                      if (subject == null) return;
-                      setSheetState(() {
-                        selectedSubject = subject;
-                        selectedSection = subject.sections.isNotEmpty ? subject.sections.first : null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<SectionModel>(
-                    initialValue: selectedSection,
-                    decoration: const InputDecoration(labelText: "Section"),
-                    items: selectedSubject.sections
-                        .map((section) =>
-                            DropdownMenuItem(value: section, child: Text(section.name)))
-                        .toList(),
-                    onChanged: (section) {
-                      setSheetState(() => selectedSection = section);
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: selectedSection == null
-                          ? null
-                          : () async {
-                              final success = await session.startSession(
-                                selectedSubject.id,
-                                selectedSection!.id,
-                              );
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                              if (success) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => MonitoringScreen(
-                                      sessionId: session.activeSession!.id,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.88,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 10),
+                        Center(
+                          child: Container(
+                            width: 46,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).dividerColor,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                          child: Text(
+                            "Start Session",
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                          child: Text(
+                            "Choose a subject and section to begin monitoring.",
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Subject",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 42,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: subjects.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 8),
+                                    itemBuilder: (context, index) {
+                                      final subject = subjects[index];
+                                      final isSelected =
+                                          subject.id == selectedSubject.id;
+
+                                      return ChoiceChip(
+                                        label: Text(subject.name),
+                                        selected: isSelected,
+                                        onSelected: (_) {
+                                          setSheetState(() {
+                                            selectedSubject = subject;
+                                            selectedSection =
+                                                subject.sections.isNotEmpty
+                                                    ? subject.sections.first
+                                                    : null;
+                                          });
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                Row(
+                                  children: [
+                                    Text(
+                                      "Section",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        "${sections.length}",
+                                        style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                if (sections.isEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest
+                                          .withOpacity(0.45),
+                                    ),
+                                    child: const Text(
+                                      "No sections available for this subject.",
                                     ),
                                   ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Failed to start session: ${session.error}")),
-                                );
-                              }
-                            },
-                      child: const Text("Start Session"),
+                                ...sections.map(
+                                  (section) {
+                                    final isSelected =
+                                        selectedSection?.id == section.id;
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          onTap: () {
+                                            setSheetState(() =>
+                                                selectedSection = section);
+                                          },
+                                          child: Ink(
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              border: Border.all(
+                                                width: isSelected ? 1.6 : 1,
+                                                color: isSelected
+                                                    ? Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
+                                                    : Theme.of(context)
+                                                        .dividerColor
+                                                        .withOpacity(0.45),
+                                              ),
+                                              color: isSelected
+                                                  ? Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withOpacity(0.06)
+                                                  : null,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    section.name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleSmall
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  isSelected
+                                                      ? Icons
+                                                          .radio_button_checked_rounded
+                                                      : Icons
+                                                          .radio_button_off_rounded,
+                                                  color: isSelected
+                                                      ? Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                      : Theme.of(context)
+                                                          .disabledColor,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: selectedSection == null || isStarting
+                                  ? null
+                                  : () async {
+                                      setSheetState(() => isStarting = true);
+                                      final success =
+                                          await session.startSession(
+                                        selectedSubject.id,
+                                        selectedSection!.id,
+                                      );
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                      if (success) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                MonitoringScreen(
+                                              sessionId:
+                                                  session.activeSession!.id,
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  "Failed to start session: ${session.error}")),
+                                        );
+                                      }
+                                    },
+                              icon: isStarting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.play_circle_fill_rounded),
+                              label: Text(isStarting
+                                  ? "Starting..."
+                                  : "Start Monitoring Session"),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             );
           },
@@ -582,7 +1290,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
     );
   }
 
-  Widget _buildMetricsSummary(BuildContext context, SessionMetricsModel? metrics) {
+  Widget _buildMetricsSummary(
+      BuildContext context, SessionMetricsModel? metrics) {
     final theme = Theme.of(context);
     if (metrics == null) {
       return Card(
@@ -632,7 +1341,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
     );
   }
 
-  Widget _buildEngagementChart(BuildContext context, SessionMetricsModel? metrics) {
+  Widget _buildEngagementChart(
+      BuildContext context, SessionMetricsModel? metrics) {
     if (metrics == null || metrics.recentLogs.isEmpty) {
       return Card(
         child: Padding(
@@ -642,7 +1352,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
             children: [
               Text(
                 "Engagement Trend",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
               Text(
@@ -670,7 +1383,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
             children: [
               Text(
                 "Engagement Trend",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
               Text(
@@ -691,7 +1407,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
           children: [
             Text(
               "Engagement Trend",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -710,7 +1429,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                       width: 12,
                       height: adjustedHeight,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.8),
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
@@ -729,7 +1451,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
     );
   }
 
-  Widget _buildAlertsPreview(BuildContext context, SessionMetricsModel? metrics) {
+  Widget _buildAlertsPreview(
+      BuildContext context, SessionMetricsModel? metrics) {
     final alerts = metrics?.alerts ?? [];
     return Card(
       child: Padding(
@@ -739,7 +1462,10 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
           children: [
             Text(
               "Alerts",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             if (alerts.isEmpty)
@@ -754,7 +1480,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab> with WidgetsBind
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_rounded, color: Colors.orange.shade600, size: 20),
+                      Icon(Icons.warning_rounded,
+                          color: Colors.orange.shade600, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -799,7 +1526,10 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(

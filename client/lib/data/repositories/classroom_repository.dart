@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../core/api/api_client.dart';
 import '../models/classroom_session_models.dart';
 
@@ -18,12 +19,36 @@ class ClassroomRepository {
     return data.map((json) => SectionModel.fromJson(json)).toList();
   }
 
-  Future<SubjectModel> createSubject(String name, String? code) async {
+  Future<String> uploadSubjectCoverImage(String filePath) async {
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final response = await _apiClient.post(
+      '/classroom/subjects/cover-image',
+      data: formData,
+    );
+
+    final secureUrl = (response.data as Map<String, dynamic>)['secure_url'];
+    if (secureUrl is! String || secureUrl.isEmpty) {
+      throw Exception('Cover image upload failed: missing secure_url');
+    }
+    return secureUrl;
+  }
+
+  Future<SubjectModel> createSubject({
+    required String name,
+    String? code,
+    String? description,
+    String? coverImageUrl,
+  }) async {
     final response = await _apiClient.post(
       '/classroom/subjects',
       data: {
         'name': name,
         'code': code,
+        'description': description,
+        'cover_image_url': coverImageUrl,
       },
     );
     return SubjectModel.fromJson(response.data);

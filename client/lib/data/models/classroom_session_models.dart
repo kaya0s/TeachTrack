@@ -3,6 +3,7 @@ class SubjectModel {
   final String name;
   final String? code;
   final String? description;
+  final String? coverImageUrl;
   final List<SectionModel> sections;
 
   SubjectModel({
@@ -10,6 +11,7 @@ class SubjectModel {
     required this.name,
     this.code,
     this.description,
+    this.coverImageUrl,
     this.sections = const [],
   });
 
@@ -19,6 +21,7 @@ class SubjectModel {
       name: json['name'],
       code: json['code'],
       description: json['description'],
+      coverImageUrl: json['cover_image_url'],
       sections: (json['sections'] as List? ?? [])
           .map((e) => SectionModel.fromJson(e))
           .toList(),
@@ -65,7 +68,8 @@ class SessionModel {
       subjectId: json['subject_id'],
       sectionId: json['section_id'],
       startTime: DateTime.parse(json['start_time']),
-      endTime: json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
+      endTime:
+          json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
       isActive: json['is_active'],
     );
   }
@@ -158,9 +162,8 @@ class SessionMetricsModel {
       recentLogs: (json['recent_logs'] as List)
           .map((e) => BehaviorLogModel.fromJson(e))
           .toList(),
-      alerts: (json['alerts'] as List)
-          .map((e) => AlertModel.fromJson(e))
-          .toList(),
+      alerts:
+          (json['alerts'] as List).map((e) => AlertModel.fromJson(e)).toList(),
     );
   }
 }
@@ -196,7 +199,8 @@ class SessionSummaryModel {
       subjectName: json['subject_name'],
       sectionName: json['section_name'],
       startTime: DateTime.parse(json['start_time']),
-      endTime: json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
+      endTime:
+          json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
       isActive: json['is_active'],
       averageEngagement: (json['average_engagement'] as num).toDouble(),
     );

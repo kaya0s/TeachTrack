@@ -39,9 +39,25 @@ class ClassroomProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> addSubject(String name, String? code) async {
+  Future<bool> addSubject({
+    required String name,
+    String? code,
+    String? description,
+    String? coverImagePath,
+  }) async {
     try {
-      final subject = await _repository.createSubject(name, code);
+      String? uploadedCoverImageUrl;
+      if (coverImagePath != null && coverImagePath.isNotEmpty) {
+        uploadedCoverImageUrl =
+            await _repository.uploadSubjectCoverImage(coverImagePath);
+      }
+
+      final subject = await _repository.createSubject(
+        name: name,
+        code: code,
+        description: description,
+        coverImageUrl: uploadedCoverImageUrl,
+      );
       _subjects.add(subject);
       notifyListeners();
       return true;
@@ -64,6 +80,7 @@ class ClassroomProvider extends ChangeNotifier {
           name: subject.name,
           code: subject.code,
           description: subject.description,
+          coverImageUrl: subject.coverImageUrl,
           sections: [...subject.sections, section],
         );
       }
