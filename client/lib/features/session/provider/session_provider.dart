@@ -77,6 +77,7 @@ class SessionProvider extends ChangeNotifier {
       _metrics = null;
       _metricsTimer?.cancel();
       await ForegroundSessionService.stop();
+      await fetchSessionHistory(includeActive: false);
       notifyListeners();
     } catch (e) {
       _error = e.toString();

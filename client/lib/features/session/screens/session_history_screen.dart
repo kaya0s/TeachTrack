@@ -13,6 +13,24 @@ class SessionHistoryScreen extends StatefulWidget {
 class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   final _dateFormat = DateFormat('MMM d, yyyy · h:mm a');
 
+  String _formatSessionStart(DateTime startTime) {
+    final diff = DateTime.now().difference(startTime);
+    if (diff.isNegative || diff.inMinutes < 1) return "just now";
+    if (diff.inHours < 1) {
+      final minutes = diff.inMinutes;
+      return "$minutes ${minutes == 1 ? "min" : "mins"} ago";
+    }
+    if (diff.inDays < 1) {
+      final hours = diff.inHours;
+      return "$hours ${hours == 1 ? "hour" : "hours"} ago";
+    }
+    if (diff.inDays < 7) {
+      final days = diff.inDays;
+      return "$days ${days == 1 ? "day" : "days"} ago";
+    }
+    return _dateFormat.format(startTime);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -92,7 +110,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 4),
-                        Text(_dateFormat.format(item.startTime)),
+                        Text(_formatSessionStart(item.startTime)),
                         Text("Duration: $durationLabel", style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
                       ],
                     ),

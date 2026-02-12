@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -53,19 +54,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const Text("TeachTrack"),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history_rounded),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const SessionHistoryScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: _currentIndex == 1
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(Icons.history_rounded),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SessionHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+              ],
       ),
       body: IndexedStack(
         index: _currentIndex,
@@ -76,7 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.08),
@@ -86,7 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(14),
             child: BottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: (index) => setState(() => _currentIndex = index),
@@ -206,8 +210,6 @@ class _ClassesTabState extends State<_ClassesTab> {
               .where((subject) => _matchesSearch(subject, _searchQuery))
               .toList();
           final theme = Theme.of(context);
-          final totalCount = classroom.subjects.length;
-          final resultCount = filteredSubjects.length;
 
           return RefreshIndicator(
             onRefresh: () => classroom.fetchClassroomData(),
@@ -263,69 +265,73 @@ class _ClassesTabState extends State<_ClassesTab> {
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "Your Classes",
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: theme
-                                                .colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          _searchQuery.isEmpty
-                                              ? "$totalCount subjects available"
-                                              : "$resultCount of $totalCount subjects",
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                            color: theme
-                                                .colorScheme.onPrimaryContainer
-                                                .withOpacity(0.82),
-                                          ),
-                                        ),
-                                      ],
+                                    child: Text(
+                                      "Your Classes",
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: theme
+                                            .colorScheme.onPrimaryContainer,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 12),
-                            TextField(
-                              controller: _searchController,
-                              onChanged: (value) =>
-                                  setState(() => _searchQuery = value),
-                              decoration: InputDecoration(
-                                hintText: 'Search subjects',
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                suffixIcon: _searchQuery.isEmpty
-                                    ? null
-                                    : IconButton(
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          setState(() => _searchQuery = '');
-                                        },
-                                        icon: const Icon(Icons.close_rounded),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: (value) =>
+                                        setState(() => _searchQuery = value),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search subjects',
+                                      prefixIcon:
+                                          const Icon(Icons.search_rounded),
+                                      suffixIcon: _searchQuery.isEmpty
+                                          ? null
+                                          : IconButton(
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                setState(
+                                                    () => _searchQuery = '');
+                                              },
+                                              icon: const Icon(
+                                                  Icons.close_rounded),
+                                            ),
+                                      filled: true,
+                                      fillColor: theme
+                                          .colorScheme.surfaceContainerHighest,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
                                       ),
-                                filled: true,
-                                fillColor:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(
-                                    color: theme.colorScheme.primary,
-                                    width: 1.4,
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide(
+                                          color: theme.colorScheme.primary,
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                FilledButton.icon(
+                                  onPressed: () => _showAddSubjectDialog(context),
+                                  icon: const Icon(Icons.add_rounded),
+                                  label: const Text("Add Subject"),
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -376,10 +382,6 @@ class _ClassesTabState extends State<_ClassesTab> {
             ),
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddSubjectDialog(context),
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -947,6 +949,26 @@ class _ActiveSessionsTab extends StatefulWidget {
 
 class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     with WidgetsBindingObserver {
+  final DateFormat _dateFormat = DateFormat('MMM d, h:mm a');
+
+  String _formatSessionStart(DateTime startTime) {
+    final diff = DateTime.now().difference(startTime);
+    if (diff.isNegative || diff.inMinutes < 1) return "just now";
+    if (diff.inHours < 1) {
+      final minutes = diff.inMinutes;
+      return "$minutes ${minutes == 1 ? "min" : "mins"} ago";
+    }
+    if (diff.inDays < 1) {
+      final hours = diff.inHours;
+      return "$hours ${hours == 1 ? "hour" : "hours"} ago";
+    }
+    if (diff.inDays < 7) {
+      final days = diff.inDays;
+      return "$days ${days == 1 ? "day" : "days"} ago";
+    }
+    return _dateFormat.format(startTime);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -954,6 +976,7 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = context.read<SessionProvider>();
       session.checkActiveSession();
+      session.fetchSessionHistory(includeActive: false);
       if (context.read<ClassroomProvider>().subjects.isEmpty) {
         context.read<ClassroomProvider>().fetchClassroomData();
       }
@@ -972,6 +995,7 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
       final session = context.read<SessionProvider>();
       final classroom = context.read<ClassroomProvider>();
       session.checkActiveSession();
+      session.fetchSessionHistory(includeActive: false);
       if (classroom.subjects.isEmpty) {
         classroom.fetchClassroomData();
       }
@@ -1115,6 +1139,7 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
         }
 
         final isLoading = classroom.isLoading && classroom.subjects.isEmpty;
+        final recentSessions = session.history.take(5).toList();
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -1152,6 +1177,79 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                         : const Text("Start Session"),
                   ),
                 ),
+                const SizedBox(height: 18),
+                if (session.historyLoading && recentSessions.isEmpty)
+                  const SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                else if (session.historyError != null && recentSessions.isEmpty)
+                  Text(
+                    "Failed to load recent sessions",
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  )
+                else if (recentSessions.isNotEmpty) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "Recent Sessions",
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 220,
+                    width: double.infinity,
+                    child: ListView.separated(
+                      itemCount: recentSessions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final item = recentSessions[index];
+                        final duration = item.endTime != null
+                            ? item.endTime!.difference(item.startTime)
+                            : const Duration();
+                        final durationLabel = item.endTime == null
+                            ? "In progress"
+                            : "${duration.inMinutes} min";
+
+                        return Card(
+                          margin: EdgeInsets.zero,
+                          child: ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.08),
+                              child: Icon(
+                                Icons.class_,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            title:
+                                Text("${item.subjectName} - ${item.sectionName}"),
+                            subtitle: Text(
+                              "${_formatSessionStart(item.startTime)} - $durationLabel",
+                            ),
+                            trailing: Text(
+                              "${item.averageEngagement.toStringAsFixed(0)}%",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
