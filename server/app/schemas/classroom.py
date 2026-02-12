@@ -22,9 +22,17 @@ class Section(SectionBase):
 class SubjectBase(BaseModel):
     name: str
     code: Optional[str] = None
+    description: Optional[str] = None
+    cover_image_url: Optional[str] = None
 
 class SubjectCreate(SubjectBase):
     pass
+
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    cover_image_url: Optional[str] = None
 
 class Subject(SubjectBase):
     id: int
@@ -34,3 +42,7 @@ class Subject(SubjectBase):
 
     class Config:
         from_attributes = True
+
+class SubjectCoverUploadResponse(BaseModel):
+    secure_url: str
+    public_id: str
