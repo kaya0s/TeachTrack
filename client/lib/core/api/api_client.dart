@@ -45,6 +45,14 @@ class ApiClient {
     }
   }
 
+  Future<Response> patch(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+    try {
+      return await _dio.patch(path, data: data, queryParameters: queryParameters);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   dynamic _handleError(DioException e) {
     String message = "Something went wrong";
     if (e.response != null) {

@@ -16,6 +16,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _user;
   AuthStatus _status = AuthStatus.initial;
   String? _error;
+  String? _profileImagePath;
 
   AuthProvider(this._authRepository, this._storage);
 
@@ -23,12 +24,26 @@ class AuthProvider extends ChangeNotifier {
   AuthStatus get status => _status;
   String? get error => _error;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+  String? get profileImagePath => _profileImagePath;
+
+  String _profileImageStorageKey(int userId) => 'profile_image_path_$userId';
+
+  Future<void> _loadProfileImagePath() async {
+    if (_user == null) {
+      _profileImagePath = null;
+      return;
+    }
+    _profileImagePath = await _storage.read(
+      key: _profileImageStorageKey(_user!.id),
+    );
+  }
 
   Future<void> checkAuth() async {
     final token = await _storage.read(key: 'access_token');
     if (token != null) {
       try {
         _user = await _authRepository.getMe();
+        await _loadProfileImagePath();
         _status = AuthStatus.authenticated;
       } catch (e) {
         await _storage.delete(key: 'access_token');
@@ -49,6 +64,7 @@ class AuthProvider extends ChangeNotifier {
       final tokenData = await _authRepository.login(username, password);
       await _storage.write(key: 'access_token', value: tokenData.accessToken);
       _user = await _authRepository.getMe();
+      await _loadProfileImagePath();
       _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
@@ -95,6 +111,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await _storage.delete(key: 'access_token');
     _user = null;
+    _profileImagePath = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }
@@ -129,6 +146,7 @@ class AuthProvider extends ChangeNotifier {
       final tokenData = await _authRepository.loginWithGoogle(idToken);
       await _storage.write(key: 'access_token', value: tokenData.accessToken);
       _user = await _authRepository.getMe();
+      await _loadProfileImagePath();
       _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
@@ -168,5 +186,74 @@ class AuthProvider extends ChangeNotifier {
       _error = "Failed to reset password: $e";
       return false;
     }
+  }
+
+  Future<bool> updateAccount({
+    required String username,
+    required String email,
+  }) async {
+    if (_user == null) return false;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _user = await _authRepository.updateMe(
+        username: username.trim(),
+        email: email.trim(),
+      );
+      await _loadProfileImagePath();
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = "Failed to update account";
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _authRepository.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = "Failed to change password";
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> setProfileImagePath(String path) async {
+    if (_user == null) return;
+    _profileImagePath = path;
+    await _storage.write(
+      key: _profileImageStorageKey(_user!.id),
+      value: path,
+    );
+    notifyListeners();
+  }
+
+  Future<void> clearProfileImagePath() async {
+    if (_user == null) return;
+    _profileImagePath = null;
+    await _storage.delete(key: _profileImageStorageKey(_user!.id));
+    notifyListeners();
   }
 }

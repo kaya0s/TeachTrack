@@ -43,6 +43,34 @@ class AuthRepository {
     return UserModel.fromJson(response.data);
   }
 
+  Future<UserModel> updateMe({
+    String? username,
+    String? email,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (username != null) payload['username'] = username;
+    if (email != null) payload['email'] = email;
+
+    final response = await _apiClient.patch(
+      '/users/me',
+      data: payload,
+    );
+    return UserModel.fromJson(response.data);
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _apiClient.post(
+      '/users/me/change-password',
+      data: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      },
+    );
+  }
+
   Future<TokenModel> loginWithGoogle(String idToken) async {
     final response = await _apiClient.post(
       '/login/google',
