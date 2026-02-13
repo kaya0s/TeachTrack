@@ -9,7 +9,7 @@ CAPSTONE.ipynb
 
 #extra files for this project
 DESIGN_SPEC.md
-NOTES.md
+DB.md
 
 #test files for this project
 test_api_script.py

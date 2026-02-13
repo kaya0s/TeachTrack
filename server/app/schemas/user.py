@@ -14,6 +14,14 @@ class UserCreate(UserBase):
     username: str
     password: str
 
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
 # Properties to return via API
 class User(UserBase):
     id: int

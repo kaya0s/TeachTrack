@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Any
 import logging
 import os
+from pathlib import Path
 import threading
 import time
 
@@ -33,6 +34,8 @@ from app.schemas.session import (
     SessionHistory as SessionHistorySchema,
     AlertHistory as AlertHistorySchema,
     SessionSummary as SessionSummarySchema,
+    ModelSelectionRequest,
+    ModelSelectionResponse,
 )
 
 # Configure Logging
@@ -40,6 +43,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+models_router = APIRouter()
 
 load_dotenv()
 
@@ -53,16 +57,46 @@ _model = None
 _model_lock = threading.Lock()
 _detectors = {}
 _detectors_lock = threading.Lock()
+_server_root = Path(__file__).resolve().parents[2]
+_initial_model_path = Path(MODEL_PATH)
+_current_model_path = (
+    _initial_model_path
+    if _initial_model_path.is_absolute()
+    else (_server_root / _initial_model_path)
+).resolve()
+_weights_dir = _current_model_path.parent
 
 def _get_model() -> YOLO:
     global _model
     if _model is None:
         with _model_lock:
             if _model is None:
-                if not os.path.exists(MODEL_PATH):
-                    raise RuntimeError(f"Model not found at {MODEL_PATH}")
-                _model = YOLO(MODEL_PATH)
+                if not _current_model_path.exists():
+                    raise RuntimeError(f"Model not found at {_current_model_path}")
+                _model = YOLO(str(_current_model_path))
     return _model
+
+def _list_weight_files() -> List[Path]:
+    if not _weights_dir.exists():
+        return []
+    return sorted(
+        [p for p in _weights_dir.iterdir() if p.is_file() and p.suffix.lower() == ".pt"],
+        key=lambda p: p.name.lower(),
+    )
+
+def _build_model_selection_response() -> dict:
+    files = _list_weight_files()
+    current_name = _current_model_path.name
+    return {
+        "current_model_file": current_name,
+        "models": [
+            {
+                "file_name": p.name,
+                "is_current": p.name == current_name,
+            }
+            for p in files
+        ],
+    }
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
     if not SERVER_CAMERA_ENABLED:
@@ -248,6 +282,35 @@ def list_sessions(
         })
 
     return summaries
+
+@models_router.get("", response_model=ModelSelectionResponse)
+def list_models(
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    return _build_model_selection_response()
+
+@models_router.post("/select", response_model=ModelSelectionResponse)
+def select_model(
+    data: ModelSelectionRequest,
+    current_user = Depends(deps.get_current_active_user),
+) -> Any:
+    global _current_model_path, _model
+
+    requested = Path(data.file_name).name
+    if not requested.lower().endswith(".pt"):
+        raise HTTPException(status_code=400, detail="Only .pt files are allowed.")
+
+    candidate = (_weights_dir / requested).resolve()
+    if candidate.parent != _weights_dir.resolve():
+        raise HTTPException(status_code=400, detail="Invalid model file path.")
+    if not candidate.exists():
+        raise HTTPException(status_code=404, detail="Model file not found.")
+
+    with _model_lock:
+        _current_model_path = candidate
+        _model = None
+
+    return _build_model_selection_response()
 
 # -- Data Ingestion form ML Script -- 
 # Note: In production, you might use an API Key instead of User Token for the script,

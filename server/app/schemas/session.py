@@ -145,3 +145,14 @@ class AlertHistory(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ModelOption(BaseModel):
+    file_name: str
+    is_current: bool = False
+
+class ModelSelectionRequest(BaseModel):
+    file_name: str
+
+class ModelSelectionResponse(BaseModel):
+    current_model_file: str
+    models: List[ModelOption]
