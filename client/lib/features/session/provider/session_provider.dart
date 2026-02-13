@@ -17,6 +17,10 @@ class SessionProvider extends ChangeNotifier {
   List<SessionSummaryModel> _history = [];
   bool _historyLoading = false;
   String? _historyError;
+  List<MlModelOptionModel> _availableModels = [];
+  String? _currentModelFile;
+  bool _modelsLoading = false;
+  String? _modelsError;
 
   SessionModel? get activeSession => _activeSession;
   SessionMetricsModel? get metrics => _metrics;
@@ -25,6 +29,10 @@ class SessionProvider extends ChangeNotifier {
   List<SessionSummaryModel> get history => _history;
   bool get historyLoading => _historyLoading;
   String? get historyError => _historyError;
+  List<MlModelOptionModel> get availableModels => _availableModels;
+  String? get currentModelFile => _currentModelFile;
+  bool get modelsLoading => _modelsLoading;
+  String? get modelsError => _modelsError;
 
   Future<void> checkActiveSession() async {
     _isLoading = true;
@@ -94,6 +102,10 @@ class SessionProvider extends ChangeNotifier {
     _history = [];
     _historyLoading = false;
     _historyError = null;
+    _availableModels = [];
+    _currentModelFile = null;
+    _modelsLoading = false;
+    _modelsError = null;
     ForegroundSessionService.stop();
     notifyListeners();
   }
@@ -158,6 +170,40 @@ class SessionProvider extends ChangeNotifier {
       await _repository.heartbeatServerDetector(_activeSession!.id);
     } catch (e) {
       debugPrint("Error heartbeating server detector: $e");
+    }
+  }
+
+  Future<void> fetchAvailableModels() async {
+    _modelsLoading = true;
+    _modelsError = null;
+    notifyListeners();
+    try {
+      final result = await _repository.getAvailableModels();
+      _availableModels = result.models;
+      _currentModelFile = result.currentModelFile;
+    } catch (e) {
+      _modelsError = e.toString();
+    } finally {
+      _modelsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> selectModel(String fileName) async {
+    _modelsLoading = true;
+    _modelsError = null;
+    notifyListeners();
+    try {
+      final result = await _repository.selectModel(fileName);
+      _availableModels = result.models;
+      _currentModelFile = result.currentModelFile;
+      return true;
+    } catch (e) {
+      _modelsError = e.toString();
+      return false;
+    } finally {
+      _modelsLoading = false;
+      notifyListeners();
     }
   }
 

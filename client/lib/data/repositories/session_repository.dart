@@ -57,4 +57,17 @@ class SessionRepository {
   Future<void> heartbeatServerDetector(int sessionId) async {
     await _apiClient.post('/sessions/$sessionId/detector/heartbeat');
   }
+
+  Future<MlModelSelectionModel> getAvailableModels() async {
+    final response = await _apiClient.get('/models');
+    return MlModelSelectionModel.fromJson(response.data);
+  }
+
+  Future<MlModelSelectionModel> selectModel(String fileName) async {
+    final response = await _apiClient.post(
+      '/models/select',
+      data: {'file_name': fileName},
+    );
+    return MlModelSelectionModel.fromJson(response.data);
+  }
 }

@@ -1,3 +1,23 @@
+DateTime _parseApiDateTime(String raw) {
+  final value = raw.trim();
+  final parsed = DateTime.parse(value);
+  if (parsed.isUtc) return parsed.toLocal();
+
+  // Backend timestamps without timezone are treated as Philippines local time
+  // (UTC+8), then converted to device local time for consistent DateTime math.
+  final philippinesLocalAsUtc = DateTime.utc(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+    parsed.millisecond,
+    parsed.microsecond,
+  ).subtract(const Duration(hours: 8));
+  return philippinesLocalAsUtc.toLocal();
+}
+
 class SubjectModel {
   final int id;
   final String name;
@@ -67,9 +87,9 @@ class SessionModel {
       id: json['id'],
       subjectId: json['subject_id'],
       sectionId: json['section_id'],
-      startTime: DateTime.parse(json['start_time']),
+      startTime: _parseApiDateTime(json['start_time']),
       endTime:
-          json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
+          json['end_time'] != null ? _parseApiDateTime(json['end_time']) : null,
       isActive: json['is_active'],
     );
   }
@@ -101,7 +121,7 @@ class BehaviorLogModel {
   factory BehaviorLogModel.fromJson(Map<String, dynamic> json) {
     return BehaviorLogModel(
       id: json['id'],
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: _parseApiDateTime(json['timestamp']),
       raisingHand: json['raising_hand'],
       sleeping: json['sleeping'],
       writing: json['writing'],
@@ -133,7 +153,7 @@ class AlertModel {
       id: json['id'],
       alertType: json['alert_type'],
       message: json['message'],
-      triggeredAt: DateTime.parse(json['triggered_at']),
+      triggeredAt: _parseApiDateTime(json['triggered_at']),
       isRead: json['is_read'],
     );
   }
@@ -198,11 +218,51 @@ class SessionSummaryModel {
       sectionId: json['section_id'],
       subjectName: json['subject_name'],
       sectionName: json['section_name'],
-      startTime: DateTime.parse(json['start_time']),
+      startTime: _parseApiDateTime(json['start_time']),
       endTime:
-          json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
+          json['end_time'] != null ? _parseApiDateTime(json['end_time']) : null,
       isActive: json['is_active'],
       averageEngagement: (json['average_engagement'] as num).toDouble(),
+    );
+  }
+}
+
+class MlModelOptionModel {
+  final String fileName;
+  final bool isCurrent;
+
+  MlModelOptionModel({
+    required this.fileName,
+    required this.isCurrent,
+  });
+
+  factory MlModelOptionModel.fromJson(Map<String, dynamic> json) {
+    return MlModelOptionModel(
+      fileName: json['file_name'],
+      isCurrent: json['is_current'] ?? false,
+    );
+  }
+
+  String get displayName => fileName
+      .replaceAll(RegExp(r'\.pt$', caseSensitive: false), '')
+      .replaceAll('_', ' ');
+}
+
+class MlModelSelectionModel {
+  final String currentModelFile;
+  final List<MlModelOptionModel> models;
+
+  MlModelSelectionModel({
+    required this.currentModelFile,
+    required this.models,
+  });
+
+  factory MlModelSelectionModel.fromJson(Map<String, dynamic> json) {
+    return MlModelSelectionModel(
+      currentModelFile: json['current_model_file'],
+      models: (json['models'] as List)
+          .map((e) => MlModelOptionModel.fromJson(e))
+          .toList(),
     );
   }
 }
