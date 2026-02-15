@@ -137,6 +137,10 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
   void _startMonitoring(
       BuildContext context, SubjectModel subject, SectionModel section) async {
     final sessionProvider = context.read<SessionProvider>();
+    final studentsPresent = await _askStudentsPresent(context);
+    if (studentsPresent == null) {
+      return;
+    }
 
     showDialog(
       context: context,
@@ -144,7 +148,11 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    final success = await sessionProvider.startSession(subject.id, section.id);
+    final success = await sessionProvider.startSession(
+      subject.id,
+      section.id,
+      studentsPresent,
+    );
 
     if (context.mounted) {
       Navigator.pop(context);
@@ -165,6 +173,43 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
         );
       }
     }
+  }
+
+  Future<int?> _askStudentsPresent(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Students Present'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Enter number of students present',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value == null || value <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Enter a valid number greater than 0.')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

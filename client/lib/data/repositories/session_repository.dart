@@ -1,16 +1,22 @@
 import '../../core/api/api_client.dart';
 import '../models/classroom_session_models.dart';
+
 class SessionRepository {
   final ApiClient _apiClient;
 
   SessionRepository(this._apiClient);
 
-  Future<SessionModel> startSession(int subjectId, int sectionId) async {
+  Future<SessionModel> startSession(
+    int subjectId,
+    int sectionId,
+    int studentsPresent,
+  ) async {
     final response = await _apiClient.post(
       '/sessions/start',
       data: {
         'subject_id': subjectId,
         'section_id': sectionId,
+        'students_present': studentsPresent,
       },
     );
     return SessionModel.fromJson(response.data);
@@ -35,7 +41,8 @@ class SessionRepository {
     return SessionMetricsModel.fromJson(response.data);
   }
 
-  Future<List<SessionSummaryModel>> getSessionHistory({bool includeActive = false, int limit = 50}) async {
+  Future<List<SessionSummaryModel>> getSessionHistory(
+      {bool includeActive = false, int limit = 50}) async {
     final response = await _apiClient.get(
       '/sessions',
       queryParameters: {
@@ -43,7 +50,9 @@ class SessionRepository {
         'limit': limit,
       },
     );
-    return (response.data as List).map((e) => SessionSummaryModel.fromJson(e)).toList();
+    return (response.data as List)
+        .map((e) => SessionSummaryModel.fromJson(e))
+        .toList();
   }
 
   Future<void> startServerDetector(int sessionId) async {

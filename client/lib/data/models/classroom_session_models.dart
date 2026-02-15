@@ -69,6 +69,7 @@ class SessionModel {
   final int id;
   final int subjectId;
   final int sectionId;
+  final int studentsPresent;
   final DateTime startTime;
   final DateTime? endTime;
   final bool isActive;
@@ -77,6 +78,7 @@ class SessionModel {
     required this.id,
     required this.subjectId,
     required this.sectionId,
+    required this.studentsPresent,
     required this.startTime,
     this.endTime,
     required this.isActive,
@@ -87,6 +89,7 @@ class SessionModel {
       id: json['id'],
       subjectId: json['subject_id'],
       sectionId: json['section_id'],
+      studentsPresent: json['students_present'] ?? 1,
       startTime: _parseApiDateTime(json['start_time']),
       endTime:
           json['end_time'] != null ? _parseApiDateTime(json['end_time']) : null,
@@ -98,38 +101,37 @@ class SessionModel {
 class BehaviorLogModel {
   final int id;
   final DateTime timestamp;
-  final int raisingHand;
+  final int onTask;
   final int sleeping;
   final int writing;
   final int usingPhone;
-  final int attentive;
-  final int undetected;
+  final int disengagedPosture;
+  final int notVisible;
   final int totalDetected;
 
   BehaviorLogModel({
     required this.id,
     required this.timestamp,
-    required this.raisingHand,
+    required this.onTask,
     required this.sleeping,
     required this.writing,
     required this.usingPhone,
-    required this.attentive,
-    required this.undetected,
+    required this.disengagedPosture,
+    required this.notVisible,
     required this.totalDetected,
   });
 
   factory BehaviorLogModel.fromJson(Map<String, dynamic> json) {
     return BehaviorLogModel(
-      id: json['id'],
-      timestamp: _parseApiDateTime(json['timestamp']),
-      raisingHand: json['raising_hand'],
-      sleeping: json['sleeping'],
-      writing: json['writing'],
-      usingPhone: json['using_phone'],
-      attentive: json['attentive'],
-      undetected: json['undetected'],
-      totalDetected: json['total_detected']
-    );
+        id: json['id'],
+        timestamp: _parseApiDateTime(json['timestamp']),
+        onTask: json['on_task'],
+        sleeping: json['sleeping'],
+        writing: json['writing'],
+        usingPhone: json['using_phone'],
+        disengagedPosture: json['disengaged_posture'],
+        notVisible: json['not_visible'],
+        totalDetected: json['total_detected']);
   }
 }
 
@@ -161,6 +163,7 @@ class AlertModel {
 
 class SessionMetricsModel {
   final int sessionId;
+  final int studentsPresent;
   final int totalLogs;
   final double averageEngagement;
   final List<BehaviorLogModel> recentLogs;
@@ -168,6 +171,7 @@ class SessionMetricsModel {
 
   SessionMetricsModel({
     required this.sessionId,
+    required this.studentsPresent,
     required this.totalLogs,
     required this.averageEngagement,
     required this.recentLogs,
@@ -177,6 +181,7 @@ class SessionMetricsModel {
   factory SessionMetricsModel.fromJson(Map<String, dynamic> json) {
     return SessionMetricsModel(
       sessionId: json['session_id'],
+      studentsPresent: json['students_present'] ?? 1,
       totalLogs: json['total_logs'],
       averageEngagement: (json['average_engagement'] as num).toDouble(),
       recentLogs: (json['recent_logs'] as List)

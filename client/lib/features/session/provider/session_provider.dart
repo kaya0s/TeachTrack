@@ -59,12 +59,20 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> startSession(int subjectId, int sectionId) async {
+  Future<bool> startSession(
+    int subjectId,
+    int sectionId,
+    int studentsPresent,
+  ) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      _activeSession = await _repository.startSession(subjectId, sectionId);
+      _activeSession = await _repository.startSession(
+        subjectId,
+        sectionId,
+        studentsPresent,
+      );
       startMetricsPolling();
       await ForegroundSessionService.startOrUpdate(session: _activeSession!);
       return true;
@@ -137,7 +145,8 @@ class SessionProvider extends ChangeNotifier {
     _historyError = null;
     notifyListeners();
     try {
-      _history = await _repository.getSessionHistory(includeActive: includeActive);
+      _history =
+          await _repository.getSessionHistory(includeActive: includeActive);
     } catch (e) {
       _historyError = e.toString();
     } finally {

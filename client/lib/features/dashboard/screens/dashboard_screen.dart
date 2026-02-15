@@ -90,11 +90,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                         ),
-	                      ),
-	              ),
-	            ),
-	          ),
-	        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: IndexedStack(
         index: _currentIndex,
@@ -292,8 +292,8 @@ class _ClassesTabState extends State<_ClassesTab> {
                                   Expanded(
                                     child: Text(
                                       "Your Classes",
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.titleMedium?.copyWith(
                                         fontWeight: FontWeight.w700,
                                         color: theme
                                             .colorScheme.onPrimaryContainer,
@@ -312,7 +312,8 @@ class _ClassesTabState extends State<_ClassesTab> {
                                       color: theme.colorScheme.surface,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: theme.dividerColor.withOpacity(0.45),
+                                        color: theme.dividerColor
+                                            .withOpacity(0.45),
                                       ),
                                     ),
                                     child: TextField(
@@ -322,11 +323,13 @@ class _ClassesTabState extends State<_ClassesTab> {
                                       decoration: InputDecoration(
                                         hintText: 'Search classes',
                                         hintStyle: TextStyle(
-                                          color: theme.textTheme.bodySmall?.color,
+                                          color:
+                                              theme.textTheme.bodySmall?.color,
                                         ),
                                         prefixIcon: Icon(
                                           Icons.search_rounded,
-                                          color: theme.textTheme.bodySmall?.color,
+                                          color:
+                                              theme.textTheme.bodySmall?.color,
                                         ),
                                         suffixIcon: _searchQuery.isEmpty
                                             ? null
@@ -338,10 +341,8 @@ class _ClassesTabState extends State<_ClassesTab> {
                                                 },
                                                 icon: Icon(
                                                   Icons.close_rounded,
-                                                  color: theme
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.color,
+                                                  color: theme.textTheme
+                                                      .bodySmall?.color,
                                                 ),
                                               ),
                                         border: InputBorder.none,
@@ -357,7 +358,8 @@ class _ClassesTabState extends State<_ClassesTab> {
                                 ),
                                 const SizedBox(width: 10),
                                 FilledButton.icon(
-                                  onPressed: () => _showAddSubjectDialog(context),
+                                  onPressed: () =>
+                                      _showAddSubjectDialog(context),
                                   icon: const Icon(Icons.add_rounded),
                                   label: const Text("Add Subject"),
                                   style: FilledButton.styleFrom(
@@ -658,14 +660,54 @@ class _SubjectCard extends StatefulWidget {
 class _SubjectCardState extends State<_SubjectCard> {
   bool _isStarting = false;
 
+  Future<int?> _askStudentsPresent(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Students Present'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Enter number of students present',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value == null || value <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Enter a valid number greater than 0.')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _startMonitoringFromCard(SectionModel section) async {
     if (_isStarting) return;
+    final studentsPresent = await _askStudentsPresent(context);
+    if (studentsPresent == null) return;
     setState(() => _isStarting = true);
 
     final session = context.read<SessionProvider>();
     final success = await session.startSession(
       widget.subject.id,
       section.id,
+      studentsPresent,
     );
 
     if (!mounted) return;
@@ -1067,6 +1109,43 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     }
   }
 
+  Future<int?> _askStudentsPresent(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Students Present'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Enter number of students present',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value == null || value <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Enter a valid number greater than 0.')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<SessionProvider, ClassroomProvider>(
@@ -1248,7 +1327,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                       children: [
                         ListView.separated(
                           itemCount: recentSessions.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final item = recentSessions[index];
                             final duration = item.endTime != null
@@ -1269,11 +1349,12 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                                       .withOpacity(0.08),
                                   child: Icon(
                                     Icons.class_,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
-                                title:
-                                    Text("${item.subjectName} - ${item.sectionName}"),
+                                title: Text(
+                                    "${item.subjectName} - ${item.sectionName}"),
                                 subtitle: Text(
                                   "${_formatSessionStart(item.startTime)} - $durationLabel",
                                 ),
@@ -1281,7 +1362,8 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                                   "${item.averageEngagement.toStringAsFixed(0)}%",
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ),
@@ -1586,11 +1668,15 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                               onPressed: selectedSection == null || isStarting
                                   ? null
                                   : () async {
+                                      final studentsPresent =
+                                          await _askStudentsPresent(context);
+                                      if (studentsPresent == null) return;
                                       setSheetState(() => isStarting = true);
                                       final success =
                                           await session.startSession(
                                         selectedSubject.id,
                                         selectedSection!.id,
+                                        studentsPresent,
                                       );
                                       if (!context.mounted) return;
                                       Navigator.pop(context);
@@ -1719,9 +1805,17 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     }
 
     final values = metrics.recentLogs.map((log) {
-      if (log.totalDetected == 0) return 0.0;
-      final positives = log.attentive + log.writing + log.raisingHand;
-      return (positives / log.totalDetected) * 100;
+      final denominator =
+          metrics.studentsPresent <= 0 ? 1 : metrics.studentsPresent;
+      final rawScore = (1.0 * log.onTask) +
+          (0.8 * log.writing) -
+          (1.2 * log.usingPhone) -
+          (1.5 * log.sleeping) -
+          (1.0 * log.disengagedPosture);
+      final score = (rawScore / denominator) * 100;
+      if (score < 0) return 0.0;
+      if (score > 100) return 100.0;
+      return score;
     }).toList();
 
     if (values.every((value) => value == 0)) {
@@ -1914,7 +2008,8 @@ class _MachineLearningSettingsTab extends StatefulWidget {
       _MachineLearningSettingsTabState();
 }
 
-class _MachineLearningSettingsTabState extends State<_MachineLearningSettingsTab> {
+class _MachineLearningSettingsTabState
+    extends State<_MachineLearningSettingsTab> {
   @override
   void initState() {
     super.initState();
@@ -1939,7 +2034,8 @@ class _MachineLearningSettingsTabState extends State<_MachineLearningSettingsTab
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const Icon(Icons.error_outline,
+                        size: 48, color: Colors.red),
                     const SizedBox(height: 10),
                     Text(
                       session.modelsError ?? 'Failed to load models',
@@ -1995,38 +2091,40 @@ class _MachineLearningSettingsTabState extends State<_MachineLearningSettingsTab
                     ),
                     child: Column(
                       children: [
-                        for (int i = 0; i < session.availableModels.length; i++)
-                          ...[
-                            _ModelOptionTile(
-                              title: session.availableModels[i].displayName,
-                              selected: session.availableModels[i].fileName ==
-                                  session.currentModelFile,
-                              enabled: !session.modelsLoading,
-                              onTap: () async {
-                                final model = session.availableModels[i];
-                                final ok =
-                                    await session.selectModel(model.fileName);
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      ok
-                                          ? 'Model set to ${model.displayName}'
-                                          : (session.modelsError ??
-                                              'Failed to select model'),
-                                    ),
+                        for (int i = 0;
+                            i < session.availableModels.length;
+                            i++) ...[
+                          _ModelOptionTile(
+                            title: session.availableModels[i].displayName,
+                            selected: session.availableModels[i].fileName ==
+                                session.currentModelFile,
+                            enabled: !session.modelsLoading,
+                            onTap: () async {
+                              final model = session.availableModels[i];
+                              final ok =
+                                  await session.selectModel(model.fileName);
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    ok
+                                        ? 'Model set to ${model.displayName}'
+                                        : (session.modelsError ??
+                                            'Failed to select model'),
                                   ),
-                                );
-                              },
+                                ),
+                              );
+                            },
+                          ),
+                          if (i != session.availableModels.length - 1)
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: Theme.of(context)
+                                  .dividerColor
+                                  .withOpacity(0.35),
                             ),
-                            if (i != session.availableModels.length - 1)
-                              Divider(
-                                height: 1,
-                                thickness: 1,
-                                color:
-                                    Theme.of(context).dividerColor.withOpacity(0.35),
-                              ),
-                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -2279,7 +2377,8 @@ class _MeTabState extends State<_MeTab> {
                               content: Text(
                                 success
                                     ? 'Account updated'
-                                    : (auth.error ?? 'Failed to update account'),
+                                    : (auth.error ??
+                                        'Failed to update account'),
                               ),
                             ),
                           );
@@ -2407,7 +2506,8 @@ class _MeTabState extends State<_MeTab> {
                               content: Text(
                                 success
                                     ? 'Password changed successfully'
-                                    : (auth.error ?? 'Failed to change password'),
+                                    : (auth.error ??
+                                        'Failed to change password'),
                               ),
                             ),
                           );
@@ -2526,7 +2626,8 @@ class _MeTabState extends State<_MeTab> {
         ),
         const SizedBox(height: 12),
         Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
             child: Column(
