@@ -3,11 +3,6 @@ from datetime import datetime
 from typing import Optional, List
 from enum import Enum
 
-class AlertTypeEnum(str, Enum):
-    SLEEPING = "SLEEPING"
-    PHONE = "PHONE"
-    ENGAGEMENT_DROP = "ENGAGEMENT_DROP"
-
 class AlertSeverityEnum(str, Enum):
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
@@ -52,7 +47,6 @@ class Alert(AlertBase):
 class SessionBase(BaseModel):
     subject_id: int
     section_id: int
-    total_students_enrolled: int = 0
 
 class SessionCreate(SessionBase):
     pass
@@ -128,7 +122,6 @@ class SessionHistory(BaseModel):
     prev_start_time: Optional[datetime] = None
     prev_end_time: Optional[datetime] = None
     prev_is_active: Optional[bool] = None
-    prev_total_students_enrolled: Optional[int] = None
 
     class Config:
         from_attributes = True

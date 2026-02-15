@@ -27,9 +27,6 @@ class ClassSession(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Snapshot of context
-    total_students_enrolled = Column(Integer, default=0)
-
     teacher = relationship("User", back_populates="sessions")
     section = relationship("ClassSection", back_populates="sessions")
     subject = relationship("Subject", back_populates="sessions")
@@ -115,7 +112,6 @@ class SessionHistory(Base):
     prev_start_time = Column(DateTime(timezone=True), nullable=True)
     prev_end_time = Column(DateTime(timezone=True), nullable=True)
     prev_is_active = Column(Boolean, nullable=True)
-    prev_total_students_enrolled = Column(Integer, nullable=True)
 
     session = relationship("ClassSession")
 

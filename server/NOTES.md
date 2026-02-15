@@ -56,7 +56,6 @@ Relationships:
 - `is_active` `BOOLEAN` default `true`
 - `created_at` `DATETIME(timezone=True)` default `now`
 - `updated_at` `DATETIME(timezone=True)` default `now`, auto-update on change
-- `total_students_enrolled` `INTEGER` default `0`
 
 Relationships:
 - N:1 to `users`
@@ -131,7 +130,6 @@ Relationships:
 - `prev_start_time` `DATETIME(timezone=True)` nullable
 - `prev_end_time` `DATETIME(timezone=True)` nullable
 - `prev_is_active` `BOOLEAN` nullable
-- `prev_total_students_enrolled` `INTEGER` nullable
 
 Relationships:
 - N:1 to `class_sessions`

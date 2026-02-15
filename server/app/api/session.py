@@ -8,7 +8,7 @@ import time
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from ultralytics import YOLO
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session, joinedload
@@ -28,7 +28,7 @@ from app.models.session import (
 )
 from app.schemas.session import (
     SessionCreate, Session as SessionSchema,
-    BehaviorLogCreate, BehaviorLog as BehaviorLogSchema,
+    BehaviorLogCreate,
     Alert as AlertSchema, SessionMetrics,
     SessionMetricRow, EngagementEvent as EngagementEventSchema,
     SessionHistory as SessionHistorySchema,
@@ -741,8 +741,7 @@ def _record_session_history(db: Session, session: ClassSession, user_id: int, ch
         change_type=change_type,
         prev_start_time=session.start_time,
         prev_end_time=session.end_time,
-        prev_is_active=session.is_active,
-        prev_total_students_enrolled=session.total_students_enrolled
+        prev_is_active=session.is_active
     )
     db.add(history)
     db.commit()

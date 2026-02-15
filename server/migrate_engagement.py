@@ -91,7 +91,6 @@ with conn.cursor() as cursor:
                 prev_start_time DATETIME NULL,
                 prev_end_time DATETIME NULL,
                 prev_is_active BOOLEAN NULL,
-                prev_total_students_enrolled INT NULL,
                 CONSTRAINT fk_session_history_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
             """
@@ -151,6 +150,13 @@ with conn.cursor() as cursor:
         cursor.execute(
             "ALTER TABLE alerts ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;"
         )
+
+    # Remove legacy columns no longer used by the application
+    if column_exists(cursor, "class_sessions", "total_students_enrolled"):
+        cursor.execute("ALTER TABLE class_sessions DROP COLUMN total_students_enrolled;")
+
+    if column_exists(cursor, "session_history", "prev_total_students_enrolled"):
+        cursor.execute("ALTER TABLE session_history DROP COLUMN prev_total_students_enrolled;")
 
 conn.commit()
 conn.close()
