@@ -20,6 +20,7 @@ class ClassSession(Base):
     teacher_id = Column(Integer, ForeignKey("users.id"))
     section_id = Column(Integer, ForeignKey("class_sections.id"))
     subject_id = Column(Integer, ForeignKey("subjects.id"))
+    students_present = Column(Integer, nullable=False, default=1)
     
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
@@ -42,12 +43,12 @@ class BehaviorLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     
     # Counts
-    raising_hand = Column(Integer, default=0)
+    on_task = Column(Integer, default=0)
     sleeping = Column(Integer, default=0)
     writing = Column(Integer, default=0)
     using_phone = Column(Integer, default=0)
-    attentive = Column(Integer, default=0)
-    undetected = Column(Integer, default=0)
+    disengaged_posture = Column(Integer, default=0)
+    not_visible = Column(Integer, default=0)
     
     total_detected = Column(Integer, default=0)
 
@@ -77,12 +78,12 @@ class SessionMetrics(Base):
     window_end = Column(DateTime(timezone=True), nullable=False)
 
     total_detected = Column(Integer, nullable=False, default=0)
-    attentive_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
+    on_task_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     phone_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     sleeping_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     writing_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
-    raising_hand_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
-    undetected_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
+    disengaged_posture_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
+    not_visible_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
 
     engagement_score = Column(DECIMAL(5, 2), nullable=False, default=0)
     computed_at = Column(DateTime(timezone=True), server_default=func.now())

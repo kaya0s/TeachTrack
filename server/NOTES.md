@@ -51,6 +51,7 @@ Relationships:
 - `teacher_id` `INTEGER` FK -> `users.id`
 - `section_id` `INTEGER` FK -> `class_sections.id`
 - `subject_id` `INTEGER` FK -> `subjects.id`
+- `students_present` `INTEGER` not null, default `1`
 - `start_time` `DATETIME(timezone=True)` default `now`
 - `end_time` `DATETIME(timezone=True)` nullable
 - `is_active` `BOOLEAN` default `true`
@@ -68,12 +69,12 @@ Relationships:
 - `id` `BIGINT` PK
 - `session_id` `INTEGER` FK -> `class_sessions.id`
 - `timestamp` `DATETIME(timezone=True)` default `now`
-- `raising_hand` `INTEGER` default `0`
+- `on_task` `INTEGER` default `0`
 - `sleeping` `INTEGER` default `0`
 - `writing` `INTEGER` default `0`
 - `using_phone` `INTEGER` default `0`
-- `attentive` `INTEGER` default `0`
-- `undetected` `INTEGER` default `0`
+- `disengaged_posture` `INTEGER` default `0`
+- `not_visible` `INTEGER` default `0`
 - `total_detected` `INTEGER` default `0`
 
 Relationships:
@@ -98,12 +99,12 @@ Relationships:
 - `window_start` `DATETIME(timezone=True)` not null
 - `window_end` `DATETIME(timezone=True)` not null
 - `total_detected` `INTEGER` not null, default `0`
-- `attentive_avg` `DECIMAL(5,2)` not null, default `0`
+- `on_task_avg` `DECIMAL(5,2)` not null, default `0`
 - `phone_avg` `DECIMAL(5,2)` not null, default `0`
 - `sleeping_avg` `DECIMAL(5,2)` not null, default `0`
 - `writing_avg` `DECIMAL(5,2)` not null, default `0`
-- `raising_hand_avg` `DECIMAL(5,2)` not null, default `0`
-- `undetected_avg` `DECIMAL(5,2)` not null, default `0`
+- `disengaged_posture_avg` `DECIMAL(5,2)` not null, default `0`
+- `not_visible_avg` `DECIMAL(5,2)` not null, default `0`
 - `engagement_score` `DECIMAL(5,2)` not null, default `0`
 - `computed_at` `DATETIME(timezone=True)` default `now`
 

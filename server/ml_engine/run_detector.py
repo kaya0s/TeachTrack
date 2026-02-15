@@ -65,16 +65,16 @@ def run_detection():
                 
                 # --- Aggregate Counts ---
                 # We map the model's class names to our schema keys.
-                # Schema keys: raising_hand, sleeping, writing, using_phone, attentive
+                # Schema keys: on_task, sleeping, writing, using_phone, disengaged_posture
                 # We assume your model classes match these names loosely or exactly.
                 
                 counts = {
-                    "raising_hand": 0, 
+                    "on_task": 0, 
                     "sleeping": 0, 
                     "writing": 0, 
                     "using_phone": 0, 
-                    "attentive": 0, 
-                    "undetected": 0
+                    "disengaged_posture": 0,
+                    "not_visible": 0,
                 }
                 
                 # Iterate detections
@@ -88,8 +88,14 @@ def run_detection():
                     class_name = model.names[cls_id]
                     
                     # Normalize class name to match our keys (lowercase, replace spaces)
-                    # e.g. "Raising Hand" -> "raising_hand"
+                    # e.g. "On Task" -> "on_task"
                     normalized_name = class_name.lower().replace(" ", "_")
+                    if normalized_name == "attentive":
+                        normalized_name = "on_task"
+                    elif normalized_name == "raising_hand":
+                        normalized_name = "on_task"
+                    elif normalized_name in {"bow_down", "bown_down"}:
+                        normalized_name = "disengaged_posture"
                     
                     if normalized_name in counts:
                         counts[normalized_name] += 1

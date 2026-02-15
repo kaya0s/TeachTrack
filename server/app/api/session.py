@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Any
+from typing import List, Any, Dict
 import logging
 import os
 from pathlib import Path
@@ -66,6 +66,13 @@ _current_model_path = (
 ).resolve()
 _weights_dir = _current_model_path.parent
 
+# Weighted behavior scoring config
+W_ON_TASK = 1.0
+W_WRITING = 0.8
+W_PHONE = 1.2
+W_SLEEPING = 1.5
+W_DISENGAGED_POSTURE = 1.0
+
 def _get_model() -> YOLO:
     global _model
     if _model is None:
@@ -97,6 +104,52 @@ def _build_model_selection_response() -> dict:
             for p in files
         ],
     }
+
+def _empty_behavior_counts() -> Dict[str, int]:
+    return {
+        "on_task": 0,
+        "sleeping": 0,
+        "writing": 0,
+        "using_phone": 0,
+        "disengaged_posture": 0,
+        "not_visible": 0,
+    }
+
+def _normalize_behavior_label(name: str) -> str:
+    normalized = name.lower().replace(" ", "_")
+    alias_map = {
+        "attentive": "on_task",
+        "raising_hand": "on_task",
+        "bow_down": "disengaged_posture",
+        "bown_down": "disengaged_posture",
+        "bowed_down": "disengaged_posture",
+    }
+    return alias_map.get(normalized, normalized)
+
+def _weighted_engagement_percent(
+    on_task: int,
+    writing: int,
+    using_phone: int,
+    sleeping: int,
+    disengaged_posture: int,
+    students_present: int,
+) -> float:
+    if students_present <= 0:
+        return 0.0
+    raw_score = (
+        (W_ON_TASK * on_task)
+        + (W_WRITING * writing)
+        - (W_PHONE * using_phone)
+        - (W_SLEEPING * sleeping)
+        - (W_DISENGAGED_POSTURE * disengaged_posture)
+    )
+    percent = (raw_score / students_present) * 100
+    return max(0.0, min(100.0, percent))
+
+def _to_float(value: Any) -> float:
+    if value is None:
+        return 0.0
+    return float(value)
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
     if not SERVER_CAMERA_ENABLED:
@@ -145,14 +198,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
                 except Exception as exc:
                     logger.error(f"Preview error for session {session_id}: {exc}")
 
-            counts = {
-                "raising_hand": 0,
-                "sleeping": 0,
-                "writing": 0,
-                "using_phone": 0,
-                "attentive": 0,
-                "undetected": 0,
-            }
+            counts = _empty_behavior_counts()
 
             for box in results[0].boxes:
                 cls_id = int(box.cls[0])
@@ -160,7 +206,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event) -> None:
                 if conf < 0.5:
                     continue
                 class_name = model.names[cls_id]
-                normalized = class_name.lower().replace(" ", "_")
+                normalized = _normalize_behavior_label(class_name)
                 if normalized in counts:
                     counts[normalized] += 1
 
@@ -191,8 +237,9 @@ def start_session(
     session_in: SessionCreate,
     current_user = Depends(deps.get_current_active_user),
 ) -> Any:
-    # Close any existing active sessions for this teacher? Optional. 
-    # For now, just create new.
+    if session_in.students_present <= 0:
+        raise HTTPException(status_code=400, detail="students_present must be greater than 0")
+
     session = ClassSession(
         **session_in.dict(),
         teacher_id=current_user.id,
@@ -258,16 +305,30 @@ def list_sessions(
     summaries = []
     for session in sessions:
         stats = db.query(
-            func.sum(BehaviorLog.attentive),
+            func.sum(BehaviorLog.on_task),
             func.sum(BehaviorLog.writing),
-            func.sum(BehaviorLog.raising_hand),
-            func.sum(BehaviorLog.total_detected)
+            func.sum(BehaviorLog.using_phone),
+            func.sum(BehaviorLog.sleeping),
+            func.sum(BehaviorLog.disengaged_posture),
+            func.count(BehaviorLog.id),
         ).filter(BehaviorLog.session_id == session.id).first()
 
         avg_eng = 0.0
-        if stats[3] and stats[3] > 0:
-            positives = (stats[0] or 0) + (stats[1] or 0) + (stats[2] or 0)
-            avg_eng = (positives / stats[3]) * 100
+        log_count = stats[5] or 0
+        if log_count > 0 and session.students_present > 0:
+            on_task_sum = _to_float(stats[0])
+            writing_sum = _to_float(stats[1])
+            phone_sum = _to_float(stats[2])
+            sleeping_sum = _to_float(stats[3])
+            disengaged_sum = _to_float(stats[4])
+            raw_total = (
+                (W_ON_TASK * on_task_sum)
+                + (W_WRITING * writing_sum)
+                - (W_PHONE * phone_sum)
+                - (W_SLEEPING * sleeping_sum)
+                - (W_DISENGAGED_POSTURE * disengaged_sum)
+            )
+            avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
 
         summaries.append({
             "id": session.id,
@@ -421,14 +482,7 @@ async def detect_behavior_metrics(
 
     results = model(frame, verbose=False)
 
-    counts = {
-        "raising_hand": 0,
-        "sleeping": 0,
-        "writing": 0,
-        "using_phone": 0,
-        "attentive": 0,
-        "undetected": 0,
-    }
+    counts = _empty_behavior_counts()
 
     for box in results[0].boxes:
         cls_id = int(box.cls[0])
@@ -436,7 +490,7 @@ async def detect_behavior_metrics(
         if conf < 0.5:
             continue
         class_name = model.names[cls_id]
-        normalized = class_name.lower().replace(" ", "_")
+        normalized = _normalize_behavior_label(class_name)
         if normalized in counts:
             counts[normalized] += 1
 
@@ -462,51 +516,60 @@ def _stop_detector_if_running(session_id: int) -> None:
         _detectors.pop(session_id, None)
 
 def _process_behavior_log(db: Session, session_id: int, log_in: BehaviorLogCreate) -> None:
-    # 1. Calc total detected
-    total = (log_in.raising_hand + log_in.sleeping + log_in.writing +
-             log_in.using_phone + log_in.attentive)
-    # Undetected is separate from "detected behaviors" usuallly, but user said "undetected students"
-    # log_in.undetected is tracked separately.
+    session = _get_active_session_or_404(db, session_id)
+    observed = (
+        log_in.on_task
+        + log_in.writing
+        + log_in.using_phone
+        + log_in.sleeping
+        + log_in.disengaged_posture
+    )
+    not_visible = max(0, session.students_present - observed)
+    total = observed
 
-    # Create Log
     log = BehaviorLog(
         session_id=session_id,
-        **log_in.dict(),
+        on_task=log_in.on_task,
+        sleeping=log_in.sleeping,
+        writing=log_in.writing,
+        using_phone=log_in.using_phone,
+        disengaged_posture=log_in.disengaged_posture,
+        not_visible=not_visible,
         total_detected=total
     )
     db.add(log)
-    db.commit()  # Commit to get timestamp/ID
+    db.commit()
     db.refresh(log)
 
     logger.info(f"📡 Received Log for Session {session_id}: Sleep={log_in.sleeping}, Phone={log_in.using_phone}, Total={total}")
 
-    # 2. Alert Logic
-    # Check Sleeping
     if total > 0 and log_in.sleeping > 0:
         ratio = log_in.sleeping / total
-        if ratio > 0.3 and total >= 5:  # >30% sleeping
+        if ratio > 0.3 and total >= 5:
             msg = f"High sleeping detected: {log_in.sleeping} students ({int(ratio*100)}%)."
             _trigger_alert(db, session_id, AlertType.SLEEPING, msg, AlertSeverity.WARNING)
 
-    # Check Phone
     if total > 0 and log_in.using_phone > 0:
         ratio = log_in.using_phone / total
-        if ratio > 0.2:  # >20% using phone
+        if ratio > 0.2:
             msg = f"Phone usage usage spike: {log_in.using_phone} students ({int(ratio*100)}%)."
             _trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING)
 
-    # Check Engagement Drop
-    engagement_ratio = 0.0
-    if total > 0:
-        positives = log_in.attentive + log_in.writing + log_in.raising_hand
-        engagement_ratio = positives / total
-        if engagement_ratio < 0.4 and total >= 5:
-            severity = AlertSeverity.CRITICAL if engagement_ratio < 0.25 else AlertSeverity.WARNING
-            msg = f"Engagement drop: {int(engagement_ratio*100)}% positive behaviors."
-            _trigger_alert(db, session_id, AlertType.ENGAGEMENT_DROP, msg, severity)
-            _record_engagement_event(db, session_id, "ENGAGEMENT_DROP", severity.value, msg)
-        elif engagement_ratio > 0.6:
-            _record_recovery_if_needed(db, session_id, engagement_ratio)
+    weighted_engagement = _weighted_engagement_percent(
+        on_task=log_in.on_task,
+        writing=log_in.writing,
+        using_phone=log_in.using_phone,
+        sleeping=log_in.sleeping,
+        disengaged_posture=log_in.disengaged_posture,
+        students_present=session.students_present,
+    )
+    if total >= 5 and weighted_engagement < 40:
+        severity = AlertSeverity.CRITICAL if weighted_engagement < 25 else AlertSeverity.WARNING
+        msg = f"Engagement drop: {int(weighted_engagement)}% weighted engagement."
+        _trigger_alert(db, session_id, AlertType.ENGAGEMENT_DROP, msg, severity)
+        _record_engagement_event(db, session_id, "ENGAGEMENT_DROP", severity.value, msg)
+    elif weighted_engagement > 60:
+        _record_recovery_if_needed(db, session_id, weighted_engagement)
 
     # Rollup Metrics (1-minute window)
     _update_session_metrics(db, session_id, log.timestamp)
@@ -543,22 +606,35 @@ def get_session_metrics(
     # Get unread alerts
     alerts = db.query(Alert).filter(Alert.session_id == session_id, Alert.is_read == False).all()
     
-    # Avg Engagement (Attentive + Writing + Raising Hand) / Total
-    # Simple calculation over all logs
     stats = db.query(
-        func.sum(BehaviorLog.attentive),
+        func.sum(BehaviorLog.on_task),
         func.sum(BehaviorLog.writing),
-        func.sum(BehaviorLog.raising_hand),
-        func.sum(BehaviorLog.total_detected)
+        func.sum(BehaviorLog.using_phone),
+        func.sum(BehaviorLog.sleeping),
+        func.sum(BehaviorLog.disengaged_posture),
+        func.count(BehaviorLog.id),
     ).filter(BehaviorLog.session_id == session_id).first()
     
     avg_eng = 0.0
-    if stats[3] and stats[3] > 0:
-        positives = (stats[0] or 0) + (stats[1] or 0) + (stats[2] or 0)
-        avg_eng = (positives / stats[3]) * 100
+    log_count = stats[5] or 0
+    if log_count > 0 and session.students_present > 0:
+        on_task_sum = _to_float(stats[0])
+        writing_sum = _to_float(stats[1])
+        phone_sum = _to_float(stats[2])
+        sleeping_sum = _to_float(stats[3])
+        disengaged_sum = _to_float(stats[4])
+        raw_total = (
+            (W_ON_TASK * on_task_sum)
+            + (W_WRITING * writing_sum)
+            - (W_PHONE * phone_sum)
+            - (W_SLEEPING * sleeping_sum)
+            - (W_DISENGAGED_POSTURE * disengaged_sum)
+        )
+        avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
         
     return {
         "session_id": session_id,
+        "students_present": session.students_present,
         "total_logs": len(logs),
         "average_engagement": round(avg_eng, 2),
         "recent_logs": logs,
@@ -656,15 +732,18 @@ def _floor_to_minute(dt: datetime) -> datetime:
 def _update_session_metrics(db: Session, session_id: int, log_time: datetime) -> None:
     window_start = _floor_to_minute(log_time)
     window_end = window_start + timedelta(minutes=1)
+    session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
+    if not session:
+        return
 
     stats = db.query(
         func.count(BehaviorLog.id),
-        func.sum(BehaviorLog.attentive),
+        func.sum(BehaviorLog.on_task),
         func.sum(BehaviorLog.using_phone),
         func.sum(BehaviorLog.sleeping),
         func.sum(BehaviorLog.writing),
-        func.sum(BehaviorLog.raising_hand),
-        func.sum(BehaviorLog.undetected),
+        func.sum(BehaviorLog.disengaged_posture),
+        func.sum(BehaviorLog.not_visible),
         func.sum(BehaviorLog.total_detected)
     ).filter(
         BehaviorLog.session_id == session_id,
@@ -676,17 +755,27 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     if log_count == 0:
         return
 
-    attentive_sum = stats[1] or 0
-    phone_sum = stats[2] or 0
-    sleeping_sum = stats[3] or 0
-    writing_sum = stats[4] or 0
-    raising_sum = stats[5] or 0
-    undetected_sum = stats[6] or 0
-    total_detected = stats[7] or 0
+    on_task_sum = _to_float(stats[1])
+    phone_sum = _to_float(stats[2])
+    sleeping_sum = _to_float(stats[3])
+    writing_sum = _to_float(stats[4])
+    disengaged_sum = _to_float(stats[5])
+    not_visible_sum = _to_float(stats[6])
+    total_detected = int(stats[7] or 0)
 
     engagement_score = 0.0
-    if total_detected > 0:
-        engagement_score = ((attentive_sum + writing_sum + raising_sum) / total_detected) * 100
+    if session.students_present > 0:
+        raw_total = (
+            (W_ON_TASK * on_task_sum)
+            + (W_WRITING * writing_sum)
+            - (W_PHONE * phone_sum)
+            - (W_SLEEPING * sleeping_sum)
+            - (W_DISENGAGED_POSTURE * disengaged_sum)
+        )
+        engagement_score = max(
+            0.0,
+            min(100.0, (raw_total / (session.students_present * log_count)) * 100),
+        )
 
     metrics = db.query(SessionMetricsModel).filter(
         SessionMetricsModel.session_id == session_id,
@@ -703,12 +792,12 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
         db.add(metrics)
 
     metrics.total_detected = total_detected
-    metrics.attentive_avg = round(attentive_sum / log_count, 2)
+    metrics.on_task_avg = round(on_task_sum / log_count, 2)
     metrics.phone_avg = round(phone_sum / log_count, 2)
     metrics.sleeping_avg = round(sleeping_sum / log_count, 2)
     metrics.writing_avg = round(writing_sum / log_count, 2)
-    metrics.raising_hand_avg = round(raising_sum / log_count, 2)
-    metrics.undetected_avg = round(undetected_sum / log_count, 2)
+    metrics.disengaged_posture_avg = round(disengaged_sum / log_count, 2)
+    metrics.not_visible_avg = round(not_visible_sum / log_count, 2)
     metrics.engagement_score = round(engagement_score, 2)
 
     db.commit()
@@ -723,7 +812,7 @@ def _record_engagement_event(db: Session, session_id: int, event_type: str, seve
     db.add(event)
     db.commit()
 
-def _record_recovery_if_needed(db: Session, session_id: int, engagement_ratio: float) -> None:
+def _record_recovery_if_needed(db: Session, session_id: int, engagement_percent: float) -> None:
     ten_min_ago = datetime.now() - timedelta(minutes=10)
     last_event = db.query(EngagementEvent).filter(
         EngagementEvent.session_id == session_id,
@@ -731,7 +820,7 @@ def _record_recovery_if_needed(db: Session, session_id: int, engagement_ratio: f
     ).order_by(EngagementEvent.event_time.desc()).first()
 
     if last_event and last_event.event_type == "ENGAGEMENT_DROP":
-        msg = f"Engagement recovery: {int(engagement_ratio*100)}% positive behaviors."
+        msg = f"Engagement recovery: {int(engagement_percent)}% weighted engagement."
         _record_engagement_event(db, session_id, "RECOVERY", AlertSeverity.WARNING.value, msg)
 
 def _record_session_history(db: Session, session: ClassSession, user_id: int, change_type: str) -> None:

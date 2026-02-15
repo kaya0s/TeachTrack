@@ -49,12 +49,12 @@ with conn.cursor() as cursor:
                 window_start DATETIME NOT NULL,
                 window_end DATETIME NOT NULL,
                 total_detected INT NOT NULL,
-                attentive_avg DECIMAL(5,2) NOT NULL,
+                on_task_avg DECIMAL(5,2) NOT NULL,
                 phone_avg DECIMAL(5,2) NOT NULL,
                 sleeping_avg DECIMAL(5,2) NOT NULL,
                 writing_avg DECIMAL(5,2) NOT NULL,
-                raising_hand_avg DECIMAL(5,2) NOT NULL,
-                undetected_avg DECIMAL(5,2) NOT NULL,
+                disengaged_posture_avg DECIMAL(5,2) NOT NULL,
+                not_visible_avg DECIMAL(5,2) NOT NULL,
                 engagement_score DECIMAL(5,2) NOT NULL,
                 computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_metrics_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
@@ -138,6 +138,8 @@ with conn.cursor() as cursor:
         cursor.execute(
             "ALTER TABLE class_sessions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;"
         )
+    if not column_exists(cursor, "class_sessions", "students_present"):
+        cursor.execute("ALTER TABLE class_sessions ADD COLUMN students_present INT NOT NULL DEFAULT 1;")
 
     if not column_exists(cursor, "alerts", "severity"):
         cursor.execute(
@@ -151,9 +153,37 @@ with conn.cursor() as cursor:
             "ALTER TABLE alerts ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;"
         )
 
+    # Behavior logs migration: old labels -> new labels
+    if column_exists(cursor, "behavior_logs", "attentive") and not column_exists(cursor, "behavior_logs", "on_task"):
+        cursor.execute("ALTER TABLE behavior_logs CHANGE COLUMN attentive on_task INT DEFAULT 0;")
+    if column_exists(cursor, "behavior_logs", "undetected") and not column_exists(cursor, "behavior_logs", "not_visible"):
+        cursor.execute("ALTER TABLE behavior_logs CHANGE COLUMN undetected not_visible INT DEFAULT 0;")
+    if not column_exists(cursor, "behavior_logs", "disengaged_posture"):
+        cursor.execute("ALTER TABLE behavior_logs ADD COLUMN disengaged_posture INT DEFAULT 0;")
+
+    # Session metrics migration
+    if column_exists(cursor, "session_metrics", "attentive_avg") and not column_exists(cursor, "session_metrics", "on_task_avg"):
+        cursor.execute("ALTER TABLE session_metrics CHANGE COLUMN attentive_avg on_task_avg DECIMAL(5,2) NOT NULL DEFAULT 0;")
+    if column_exists(cursor, "session_metrics", "raising_hand_avg") and not column_exists(cursor, "session_metrics", "disengaged_posture_avg"):
+        cursor.execute("ALTER TABLE session_metrics CHANGE COLUMN raising_hand_avg disengaged_posture_avg DECIMAL(5,2) NOT NULL DEFAULT 0;")
+    if column_exists(cursor, "session_metrics", "undetected_avg") and not column_exists(cursor, "session_metrics", "not_visible_avg"):
+        cursor.execute("ALTER TABLE session_metrics CHANGE COLUMN undetected_avg not_visible_avg DECIMAL(5,2) NOT NULL DEFAULT 0;")
+
     # Remove legacy columns no longer used by the application
     if column_exists(cursor, "class_sessions", "total_students_enrolled"):
         cursor.execute("ALTER TABLE class_sessions DROP COLUMN total_students_enrolled;")
+    if column_exists(cursor, "behavior_logs", "raising_hand"):
+        cursor.execute("ALTER TABLE behavior_logs DROP COLUMN raising_hand;")
+    if column_exists(cursor, "behavior_logs", "attentive"):
+        cursor.execute("ALTER TABLE behavior_logs DROP COLUMN attentive;")
+    if column_exists(cursor, "behavior_logs", "undetected"):
+        cursor.execute("ALTER TABLE behavior_logs DROP COLUMN undetected;")
+    if column_exists(cursor, "session_metrics", "attentive_avg"):
+        cursor.execute("ALTER TABLE session_metrics DROP COLUMN attentive_avg;")
+    if column_exists(cursor, "session_metrics", "raising_hand_avg"):
+        cursor.execute("ALTER TABLE session_metrics DROP COLUMN raising_hand_avg;")
+    if column_exists(cursor, "session_metrics", "undetected_avg"):
+        cursor.execute("ALTER TABLE session_metrics DROP COLUMN undetected_avg;")
 
     if column_exists(cursor, "session_history", "prev_total_students_enrolled"):
         cursor.execute("ALTER TABLE session_history DROP COLUMN prev_total_students_enrolled;")

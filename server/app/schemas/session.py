@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
@@ -9,12 +9,12 @@ class AlertSeverityEnum(str, Enum):
 
 # -- Logs --
 class BehaviorLogBase(BaseModel):
-    raising_hand: int = 0
+    on_task: int = 0
     sleeping: int = 0
     writing: int = 0
     using_phone: int = 0
-    attentive: int = 0
-    undetected: int = 0
+    disengaged_posture: int = 0
+    not_visible: int = 0
 
 class BehaviorLogCreate(BehaviorLogBase):
     pass
@@ -47,6 +47,7 @@ class Alert(AlertBase):
 class SessionBase(BaseModel):
     subject_id: int
     section_id: int
+    students_present: int = Field(..., ge=1)
 
 class SessionCreate(SessionBase):
     pass
@@ -65,6 +66,7 @@ class Session(SessionBase):
 
 class SessionMetrics(BaseModel):
     session_id: int
+    students_present: int
     total_logs: int
     average_engagement: float
     recent_logs: List[BehaviorLog]
@@ -76,12 +78,12 @@ class SessionMetricRow(BaseModel):
     window_start: datetime
     window_end: datetime
     total_detected: int
-    attentive_avg: float
+    on_task_avg: float
     phone_avg: float
     sleeping_avg: float
     writing_avg: float
-    raising_hand_avg: float
-    undetected_avg: float
+    disengaged_posture_avg: float
+    not_visible_avg: float
     engagement_score: float
     computed_at: datetime
 
