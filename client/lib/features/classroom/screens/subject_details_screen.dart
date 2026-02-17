@@ -332,6 +332,7 @@ class _OverviewTab extends StatelessWidget {
                   ),
                 ),
                 FilledButton.tonalIcon(
+                  style: _startMonitoringButtonStyle(context),
                   onPressed: () => onStartMonitoring(section),
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Start Monitoring'),
@@ -341,6 +342,22 @@ class _OverviewTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  ButtonStyle _startMonitoringButtonStyle(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF56CC9D) : const Color(0xFF0F7A5C);
+    final fg = isDark ? Colors.black : Colors.white;
+    return FilledButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      disabledBackgroundColor: scheme.surfaceContainerHighest,
+      disabledForegroundColor: scheme.onSurface.withOpacity(0.55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
     );
   }
 }

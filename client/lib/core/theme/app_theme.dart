@@ -2,19 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color _lightBackground = Color(0xFFF8FAFC);
+  // shadcn/ui neutral palette
+  static const Color _lightBackground = Color(0xFFFAFAFA);
   static const Color _lightSurface = Color(0xFFFFFFFF);
-  static const Color _lightSurfaceAlt = Color(0xFFF1F5F9);
-  static const Color _lightText = Color(0xFF0F172A);
-  static const Color _lightMuted = Color(0xFF64748B);
-  static const Color _lightBorder = Color(0xFFE2E8F0);
+  static const Color _lightSurfaceAlt = Color(0xFFF5F5F5);
+  static const Color _lightText = Color(0xFF0A0A0A);
+  static const Color _lightMuted = Color(0xFF737373);
+  static const Color _lightBorder = Color(0xFFE5E5E5);
 
-  static const Color _darkBackground = Color(0xFF0B0F14);
-  static const Color _darkSurface = Color(0xFF111827);
-  static const Color _darkSurfaceAlt = Color(0xFF0F172A);
-  static const Color _darkText = Color(0xFFE2E8F0);
-  static const Color _darkMuted = Color(0xFF94A3B8);
-  static const Color _darkBorder = Color(0xFF1F2937);
+  static const Color _darkBackground = Color(0xFF0A0A0A);
+  static const Color _darkSurface = Color(0xFF171717);
+  static const Color _darkSurfaceAlt = Color(0xFF262626);
+  static const Color _darkText = Color(0xFFFAFAFA);
+  static const Color _darkMuted = Color(0xFFA3A3A3);
+  static const Color _darkBorder = Color(0xFF2E2E2E);
 
   static const Color _error = Color(0xFFEF4444);
 
@@ -51,14 +52,14 @@ class AppTheme {
         backgroundColor: background,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.sora(
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: text,
         ),
         iconTheme: IconThemeData(color: text),
       ),
-      textTheme: GoogleFonts.soraTextTheme(
+      textTheme: GoogleFonts.interTextTheme(
         isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
       ).apply(
         bodyColor: text,
@@ -106,7 +107,8 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: text,
           side: BorderSide(color: border),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           minimumSize: const Size(double.infinity, 54),
         ),
       ),

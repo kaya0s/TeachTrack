@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
@@ -697,6 +698,22 @@ class _SubjectCardState extends State<_SubjectCard> {
     );
   }
 
+  ButtonStyle _startSubjectButtonStyle(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF56CC9D) : const Color(0xFF0F7A5C);
+    final fg = isDark ? Colors.black : Colors.white;
+    return FilledButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      disabledBackgroundColor: scheme.surfaceContainerHighest,
+      disabledForegroundColor: scheme.onSurface.withOpacity(0.55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+
   Future<void> _startMonitoringFromCard(SectionModel section) async {
     if (_isStarting) return;
     final studentsPresent = await _askStudentsPresent(context);
@@ -807,6 +824,7 @@ class _SubjectCardState extends State<_SubjectCard> {
                               leading: const Icon(Icons.groups_rounded),
                               title: Text(section.name),
                               trailing: FilledButton.tonal(
+                                style: _startSubjectButtonStyle(context),
                                 onPressed: _isStarting
                                     ? null
                                     : () async {
@@ -1257,11 +1275,11 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
 
         final isLoading = classroom.isLoading && classroom.subjects.isEmpty;
         final recentSessions = session.history.take(5).toList();
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        return ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 8),
+            Column(
               children: [
                 Icon(Icons.sensors_off_rounded,
                     size: 64, color: Colors.grey.shade400),
@@ -1283,6 +1301,7 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
+                    style: _startSessionButtonStyle(context),
                     onPressed: () =>
                         _showStartSessionSheet(context, session, classroom),
                     child: isLoading
@@ -1309,99 +1328,11 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                     ),
                   )
                 else if (recentSessions.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Recent Sessions",
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 270,
-                    width: double.infinity,
-                    child: Stack(
-                      children: [
-                        ListView.separated(
-                          itemCount: recentSessions.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final item = recentSessions[index];
-                            final duration = item.endTime != null
-                                ? item.endTime!.difference(item.startTime)
-                                : const Duration();
-                            final durationLabel = item.endTime == null
-                                ? "In progress"
-                                : "${duration.inMinutes} min";
-
-                            return Card(
-                              margin: EdgeInsets.zero,
-                              child: ListTile(
-                                dense: true,
-                                leading: CircleAvatar(
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                      .withOpacity(0.08),
-                                  child: Icon(
-                                    Icons.class_,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                title: Text(
-                                    "${item.subjectName} - ${item.sectionName}"),
-                                subtitle: Text(
-                                  "${_formatSessionStart(item.startTime)} - $durationLabel",
-                                ),
-                                trailing: Text(
-                                  "${item.averageEngagement.toStringAsFixed(0)}%",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        if (recentSessions.length > 3)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            height: 52,
-                            child: IgnorePointer(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Theme.of(context)
-                                          .scaffoldBackgroundColor
-                                          .withOpacity(0.0),
-                                      Theme.of(context)
-                                          .scaffoldBackgroundColor
-                                          .withOpacity(0.45),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  _buildRecentSessionsPanel(context, recentSessions),
                 ],
               ],
             ),
-          ),
+          ],
         );
       },
     );
@@ -1665,6 +1596,7 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
+                              style: _startSessionButtonStyle(context),
                               onPressed: selectedSection == null || isStarting
                                   ? null
                                   : () async {
@@ -1724,6 +1656,325 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
         );
       },
     );
+  }
+
+  ButtonStyle _startSessionButtonStyle(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF56CC9D) : const Color(0xFF0F7A5C);
+    final fg = isDark ? Colors.black : Colors.white;
+
+    return ElevatedButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      disabledBackgroundColor: scheme.surfaceContainerHighest,
+      disabledForegroundColor: scheme.onSurface.withOpacity(0.55),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      elevation: 0,
+    );
+  }
+
+  Widget _buildRecentSessionsPanel(
+      BuildContext context, List<SessionSummaryModel> recentSessions) {
+    final trendData = recentSessions.reversed.toList();
+    final spots = <FlSpot>[];
+    for (int i = 0; i < trendData.length; i++) {
+      spots.add(FlSpot(i.toDouble(), trendData[i].averageEngagement));
+    }
+
+    final avg =
+        recentSessions.map((e) => e.averageEngagement).reduce((a, b) => a + b) /
+            recentSessions.length;
+    final best = recentSessions
+        .map((e) => e.averageEngagement)
+        .reduce((a, b) => a > b ? a : b);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.history_rounded, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  "Recent Sessions",
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                  ),
+                  child: Text(
+                    "${recentSessions.length} sessions",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _sessionKpi(
+                    context,
+                    label: "Average",
+                    value: "${avg.toStringAsFixed(0)}%",
+                    color: _engagementColor(context, avg),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _sessionKpi(
+                    context,
+                    label: "Best",
+                    value: "${best.toStringAsFixed(0)}%",
+                    color: _engagementColor(context, best),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 92,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: 100,
+                  minX: 0,
+                  maxX: (spots.length - 1).toDouble(),
+                  gridData: FlGridData(
+                    show: true,
+                    horizontalInterval: 25,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                        color: Theme.of(context).dividerColor, strokeWidth: 1),
+                  ),
+                  titlesData: const FlTitlesData(
+                    leftTitles:
+                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles:
+                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles:
+                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles:
+                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (items) => items
+                          .map((e) => LineTooltipItem(
+                                "${e.y.toStringAsFixed(0)}%",
+                                const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: Theme.of(context).colorScheme.primary,
+                      barWidth: 2.8,
+                      dotData: FlDotData(show: spots.length < 8),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...recentSessions.map((item) {
+              final duration = item.endTime != null
+                  ? item.endTime!.difference(item.startTime)
+                  : const Duration();
+              final durationLabel = item.endTime == null
+                  ? "In progress"
+                  : "${duration.inMinutes} min";
+              final scoreColor =
+                  _engagementColor(context, item.averageEngagement);
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showSessionDetailSheet(context, item),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color:
+                              Theme.of(context).dividerColor.withOpacity(0.45)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "${item.subjectName} - ${item.sectionName}",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                "${_formatSessionStart(item.startTime)} · $durationLabel",
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: scoreColor.withOpacity(0.12),
+                          ),
+                          child: Text(
+                            "${item.averageEngagement.toStringAsFixed(0)}%",
+                            style: TextStyle(
+                              color: scoreColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sessionKpi(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(0.1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _engagementColor(BuildContext context, double value) {
+    if (value >= 70) return const Color(0xFF2E7D32);
+    if (value >= 40) return const Color(0xFFF57C00);
+    return Theme.of(context).colorScheme.error;
+  }
+
+  void _showSessionDetailSheet(BuildContext context, SessionSummaryModel item) {
+    final duration = item.endTime != null
+        ? item.endTime!.difference(item.startTime)
+        : const Duration();
+    final durationLabel =
+        item.endTime == null ? "In progress" : "${duration.inMinutes} minutes";
+
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              "${item.subjectName} - ${item.sectionName}",
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text("Started: ${_dateFormat.format(item.startTime)}"),
+            Text("Duration: $durationLabel"),
+            Text(
+              "Engagement: ${item.averageEngagement.toStringAsFixed(1)}% (${_engagementBand(item.averageEngagement)})",
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _engagementBand(double value) {
+    if (value >= 70) return "Strong";
+    if (value >= 40) return "Moderate";
+    return "Needs attention";
   }
 
   Widget _buildMetricsSummary(
@@ -2128,6 +2379,57 @@ class _MachineLearningSettingsTabState
                       ],
                     ),
                   ),
+                const SizedBox(height: 18),
+                Text(
+                  'Coming Soon',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Planned features for upcoming releases.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'TEAM KAGWANG',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                _ComingSoonFeatureTile(
+                  icon: Icons.tune_rounded,
+                  title: 'Per-Behavior Weights',
+                  description:
+                      'Adjust engagement scoring weights from settings.',
+                ),
+                _ComingSoonFeatureTile(
+                  icon: Icons.notifications_active_rounded,
+                  title: 'Smart Alert Rules',
+                  description:
+                      'Custom thresholds, cooldowns, and schedule-based alerts.',
+                ),
+                _ComingSoonFeatureTile(
+                  icon: Icons.file_download_rounded,
+                  title: 'Session Export',
+                  description:
+                      'Export session summaries to PDF and CSV for reports.',
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: Text(
+                    'TEAM KAGWANG@2026',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          letterSpacing: 0.7,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 12),
               ],
             ),
           );
@@ -2197,6 +2499,49 @@ class _ModelOptionTile extends StatelessWidget {
               Icon(Icons.check_rounded,
                   size: 18, color: theme.colorScheme.primary),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComingSoonFeatureTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _ComingSoonFeatureTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: Icon(icon, color: theme.colorScheme.primary),
+        title: Text(
+          title,
+          style:
+              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(description),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            'Soon',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
