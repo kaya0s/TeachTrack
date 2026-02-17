@@ -1,11 +1,12 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { Apple, Smartphone } from "lucide-react";
-import { useRef } from "react";
+import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
+import { AlertCircle, Apple, Smartphone } from "lucide-react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 
 export default function Hero() {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [showToast, setShowToast] = useState(false);
 
     const { scrollYProgress } = useScroll({
         target: containerRef,
@@ -16,6 +17,18 @@ export default function Hero() {
     const opacity = useTransform(scrollYProgress, [0, 0.3, 1], [1, 0.5, 0]);
     const y = useTransform(scrollYProgress, [0, 1], [0, -50]);
     const imgY = useTransform(scrollYProgress, [0, 1], [0, 100]);
+
+    const handleDownloadClick = (event: MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        setShowToast(false);
+        requestAnimationFrame(() => setShowToast(true));
+    };
+
+    useEffect(() => {
+        if (!showToast) return;
+        const timeout = setTimeout(() => setShowToast(false), 2200);
+        return () => clearTimeout(timeout);
+    }, [showToast]);
 
     return (
         <section
@@ -66,6 +79,7 @@ export default function Hero() {
                             <div className="grid w-full max-w-md gap-3 sm:max-w-lg sm:gap-4 sm:grid-cols-2">
                                 <motion.a
                                     href="#"
+                                    onClick={handleDownloadClick}
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     className="flex items-center justify-center gap-3 bg-foreground py-3 sm:py-4 text-[11px] sm:text-sm font-semibold text-background transition-opacity hover:opacity-90"
@@ -76,6 +90,7 @@ export default function Hero() {
                                 </motion.a>
                                 <motion.a
                                     href="#"
+                                    onClick={handleDownloadClick}
                                     whileHover={{ scale: 1.02, backgroundColor: "rgba(var(--foreground), 0.05)" }}
                                     whileTap={{ scale: 0.98 }}
                                     className="flex items-center justify-center gap-3 border border-foreground/10 py-3 sm:py-4 text-[11px] sm:text-sm font-semibold transition-colors"
@@ -140,6 +155,21 @@ export default function Hero() {
                 </span>
                 <div className="h-10 sm:h-12 w-[1px] bg-gradient-to-b from-accent to-transparent" />
             </motion.div>
+
+            <AnimatePresence>
+                {showToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 12 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 border border-accent/40 bg-accent/15 px-4 py-2 text-xs font-semibold text-foreground shadow-lg backdrop-blur-sm sm:text-sm"
+                    >
+                        <AlertCircle size={16} className="text-accent" />
+                        Not yet available
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
         </section>
     );
