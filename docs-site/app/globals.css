@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-shippori), ui-serif, Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-accent: #2A334E;
+  /* Midnight Indigo (Japanese Seiran) */
+  --color-accent-muted: #E8EBF1;
+}
+
+@layer base {
+  :root {
+    --background: #F5F5F0;
+    /* Bone / Paper Neutral */
+    --foreground: #1A1C20;
+  }
+
+  .dark {
+    --background: #0a0a0a;
+    --foreground: #f5f5f5;
+  }
+
+  * {
+    @apply border-foreground/10;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans selection:bg-accent/20 selection:text-accent overflow-x-hidden;
+    font-feature-settings: "palt" 1;
+    /* Proportional alternate widths for Japanese text */
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-background/70 backdrop-blur-md border border-foreground/10;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .vertical-rl {
+    writing-mode: vertical-rl;
+  }
+
+  .japanese-grid {
+    background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.03;
+  }
+
+  .noise {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    content: "";
+    opacity: 0.04;
+    z-index: 9999;
+    pointer-events: none;
+    background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+    filter: contrast(170%) brightness(1000%);
+  }
+
+  /* iOS Safari tends to render backdrop-filter + heavy filtered noise with
+     visible tint/gradient shifts vs desktop/DevTools.
+     This keeps desktop unchanged while making mobile/iOS more consistent. */
+  @supports (-webkit-touch-callout: none) {
+    .glass {
+      background-color: color-mix(in oklab, var(--background) 88%, transparent);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+
+    .noise {
+      opacity: 0.025;
+      filter: none;
+    }
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .noise {
+      opacity: 0.025;
+      filter: none;
+    }
+  }
+
+  .text-outline-accent {
+    -webkit-text-stroke: 1px var(--color-accent);
+  }
+
+  .collage-mask {
+    clip-path: polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%);
+  }
+
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-foreground/10 rounded-full hover:bg-foreground/20;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-foreground/10 rounded-full hover:bg-foreground/20 transition-colors;
+}
+
+::selection {
+  @apply bg-accent/20 text-accent;
+}
