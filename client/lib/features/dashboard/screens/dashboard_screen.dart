@@ -258,119 +258,25 @@ class _ClassesTabState extends State<_ClassesTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    theme.colorScheme.primaryContainer,
-                                    theme.colorScheme.secondaryContainer,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    height: 42,
-                                    width: 42,
-                                    decoration: BoxDecoration(
-                                      color: theme
-                                          .colorScheme.onPrimaryContainer
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.class_rounded,
-                                      color:
-                                          theme.colorScheme.onPrimaryContainer,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      "Your Classes",
-                                      style:
-                                          theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: theme
-                                            .colorScheme.onPrimaryContainer,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              "Your Classes",
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Manage subjects and start monitoring quickly.",
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
                             Row(
                               children: [
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.surface,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: theme.dividerColor
-                                            .withOpacity(0.45),
-                                      ),
-                                    ),
-                                    child: TextField(
-                                      controller: _searchController,
-                                      onChanged: (value) =>
-                                          setState(() => _searchQuery = value),
-                                      decoration: InputDecoration(
-                                        hintText: 'Search classes',
-                                        hintStyle: TextStyle(
-                                          color:
-                                              theme.textTheme.bodySmall?.color,
-                                        ),
-                                        prefixIcon: Icon(
-                                          Icons.search_rounded,
-                                          color:
-                                              theme.textTheme.bodySmall?.color,
-                                        ),
-                                        suffixIcon: _searchQuery.isEmpty
-                                            ? null
-                                            : IconButton(
-                                                onPressed: () {
-                                                  _searchController.clear();
-                                                  setState(
-                                                      () => _searchQuery = '');
-                                                },
-                                                icon: Icon(
-                                                  Icons.close_rounded,
-                                                  color: theme.textTheme
-                                                      .bodySmall?.color,
-                                                ),
-                                              ),
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: _classesSearchField(theme)),
                                 const SizedBox(width: 10),
-                                FilledButton.icon(
-                                  onPressed: () =>
-                                      _showAddSubjectDialog(context),
-                                  icon: const Icon(Icons.add_rounded),
-                                  label: const Text("Add Subject"),
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                ),
+                                _addSubjectButton(theme, context),
                               ],
                             ),
                           ],
@@ -433,6 +339,79 @@ class _ClassesTabState extends State<_ClassesTab> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _AddSubjectSheet(),
+    );
+  }
+
+  Widget _classesSearchField(ThemeData theme) {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.45),
+        ),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _searchQuery = value),
+        style: theme.textTheme.bodyMedium,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search by subject name',
+          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.textTheme.bodySmall?.color,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 20,
+            color: theme.textTheme.bodySmall?.color,
+          ),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: "Clear search",
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
+                ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _addSubjectButton(ThemeData theme, BuildContext context) {
+    return FilledButton.icon(
+      onPressed: () => _showAddSubjectDialog(context),
+      icon: const Icon(Icons.add_rounded, size: 18),
+      label: Text(
+        "Add Subject",
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onPrimary,
+        ),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        minimumSize: const Size(132, 50),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
     );
   }
 }
@@ -502,6 +481,12 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final modalButtonRadius = BorderRadius.circular(12);
+    final saveButtonBg = isDark ? const Color(0xFF56CC9D) : const Color(0xFF0F7A5C);
+    final saveButtonFg = isDark ? Colors.black : Colors.white;
+
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
@@ -511,12 +496,12 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
         widthFactor: 1,
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: theme.scaffoldBackgroundColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,42 +511,63 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                       width: 42,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).dividerColor,
+                        color: theme.dividerColor,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    "Add New Subject",
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    "New Subject",
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Add a subject name, optional description, and cover image.",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Subject Name",
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _nameController,
-                    decoration:
-                        const InputDecoration(labelText: "Subject Name"),
+                    style: theme.textTheme.bodyMedium,
+                    decoration: const InputDecoration(
+                      hintText: "e.g. Computer Science",
+                    ),
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    "Description (Optional)",
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _descriptionController,
                     minLines: 3,
                     maxLines: 4,
+                    style: theme.textTheme.bodyMedium,
                     decoration: const InputDecoration(
-                      labelText: "Description (Optional)",
-                      alignLabelWithHint: true,
+                      hintText: "Add short context for this subject",
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Text(
                     "Cover Image",
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   ClipRRect(
@@ -569,9 +575,7 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     child: Container(
                       width: double.infinity,
                       height: 160,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
+                      color: theme.colorScheme.surfaceContainerHighest
                           .withOpacity(0.4),
                       child: _pickedImageBytes == null
                           ? Column(
@@ -579,10 +583,13 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                               children: [
                                 Icon(
                                   Icons.photo_library_outlined,
-                                  color: Theme.of(context).colorScheme.primary,
+                                  color: theme.colorScheme.primary,
                                 ),
                                 const SizedBox(height: 8),
-                                const Text("No image selected"),
+                                Text(
+                                  "No image selected",
+                                  style: theme.textTheme.bodySmall,
+                                ),
                               ],
                             )
                           : Image.memory(_pickedImageBytes!, fit: BoxFit.cover),
@@ -593,6 +600,13 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     spacing: 8,
                     children: [
                       OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: modalButtonRadius,
+                          ),
+                        ),
                         onPressed: _isSubmitting
                             ? null
                             : () => _pickFrom(ImageSource.gallery),
@@ -600,6 +614,13 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                         label: const Text("Gallery"),
                       ),
                       OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: modalButtonRadius,
+                          ),
+                        ),
                         onPressed: _isSubmitting
                             ? null
                             : () => _pickFrom(ImageSource.camera),
@@ -613,15 +634,34 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: modalButtonRadius,
+                            ),
+                          ),
                           onPressed: _isSubmitting
                               ? null
                               : () => Navigator.pop(context),
-                          child: const Text("Cancel"),
+                          child: Text(
+                            "Cancel",
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(0, 50),
+                            backgroundColor: saveButtonBg,
+                            foregroundColor: saveButtonFg,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: modalButtonRadius,
+                            ),
+                          ),
                           onPressed: _isSubmitting ? null : _submit,
                           child: _isSubmitting
                               ? const SizedBox(
@@ -630,7 +670,12 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text("Save"),
+                              : Text(
+                                  "Save Subject",
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
