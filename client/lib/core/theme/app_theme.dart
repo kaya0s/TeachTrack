@@ -3,19 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // shadcn/ui neutral palette
-  static const Color _lightBackground = Color(0xFFFAFAFA);
+  static const Color _lightBackground = Color(0xFFE2E3E6);
   static const Color _lightSurface = Color(0xFFFFFFFF);
   static const Color _lightSurfaceAlt = Color(0xFFF5F5F5);
-  static const Color _lightText = Color(0xFF0A0A0A);
+  static const Color _lightText = Color(0xFF0E0F12);
   static const Color _lightMuted = Color(0xFF737373);
   static const Color _lightBorder = Color(0xFFE5E5E5);
 
-  static const Color _darkBackground = Color(0xFF0A0A0A);
-  static const Color _darkSurface = Color(0xFF171717);
-  static const Color _darkSurfaceAlt = Color(0xFF262626);
-  static const Color _darkText = Color(0xFFFAFAFA);
-  static const Color _darkMuted = Color(0xFFA3A3A3);
-  static const Color _darkBorder = Color(0xFF2E2E2E);
+  static const Color _darkBackground = Color(0xFF0E0F12);
+  static const Color _darkSurface = Color(0xFF1A1D23);
+  static const Color _darkSurfaceAlt = Color(0xFF232831);
+  static const Color _darkText = Color(0xFFE2E3E6);
+  static const Color _darkMuted = Color(0xFFADB3BE);
+  static const Color _darkBorder = Color(0xFF343A45);
 
   static const Color _error = Color(0xFFEF4444);
 
