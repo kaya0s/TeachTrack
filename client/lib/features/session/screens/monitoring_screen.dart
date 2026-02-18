@@ -103,8 +103,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  _buildBehaviorTrendChart(
-                      context, metrics, session.activeSession!),
+                  _buildBehaviorTrendChart(context, metrics),
                 ],
                 const SizedBox(height: 24),
                 const Text("Recent Alerts",
@@ -458,17 +457,20 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   Widget _buildBehaviorTrendChart(
-      BuildContext context, SessionMetricsModel metrics, SessionModel session) {
+      BuildContext context, SessionMetricsModel metrics) {
     if (metrics.recentLogs.isEmpty) {
       return const Text("Waiting for ML data...");
     }
 
-    final startTime = session.startTime;
-    final logs = metrics.recentLogs;
-
-    double toMinutes(DateTime ts) {
-      return ts.difference(startTime).inSeconds / 60.0;
-    }
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final logs = [...metrics.recentLogs]
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final onTaskColor = const Color(0xFF2E7D32);
+    final writingColor = const Color(0xFF1565C0);
+    final disengagedColor = const Color(0xFF6A1B9A);
+    final sleepingColor = const Color(0xFFD32F2F);
+    final phoneColor = const Color(0xFFF57C00);
 
     final onTaskSpots = <FlSpot>[];
     final writingSpots = <FlSpot>[];
@@ -477,7 +479,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     final phoneSpots = <FlSpot>[];
 
     for (final log in logs) {
-      final x = toMinutes(log.timestamp);
+      final x = log.timestamp.millisecondsSinceEpoch.toDouble();
       onTaskSpots.add(FlSpot(x, log.onTask.toDouble()));
       writingSpots.add(FlSpot(x, log.writing.toDouble()));
       disengagedSpots.add(FlSpot(x, log.disengagedPosture.toDouble()));
@@ -493,8 +495,11 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
       ...logs.map((l) => l.usingPhone),
     ].fold<int>(0, (maxVal, v) => v > maxVal ? v : maxVal);
 
-    final chartMaxY = (maxY + 2).toDouble();
-    final textTheme = Theme.of(context).textTheme;
+    final chartMaxY = maxY < 3 ? 3.0 : (maxY + 1).toDouble();
+    final minX = onTaskSpots.first.x;
+    final maxRawX = onTaskSpots.last.x;
+    final maxX = maxRawX == minX ? minX + 1 : maxRawX;
+    final centerX = minX + ((maxX - minX) / 2);
 
     return Card(
       elevation: 0,
@@ -503,7 +508,14 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLegend(textTheme),
+            _buildLegend(
+              context,
+              onTaskColor: onTaskColor,
+              writingColor: writingColor,
+              disengagedColor: disengagedColor,
+              sleepingColor: sleepingColor,
+              phoneColor: phoneColor,
+            ),
             const SizedBox(height: 16),
             SizedBox(
               height: 220,
@@ -523,23 +535,17 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 },
                 child: LineChart(
                   LineChartData(
+                    minX: minX,
+                    maxX: maxX,
                     minY: 0,
-                    maxY: chartMaxY == 0 ? 5 : chartMaxY,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: true,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: Colors.grey.shade300,
-                        strokeWidth: 1,
-                      ),
-                      getDrawingVerticalLine: (value) => FlLine(
-                        color: Colors.grey.shade200,
-                        strokeWidth: 1,
-                      ),
-                    ),
+                    maxY: chartMaxY,
+                    gridData: const FlGridData(show: false),
                     borderData: FlBorderData(
                       show: true,
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border(
+                        left: BorderSide(color: theme.dividerColor, width: 1),
+                        bottom: BorderSide(color: theme.dividerColor, width: 1),
+                      ),
                     ),
                     titlesData: FlTitlesData(
                       rightTitles: const AxisTitles(
@@ -550,12 +556,30 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 28,
-                          interval: 1,
-                          getTitlesWidget: (value, meta) => Text(
-                            "${value.toStringAsFixed(0)}m",
-                            style: textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey.shade600),
-                          ),
+                          getTitlesWidget: (value, meta) {
+                            final tolerance = (maxX - minX) * 0.03;
+                            if ((value - minX).abs() > tolerance &&
+                                (value - centerX).abs() > tolerance &&
+                                (value - maxX).abs() > tolerance) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final timestamp =
+                                (value - centerX).abs() <= tolerance
+                                    ? centerX
+                                    : (value - minX).abs() <= tolerance
+                                        ? minX
+                                        : maxX;
+                            final time = DateTime.fromMillisecondsSinceEpoch(
+                                timestamp.toInt());
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}",
+                                style: textTheme.labelSmall,
+                              ),
+                            );
+                          },
                         ),
                       ),
                       leftTitles: AxisTitles(
@@ -565,41 +589,88 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                           interval: 1,
                           getTitlesWidget: (value, meta) => Text(
                             value.toStringAsFixed(0),
-                            style: textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey.shade600),
+                            style: textTheme.labelSmall,
                           ),
                         ),
                       ),
                     ),
                     lineTouchData: LineTouchData(
                       enabled: true,
+                      handleBuiltInTouches: true,
+                      getTouchedSpotIndicator: (barData, spotIndexes) {
+                        final isPrimaryIndicator = barData.color == onTaskColor;
+                        return spotIndexes
+                            .map(
+                              (_) => TouchedSpotIndicatorData(
+                                FlLine(
+                                  color: isPrimaryIndicator
+                                      ? onTaskColor.withOpacity(0.38)
+                                      : Colors.transparent,
+                                  strokeWidth: isPrimaryIndicator ? 1 : 0,
+                                ),
+                                FlDotData(
+                                  show: true,
+                                  getDotPainter: (spot, percent, bar, index) =>
+                                      FlDotCirclePainter(
+                                    radius: 2.8,
+                                    color:
+                                        bar.color ?? theme.colorScheme.primary,
+                                    strokeWidth: 1.2,
+                                    strokeColor: theme.colorScheme.surface,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList();
+                      },
                       touchTooltipData: LineTouchTooltipData(
-                        tooltipBgColor: Colors.black.withOpacity(0.7),
-                        getTooltipItems: (items) => items.map((item) {
-                          final label = item.bar.color ==
-                                  const Color(0xFF2E7D32)
-                              ? "On Task"
-                              : item.bar.color == const Color(0xFF1565C0)
-                                  ? "Writing"
-                                  : item.bar.color == const Color(0xFF6A1B9A)
-                                      ? "Disengaged"
-                                      : item.bar.color ==
-                                              const Color(0xFFD32F2F)
-                                          ? "Sleeping"
-                                          : "Using Phone";
-                          return LineTooltipItem(
-                            "$label: ${item.y.toStringAsFixed(0)}",
-                            const TextStyle(color: Colors.white),
-                          );
-                        }).toList(),
+                        tooltipBgColor:
+                            theme.colorScheme.surface.withOpacity(0.95),
+                        fitInsideHorizontally: true,
+                        fitInsideVertically: true,
+                        getTooltipItems: (items) {
+                          final sorted = [...items]
+                            ..sort((a, b) => a.barIndex.compareTo(b.barIndex));
+                          return sorted.map((item) {
+                            final index =
+                                item.spotIndex.clamp(0, logs.length - 1);
+                            final log = logs[index];
+                            String metricLine;
+                            if (item.barIndex == 0) {
+                              metricLine = "On Task ${log.onTask}";
+                            } else if (item.barIndex == 1) {
+                              metricLine = "Writing ${log.writing}";
+                            } else if (item.barIndex == 2) {
+                              metricLine =
+                                  "Disengaged ${log.disengagedPosture}";
+                            } else if (item.barIndex == 3) {
+                              metricLine = "Sleeping ${log.sleeping}";
+                            } else {
+                              metricLine = "Phone ${log.usingPhone}";
+                            }
+                            final showTimestamp = item.barIndex == 0;
+                            final dateLine =
+                                "${log.timestamp.year.toString().padLeft(4, '0')}-${log.timestamp.month.toString().padLeft(2, '0')}-${log.timestamp.day.toString().padLeft(2, '0')}";
+                            final timeLine =
+                                "${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}:${log.timestamp.second.toString().padLeft(2, '0')}";
+                            return LineTooltipItem(
+                              "${showTimestamp ? "$dateLine\n$timeLine\n" : ""}$metricLine",
+                              textTheme.bodySmall!.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: item.bar.color ??
+                                    theme.colorScheme.onSurface,
+                              ),
+                            );
+                          }).toList();
+                        },
                       ),
                     ),
                     lineBarsData: [
-                      _lineBar(onTaskSpots, const Color(0xFF2E7D32)),
-                      _lineBar(writingSpots, const Color(0xFF1565C0)),
-                      _lineBar(disengagedSpots, const Color(0xFF6A1B9A)),
-                      _lineBar(sleepingSpots, const Color(0xFFD32F2F)),
-                      _lineBar(phoneSpots, const Color(0xFFF57C00)),
+                      _lineBar(onTaskSpots, onTaskColor),
+                      _lineBar(writingSpots, writingColor),
+                      _lineBar(disengagedSpots, disengagedColor),
+                      _lineBar(sleepingSpots, sleepingColor),
+                      _lineBar(phoneSpots, phoneColor),
                     ],
                   ),
                   key: ValueKey<int>(metrics.totalLogs),
@@ -617,20 +688,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
       spots: spots,
       isCurved: true,
       color: color,
-      barWidth: 3,
-      dotData: FlDotData(
-        show: true,
-        getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-          radius: 3,
-          color: Colors.white,
-          strokeWidth: 2,
-          strokeColor: color,
-        ),
-      ),
-      belowBarData: BarAreaData(
-        show: true,
-        color: color.withOpacity(0.1),
-      ),
+      barWidth: 2,
+      isStrokeCapRound: true,
+      dotData: const FlDotData(show: false),
+      belowBarData: BarAreaData(show: false),
     );
   }
 
@@ -650,32 +711,41 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     return "Needs intervention";
   }
 
-  Widget _buildLegend(TextTheme textTheme) {
+  Widget _buildLegend(
+    BuildContext context, {
+    required Color onTaskColor,
+    required Color writingColor,
+    required Color disengagedColor,
+    required Color sleepingColor,
+    required Color phoneColor,
+  }) {
     return Wrap(
       spacing: 12,
       runSpacing: 8,
       children: [
-        _legendItem(const Color(0xFF2E7D32), "On Task", textTheme),
-        _legendItem(const Color(0xFF1565C0), "Writing", textTheme),
-        _legendItem(const Color(0xFF6A1B9A), "Disengaged", textTheme),
-        _legendItem(const Color(0xFFD32F2F), "Sleeping", textTheme),
-        _legendItem(const Color(0xFFF57C00), "Using Phone", textTheme),
+        _legendItem(context, onTaskColor, "On Task"),
+        _legendItem(context, writingColor, "Writing"),
+        _legendItem(context, disengagedColor, "Disengaged"),
+        _legendItem(context, sleepingColor, "Sleeping"),
+        _legendItem(context, phoneColor, "Using Phone"),
       ],
     );
   }
 
-  Widget _legendItem(Color color, String label, TextTheme textTheme) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(label, style: textTheme.bodySmall),
-      ],
+  Widget _legendItem(BuildContext context, Color color, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+      ),
     );
   }
 
