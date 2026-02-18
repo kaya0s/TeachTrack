@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -19,6 +20,15 @@ class SubjectDetailsScreen extends StatefulWidget {
 
 class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
   final DateFormat _dateFormat = DateFormat('MMM d, yyyy h:mm a');
+  int _selectedTabIndex = 0;
+  double _historyScrollOffset = 0;
+
+  void _onHistoryScrolled(double offset) {
+    if (_selectedTabIndex != 1) return;
+    final clamped = offset < 0 ? 0.0 : offset;
+    if ((_historyScrollOffset - clamped).abs() < 1) return;
+    setState(() => _historyScrollOffset = clamped);
+  }
 
   @override
   void initState() {
@@ -57,11 +67,24 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
             final history = session.history
                 .where((entry) => entry.subjectId == currentSubject.id)
                 .toList();
+            final collapseProgress = _selectedTabIndex == 1
+                ? (_historyScrollOffset / 140).clamp(0.0, 1.0)
+                : 0.0;
 
             return Column(
               children: [
-                _SubjectHeader(subject: currentSubject, imageUrl: imageUrl),
-                const TabBar(
+                _SubjectHeader(
+                  subject: currentSubject,
+                  imageUrl: imageUrl,
+                  collapseProgress: collapseProgress,
+                ),
+                TabBar(
+                  onTap: (index) {
+                    setState(() {
+                      _selectedTabIndex = index;
+                      if (index != 1) _historyScrollOffset = 0;
+                    });
+                  },
                   tabs: [
                     Tab(text: 'Overview'),
                     Tab(text: 'History'),
@@ -84,6 +107,7 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
                         dateFormat: _dateFormat,
                         onRetry: () =>
                             session.fetchSessionHistory(includeActive: false),
+                        onScroll: _onHistoryScrolled,
                       ),
                     ],
                   ),
@@ -217,25 +241,36 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
 class _SubjectHeader extends StatelessWidget {
   final SubjectModel subject;
   final String? imageUrl;
+  final double collapseProgress;
 
   const _SubjectHeader({
     required this.subject,
     required this.imageUrl,
+    this.collapseProgress = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = collapseProgress.clamp(0.0, 1.0);
+    final imageHeight = 190 - (70 * t);
+    final radius = 20 - (6 * t);
+    final titleSize = 28 - (8 * t);
+    final verticalGap = 14 - (6 * t);
+    final topPadding = 16 - (6 * t);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.fromLTRB(16, topPadding, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
+            borderRadius: BorderRadius.circular(radius),
+            child: SizedBox(
+              height: imageHeight,
+              width: double.infinity,
               child: imageUrl == null
                   ? _ImagePlaceholder(title: subject.name)
                   : Image.network(
@@ -247,11 +282,11 @@ class _SubjectHeader extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: verticalGap),
           Text(
             subject.name,
             style: theme.textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
+                ?.copyWith(fontWeight: FontWeight.w700, fontSize: titleSize),
           ),
         ],
       ),
@@ -369,6 +404,7 @@ class _HistoryTab extends StatefulWidget {
   final String? error;
   final DateFormat dateFormat;
   final Future<void> Function() onRetry;
+  final ValueChanged<double>? onScroll;
 
   const _HistoryTab({
     required this.history,
@@ -376,6 +412,7 @@ class _HistoryTab extends StatefulWidget {
     required this.error,
     required this.dateFormat,
     required this.onRetry,
+    this.onScroll,
   });
 
   @override
@@ -387,6 +424,12 @@ class _HistoryTabState extends State<_HistoryTab> {
   final Map<int, Future<SessionMetricsModel>> _sessionMetricsFutures = {};
   final DateFormat _tooltipDateFormat = DateFormat('MMM d, yyyy');
   final DateFormat _tooltipTimeFormat = DateFormat('HH:mm:ss');
+  bool _filtersOpen = false;
+  String _query = '';
+  String _sort = 'newest';
+  String? _sectionFilter;
+  double _minEngagement = 0;
+  DateTimeRange? _dateRange;
 
   String _formatSessionDuration(SessionSummaryModel item) {
     final end = item.endTime ?? DateTime.now();
@@ -407,6 +450,93 @@ class _HistoryTabState extends State<_HistoryTab> {
             context.read<SessionProvider>().fetchSessionMetricsById(sessionId);
       }
     });
+  }
+
+  List<SessionSummaryModel> _filteredHistory(List<SessionSummaryModel> input) {
+    var items = [...input];
+    if (_query.trim().isNotEmpty) {
+      final q = _query.trim().toLowerCase();
+      items =
+          items.where((s) => s.sectionName.toLowerCase().contains(q)).toList();
+    }
+    if (_sectionFilter != null && _sectionFilter!.isNotEmpty) {
+      items = items.where((s) => s.sectionName == _sectionFilter).toList();
+    }
+    items = items.where((s) => s.averageEngagement >= _minEngagement).toList();
+    if (_dateRange != null) {
+      final start = DateTime(_dateRange!.start.year, _dateRange!.start.month,
+          _dateRange!.start.day);
+      final end = DateTime(_dateRange!.end.year, _dateRange!.end.month,
+          _dateRange!.end.day, 23, 59, 59);
+      items = items
+          .where(
+              (s) => !s.startTime.isBefore(start) && !s.startTime.isAfter(end))
+          .toList();
+    }
+
+    switch (_sort) {
+      case 'oldest':
+        items.sort((a, b) => a.startTime.compareTo(b.startTime));
+        break;
+      case 'engagement_high':
+        items
+            .sort((a, b) => b.averageEngagement.compareTo(a.averageEngagement));
+        break;
+      case 'engagement_low':
+        items
+            .sort((a, b) => a.averageEngagement.compareTo(b.averageEngagement));
+        break;
+      default:
+        items.sort((a, b) => b.startTime.compareTo(a.startTime));
+    }
+    return items;
+  }
+
+  Future<void> _copyText(
+      BuildContext context, String label, String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('$label copied')));
+  }
+
+  String _historyCsv(List<SessionSummaryModel> sessions) {
+    final rows = <String>[
+      'session_id,section,start_time,end_time,duration_minutes,engagement'
+    ];
+    for (final s in sessions) {
+      final duration =
+          s.endTime == null ? 0 : s.endTime!.difference(s.startTime).inMinutes;
+      rows.add(
+          '${s.id},"${s.sectionName}","${s.startTime.toIso8601String()}","${s.endTime?.toIso8601String() ?? ''}",$duration,${s.averageEngagement.toStringAsFixed(2)}');
+    }
+    return rows.join('\n');
+  }
+
+  String _summaryReport(List<SessionSummaryModel> sessions) {
+    if (sessions.isEmpty) return 'No sessions found.';
+    final avg =
+        sessions.map((e) => e.averageEngagement).reduce((a, b) => a + b) /
+            sessions.length;
+    final best = sessions
+        .reduce((a, b) => a.averageEngagement > b.averageEngagement ? a : b);
+    return 'Subject History Summary\n'
+        'Sessions: ${sessions.length}\n'
+        'Average Engagement: ${avg.toStringAsFixed(1)}%\n'
+        'Best: ${best.sectionName} (${best.averageEngagement.toStringAsFixed(1)}%)';
+  }
+
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: _dateRange,
+    );
+    if (picked != null) {
+      setState(() => _dateRange = picked);
+    }
   }
 
   Widget _historyChip(BuildContext context, String text, {Color? textColor}) {
@@ -489,9 +619,67 @@ class _HistoryTabState extends State<_HistoryTab> {
           );
         }
 
-        return _buildSessionTimelineChart(context, metrics);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _copyText(
+                        context, 'Session CSV', _sessionCsv(item, metrics)),
+                    icon: const Icon(Icons.table_chart_rounded, size: 16),
+                    label: const Text('Export CSV'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        _copyText(context, 'Session report', _insight(metrics)),
+                    icon: const Icon(Icons.description_outlined, size: 16),
+                    label: const Text('Export Report'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _insight(metrics),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            _buildSessionTimelineChart(context, metrics),
+          ],
+        );
       },
     );
+  }
+
+  String _insight(SessionMetricsModel metrics) {
+    if (metrics.recentLogs.length < 2) return 'Collecting trend insights...';
+    final logs = [...metrics.recentLogs]
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    int phoneSpikes = 0;
+    int sleepingSpikes = 0;
+    for (int i = 1; i < logs.length; i++) {
+      if ((logs[i].usingPhone - logs[i - 1].usingPhone) >= 2) phoneSpikes++;
+      if ((logs[i].sleeping - logs[i - 1].sleeping) >= 2) sleepingSpikes++;
+    }
+    if (phoneSpikes == 0 && sleepingSpikes == 0) {
+      return 'Stable behavior trend with no major spikes detected.';
+    }
+    return 'Detected spikes: phone $phoneSpikes, sleeping $sleepingSpikes.';
+  }
+
+  String _sessionCsv(SessionSummaryModel session, SessionMetricsModel metrics) {
+    final rows = <String>[
+      'session_id,section,timestamp,on_task,writing,disengaged,sleeping,phone'
+    ];
+    for (final log in metrics.recentLogs) {
+      rows.add(
+          '${session.id},"${session.sectionName}","${log.timestamp.toIso8601String()}",${log.onTask},${log.writing},${log.disengagedPosture},${log.sleeping},${log.usingPhone}');
+    }
+    return rows.join('\n');
   }
 
   Widget _buildSessionTimelineChart(
@@ -549,15 +737,38 @@ class _HistoryTabState extends State<_HistoryTab> {
     ];
     final maxYValue = allValues.reduce((a, b) => a > b ? a : b);
     final maxY = maxYValue < 3 ? 3.0 : maxYValue + 1;
+    final phoneSpikeIndexes = <int>{};
+    final sleepingSpikeIndexes = <int>{};
+    for (int i = 1; i < logs.length; i++) {
+      if ((logs[i].usingPhone - logs[i - 1].usingPhone) >= 2) {
+        phoneSpikeIndexes.add(i);
+      }
+      if ((logs[i].sleeping - logs[i - 1].sleeping) >= 2) {
+        sleepingSpikeIndexes.add(i);
+      }
+    }
 
-    LineChartBarData behaviorBar(List<FlSpot> spots, Color color) {
+    LineChartBarData behaviorBar(
+      List<FlSpot> spots,
+      Color color, {
+      Set<int> highlightIndexes = const {},
+    }) {
       return LineChartBarData(
         spots: spots,
         isCurved: true,
         color: color,
         barWidth: 2,
         isStrokeCapRound: true,
-        dotData: const FlDotData(show: false),
+        dotData: FlDotData(
+          show: highlightIndexes.isNotEmpty,
+          checkToShowDot: (_, index) => highlightIndexes.contains(index),
+          getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+            radius: 3,
+            color: color,
+            strokeWidth: 1.3,
+            strokeColor: theme.colorScheme.surface,
+          ),
+        ),
         belowBarData: BarAreaData(show: false),
       );
     }
@@ -719,8 +930,16 @@ class _HistoryTabState extends State<_HistoryTab> {
                 behaviorBar(onTaskPoints, onTaskColor),
                 behaviorBar(writingPoints, writingColor),
                 behaviorBar(disengagedPoints, disengagedColor),
-                behaviorBar(sleepingPoints, sleepingColor),
-                behaviorBar(phonePoints, phoneColor),
+                behaviorBar(
+                  sleepingPoints,
+                  sleepingColor,
+                  highlightIndexes: sleepingSpikeIndexes,
+                ),
+                behaviorBar(
+                  phonePoints,
+                  phoneColor,
+                  highlightIndexes: phoneSpikeIndexes,
+                ),
               ],
             ),
           ),
@@ -731,6 +950,18 @@ class _HistoryTabState extends State<_HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredHistory(widget.history);
+    final sections = widget.history.map((e) => e.sectionName).toSet().toList()
+      ..sort();
+    final avg = filtered.isEmpty
+        ? 0.0
+        : filtered.map((e) => e.averageEngagement).reduce((a, b) => a + b) /
+            filtered.length;
+    final best = filtered.isEmpty
+        ? null
+        : filtered.reduce(
+            (a, b) => a.averageEngagement > b.averageEngagement ? a : b);
+
     if (widget.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -751,97 +982,409 @@ class _HistoryTabState extends State<_HistoryTab> {
     }
 
     if (widget.history.isEmpty) {
-      return const Center(
-          child: Text('No session history for this subject yet.'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('No session history for this subject yet.'),
+            const SizedBox(height: 6),
+            Text(
+              'Start a session to generate timeline insights and behavior analytics.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
       onRefresh: widget.onRetry,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: widget.history.length,
-        itemBuilder: (context, index) {
-          final item = widget.history[index];
-          final isExpanded = _expandedSessionId == item.id;
-          final scoreColor = _engagementColor(context, item.averageEngagement);
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            child: Column(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          widget.onScroll?.call(notification.metrics.pixels);
+          return false;
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          children: [
+            Row(
               children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () => _toggleExpanded(item.id),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.sectionName,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _historyChip(
-                                    context,
-                                    widget.dateFormat.format(item.startTime),
-                                  ),
-                                  _historyChip(
-                                    context,
-                                    'Duration ${_formatSessionDuration(item)}',
-                                  ),
-                                  _historyChip(
-                                    context,
-                                    'Engagement ${item.averageEngagement.toStringAsFixed(0)}%',
-                                    textColor: scoreColor,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 320),
-                          curve: Curves.easeInOut,
-                          child: const Icon(Icons.keyboard_arrow_down_rounded),
-                        ),
-                      ],
-                    ),
+                IconButton(
+                  tooltip: _filtersOpen ? 'Close filters' : 'Open filters',
+                  visualDensity: const VisualDensity(
+                    horizontal: -3,
+                    vertical: -3,
+                  ),
+                  onPressed: () => setState(() => _filtersOpen = !_filtersOpen),
+                  icon: Icon(
+                    _filtersOpen
+                        ? Icons.close_rounded
+                        : Icons.filter_alt_outlined,
+                    size: 18,
                   ),
                 ),
-                ClipRect(
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 340),
-                    curve: Curves.easeInOut,
-                    child: isExpanded
-                        ? Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                            child: _buildExpandedSessionAnalytics(
-                              context,
-                              item,
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                const Spacer(),
+                PopupMenuButton<String>(
+                  tooltip: 'Export',
+                  onSelected: (value) {
+                    if (value == 'csv') {
+                      _copyText(context, 'History CSV', _historyCsv(filtered));
+                    } else {
+                      _copyText(
+                          context, 'History report', _summaryReport(filtered));
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                        value: 'csv', child: Text('Export CSV (copy)')),
+                    PopupMenuItem(
+                        value: 'report', child: Text('Export Report (copy)')),
+                  ],
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: Theme.of(context).dividerColor.withOpacity(0.4),
+                      ),
+                    ),
+                    child: const Icon(Icons.ios_share_rounded, size: 17),
                   ),
                 ),
               ],
             ),
-          );
-        },
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOut,
+              child: _filtersOpen
+                  ? Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: Theme.of(context)
+                                .dividerColor
+                                .withOpacity(0.35)),
+                        color: Theme.of(context).colorScheme.surface,
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.filter_alt_outlined, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Filter',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  onChanged: (value) =>
+                                      setState(() => _query = value),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontSize: 13,
+                                      ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Search',
+                                    prefixIcon: const Icon(Icons.search_rounded,
+                                        size: 18),
+                                    isDense: true,
+                                    constraints:
+                                        const BoxConstraints(minHeight: 36),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 8),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    suffixIcon: _query.isEmpty
+                                        ? null
+                                        : IconButton(
+                                            onPressed: () =>
+                                                setState(() => _query = ''),
+                                            icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 16),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              PopupMenuButton<String>(
+                                tooltip: 'Sort',
+                                onSelected: (v) => setState(() => _sort = v),
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                      value: 'newest', child: Text('Newest')),
+                                  PopupMenuItem(
+                                      value: 'oldest', child: Text('Oldest')),
+                                  PopupMenuItem(
+                                      value: 'engagement_high',
+                                      child: Text('Engagement High')),
+                                  PopupMenuItem(
+                                      value: 'engagement_low',
+                                      child: Text('Engagement Low')),
+                                ],
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .dividerColor
+                                          .withOpacity(0.4),
+                                    ),
+                                  ),
+                                  child:
+                                      const Icon(Icons.sort_rounded, size: 18),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: _pickRange,
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: Border.all(
+                                      color: _dateRange == null
+                                          ? Theme.of(context)
+                                              .dividerColor
+                                              .withOpacity(0.4)
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.date_range_outlined,
+                                    size: 17,
+                                    color: _dateRange == null
+                                        ? Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.color
+                                        : Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 260),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Theme.of(context)
+                                            .dividerColor
+                                            .withOpacity(0.4),
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.groups_2_outlined,
+                                      size: 17,
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      value: _sectionFilter,
+                                      isDense: true,
+                                      isExpanded: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Section',
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(8)),
+                                        ),
+                                      ),
+                                      items: [
+                                        const DropdownMenuItem(
+                                            value: null, child: Text('All')),
+                                        ...sections.map(
+                                          (s) => DropdownMenuItem(
+                                              value: s, child: Text(s)),
+                                        ),
+                                      ],
+                                      onChanged: (v) =>
+                                          setState(() => _sectionFilter = v),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Min Engagement ${_minEngagement.toStringAsFixed(0)}%',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                          Slider(
+                            value: _minEngagement,
+                            min: 0,
+                            max: 100,
+                            divisions: 20,
+                            onChanged: (v) =>
+                                setState(() => _minEngagement = v),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withOpacity(0.45),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: _historyChip(
+                          context, 'Avg ${avg.toStringAsFixed(1)}%')),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _historyChip(context,
+                        'Best ${best?.averageEngagement.toStringAsFixed(1) ?? '0'}%'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: _historyChip(context, 'Total ${filtered.length}')),
+                ],
+              ),
+            ),
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Text(
+                  'No sessions match the current filters.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ...filtered.map((item) {
+              final isExpanded = _expandedSessionId == item.id;
+              final scoreColor =
+                  _engagementColor(context, item.averageEngagement);
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                child: Column(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _toggleExpanded(item.id),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.sectionName,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      _historyChip(
+                                        context,
+                                        widget.dateFormat
+                                            .format(item.startTime),
+                                      ),
+                                      _historyChip(
+                                        context,
+                                        'Duration ${_formatSessionDuration(item)}',
+                                      ),
+                                      _historyChip(
+                                        context,
+                                        'Engagement ${item.averageEngagement.toStringAsFixed(0)}%',
+                                        textColor: scoreColor,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            AnimatedRotation(
+                              turns: isExpanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 320),
+                              curve: Curves.easeInOut,
+                              child:
+                                  const Icon(Icons.keyboard_arrow_down_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 340),
+                        curve: Curves.easeInOut,
+                        child: isExpanded
+                            ? Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                                child: _buildExpandedSessionAnalytics(
+                                  context,
+                                  item,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
