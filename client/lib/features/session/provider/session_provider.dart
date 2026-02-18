@@ -17,6 +17,7 @@ class SessionProvider extends ChangeNotifier {
   List<SessionSummaryModel> _history = [];
   bool _historyLoading = false;
   String? _historyError;
+  final Map<int, SessionMetricsModel> _historyMetricsCache = {};
   List<MlModelOptionModel> _availableModels = [];
   String? _currentModelFile;
   bool _modelsLoading = false;
@@ -110,6 +111,7 @@ class SessionProvider extends ChangeNotifier {
     _history = [];
     _historyLoading = false;
     _historyError = null;
+    _historyMetricsCache.clear();
     _availableModels = [];
     _currentModelFile = null;
     _modelsLoading = false;
@@ -153,6 +155,22 @@ class SessionProvider extends ChangeNotifier {
       _historyLoading = false;
       notifyListeners();
     }
+  }
+
+  SessionMetricsModel? getCachedSessionMetrics(int sessionId) {
+    return _historyMetricsCache[sessionId];
+  }
+
+  Future<SessionMetricsModel> fetchSessionMetricsById(
+    int sessionId, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _historyMetricsCache.containsKey(sessionId)) {
+      return _historyMetricsCache[sessionId]!;
+    }
+    final metrics = await _repository.getSessionMetrics(sessionId);
+    _historyMetricsCache[sessionId] = metrics;
+    return metrics;
   }
 
   Future<void> startServerDetector() async {

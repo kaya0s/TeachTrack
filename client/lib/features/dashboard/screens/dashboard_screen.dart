@@ -1046,31 +1046,35 @@ class _ActiveSessionsTab extends StatefulWidget {
 
 class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     with WidgetsBindingObserver {
-  final DateFormat _dateFormat = DateFormat('MMM d, h:mm a');
+  final DateFormat _sessionDateFormat = DateFormat('MMM d, yyyy');
+  final DateFormat _tooltipDateFormat = DateFormat('MMM d, yyyy');
+  final DateFormat _tooltipTimeFormat = DateFormat('HH:mm:ss');
+  int? _expandedSessionId;
+  final Map<int, Future<SessionMetricsModel>> _sessionMetricsFutures = {};
+  final ScrollController _recentSessionsScrollController = ScrollController();
+  bool _showRecentSessionsBottomFade = true;
+  bool _showRecentSessionsThirdHintFade = true;
 
-  String _formatSessionStart(DateTime startTime) {
-    final diff = DateTime.now().difference(startTime);
-    final elapsed = diff.isNegative ? diff.abs() : diff;
-    if (elapsed.inMinutes < 1) return "just now";
-    if (elapsed.inHours < 1) {
-      final minutes = elapsed.inMinutes;
-      return "$minutes ${minutes == 1 ? "min" : "mins"} ago";
+  void _handleRecentSessionsScroll() {
+    if (!_recentSessionsScrollController.hasClients || !mounted) return;
+    final position = _recentSessionsScrollController.position;
+    final atTop = position.pixels <= 2;
+    final hasMoreBelow = position.pixels < (position.maxScrollExtent - 2);
+
+    if (atTop != _showRecentSessionsThirdHintFade ||
+        hasMoreBelow != _showRecentSessionsBottomFade) {
+      setState(() {
+        _showRecentSessionsThirdHintFade = atTop;
+        _showRecentSessionsBottomFade = hasMoreBelow;
+      });
     }
-    if (elapsed.inDays < 1) {
-      final hours = elapsed.inHours;
-      return "$hours ${hours == 1 ? "hour" : "hours"} ago";
-    }
-    if (elapsed.inDays < 7) {
-      final days = elapsed.inDays;
-      return "$days ${days == 1 ? "day" : "days"} ago";
-    }
-    return _dateFormat.format(startTime);
   }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _recentSessionsScrollController.addListener(_handleRecentSessionsScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = context.read<SessionProvider>();
       session.checkActiveSession();
@@ -1084,6 +1088,9 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _recentSessionsScrollController.removeListener(_handleRecentSessionsScroll);
+    _recentSessionsScrollController.dispose();
+    _sessionMetricsFutures.clear();
     super.dispose();
   }
 
@@ -1677,20 +1684,35 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     );
   }
 
+  void _toggleSessionExpanded(BuildContext context, int sessionId) {
+    setState(() {
+      _expandedSessionId = _expandedSessionId == sessionId ? null : sessionId;
+      if (_expandedSessionId == sessionId &&
+          !_sessionMetricsFutures.containsKey(sessionId)) {
+        _sessionMetricsFutures[sessionId] =
+            context.read<SessionProvider>().fetchSessionMetricsById(sessionId);
+      }
+    });
+  }
+
+  String _formatSessionDuration(SessionSummaryModel item) {
+    final end = item.endTime ?? DateTime.now();
+    final duration = end.difference(item.startTime);
+    if (duration.inMinutes < 1) return "${duration.inSeconds}s";
+    if (duration.inHours < 1) return "${duration.inMinutes}m";
+    final hours = duration.inHours;
+    final mins = duration.inMinutes.remainder(60);
+    return "${hours}h ${mins}m";
+  }
+
   Widget _buildRecentSessionsPanel(
       BuildContext context, List<SessionSummaryModel> recentSessions) {
-    final trendData = recentSessions.reversed.toList();
-    final spots = <FlSpot>[];
-    for (int i = 0; i < trendData.length; i++) {
-      spots.add(FlSpot(i.toDouble(), trendData[i].averageEngagement));
-    }
-
-    final avg =
-        recentSessions.map((e) => e.averageEngagement).reduce((a, b) => a + b) /
-            recentSessions.length;
-    final best = recentSessions
-        .map((e) => e.averageEngagement)
-        .reduce((a, b) => a > b ? a : b);
+    final theme = Theme.of(context);
+    final hasOverflow = recentSessions.length > 4;
+    final viewportHeight =
+        MediaQuery.of(context).size.width < 420 ? 420.0 : 456.0;
+    final showThirdHintFade = hasOverflow && _showRecentSessionsThirdHintFade;
+    final showBottomFade = hasOverflow && _showRecentSessionsBottomFade;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -1731,186 +1753,486 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _sessionKpi(
-                    context,
-                    label: "Average",
-                    value: "${avg.toStringAsFixed(0)}%",
-                    color: _engagementColor(context, avg),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _sessionKpi(
-                    context,
-                    label: "Best",
-                    value: "${best.toStringAsFixed(0)}%",
-                    color: _engagementColor(context, best),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 92,
-              child: LineChart(
-                LineChartData(
-                  minY: 0,
-                  maxY: 100,
-                  minX: 0,
-                  maxX: (spots.length - 1).toDouble(),
-                  gridData: FlGridData(
-                    show: true,
-                    horizontalInterval: 25,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (value) => FlLine(
-                        color: Theme.of(context).dividerColor, strokeWidth: 1),
-                  ),
-                  titlesData: const FlTitlesData(
-                    leftTitles:
-                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles:
-                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles:
-                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles:
-                        AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipItems: (items) => items
-                          .map((e) => LineTooltipItem(
-                                "${e.y.toStringAsFixed(0)}%",
-                                const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: Theme.of(context).colorScheme.primary,
-                      barWidth: 2.8,
-                      dotData: FlDotData(show: spots.length < 8),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
             const SizedBox(height: 8),
-            ...recentSessions.map((item) {
-              final duration = item.endTime != null
-                  ? item.endTime!.difference(item.startTime)
-                  : const Duration();
-              final durationLabel = item.endTime == null
-                  ? "In progress"
-                  : "${duration.inMinutes} min";
-              final scoreColor =
-                  _engagementColor(context, item.averageEngagement);
+            SizedBox(
+              height: viewportHeight,
+              child: Stack(
+                children: [
+                  ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context)
+                        .copyWith(scrollbars: false, overscroll: false),
+                    child: ListView.separated(
+                      controller: _recentSessionsScrollController,
+                      primary: false,
+                      padding: const EdgeInsets.only(top: 2, bottom: 12),
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      itemCount: recentSessions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = recentSessions[index];
+                        final isExpanded = _expandedSessionId == item.id;
+                        final scoreColor =
+                            _engagementColor(context, item.averageEngagement);
+                        final opacity =
+                            showThirdHintFade && index == 3 ? 0.62 : 1.0;
 
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _showSessionDetailSheet(context, item),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color:
-                              Theme.of(context).dividerColor.withOpacity(0.45)),
+                        return AnimatedOpacity(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeInOut,
+                          opacity: opacity,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: theme.dividerColor.withOpacity(0.45),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () =>
+                                      _toggleSessionExpanded(context, item.id),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 11,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.subjectName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: theme
+                                                    .textTheme.titleSmall
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Wrap(
+                                                spacing: 6,
+                                                runSpacing: 6,
+                                                children: [
+                                                  _sessionSummaryChip(
+                                                    context,
+                                                    "Date ${_sessionDateFormat.format(item.startTime)}",
+                                                  ),
+                                                  _sessionSummaryChip(
+                                                    context,
+                                                    "Section ${item.sectionName}",
+                                                  ),
+                                                  _sessionSummaryChip(
+                                                    context,
+                                                    "Duration ${_formatSessionDuration(item)}",
+                                                  ),
+                                                  _sessionSummaryChip(
+                                                    context,
+                                                    "Engagement ${item.averageEngagement.toStringAsFixed(0)}%",
+                                                    textColor: scoreColor,
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        AnimatedRotation(
+                                          turns: isExpanded ? 0.5 : 0,
+                                          duration:
+                                              const Duration(milliseconds: 320),
+                                          curve: Curves.easeInOut,
+                                          child: Icon(
+                                            Icons.keyboard_arrow_down_rounded,
+                                            color: theme
+                                                .textTheme.bodyMedium?.color,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                ClipRect(
+                                  child: AnimatedSize(
+                                    duration: const Duration(milliseconds: 340),
+                                    curve: Curves.easeInOut,
+                                    child: isExpanded
+                                        ? Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                                12, 0, 12, 12),
+                                            child:
+                                                _buildExpandedSessionAnalytics(
+                                              context,
+                                              item,
+                                            ),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "${item.subjectName} - ${item.sectionName}",
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                "${_formatSessionStart(item.startTime)} · $durationLabel",
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
+                  ),
+                  if (showBottomFade)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 56,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            color: scoreColor.withOpacity(0.12),
-                          ),
-                          child: Text(
-                            "${item.averageEngagement.toStringAsFixed(0)}%",
-                            style: TextStyle(
-                              color: scoreColor,
-                              fontWeight: FontWeight.w700,
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                theme.cardColor.withOpacity(0),
+                                theme.cardColor.withOpacity(0.92),
+                              ],
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              );
-            }),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _sessionKpi(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required Color color,
+  Widget _sessionSummaryChip(
+    BuildContext context,
+    String text, {
+    Color? textColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(999),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: color,
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedSessionAnalytics(
+    BuildContext context,
+    SessionSummaryModel item,
+  ) {
+    final future = _sessionMetricsFutures[item.id] ??=
+        context.read<SessionProvider>().fetchSessionMetricsById(item.id);
+
+    return FutureBuilder<SessionMetricsModel>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const SizedBox(
+            height: 170,
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2.3),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Failed to load session analytics.",
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _sessionMetricsFutures[item.id] = context
+                          .read<SessionProvider>()
+                          .fetchSessionMetricsById(item.id, forceRefresh: true);
+                    });
+                  },
+                  child: const Text("Retry"),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final metrics = snapshot.data;
+        if (metrics == null || metrics.recentLogs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              "No timeline data available for this session.",
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          );
+        }
+
+        return _buildSessionTimelineChart(context, metrics);
+      },
+    );
+  }
+
+  Widget _buildSessionTimelineChart(
+      BuildContext context, SessionMetricsModel metrics) {
+    final theme = Theme.of(context);
+    final logs = [...metrics.recentLogs]
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final onTaskColor = const Color(0xFF2E7D32);
+    final writingColor = const Color(0xFF1565C0);
+    final disengagedColor = const Color(0xFF6A1B9A);
+    final sleepingColor = const Color(0xFFD32F2F);
+    final phoneColor = const Color(0xFFF57C00);
+
+    final onTaskPoints = logs
+        .map((log) => FlSpot(
+              log.timestamp.millisecondsSinceEpoch.toDouble(),
+              log.onTask.toDouble(),
+            ))
+        .toList();
+    final writingPoints = logs
+        .map((log) => FlSpot(
+              log.timestamp.millisecondsSinceEpoch.toDouble(),
+              log.writing.toDouble(),
+            ))
+        .toList();
+    final disengagedPoints = logs
+        .map((log) => FlSpot(
+              log.timestamp.millisecondsSinceEpoch.toDouble(),
+              log.disengagedPosture.toDouble(),
+            ))
+        .toList();
+    final sleepingPoints = logs
+        .map((log) => FlSpot(
+              log.timestamp.millisecondsSinceEpoch.toDouble(),
+              log.sleeping.toDouble(),
+            ))
+        .toList();
+    final phonePoints = logs
+        .map((log) => FlSpot(
+              log.timestamp.millisecondsSinceEpoch.toDouble(),
+              log.usingPhone.toDouble(),
+            ))
+        .toList();
+
+    final minX = onTaskPoints.first.x;
+    final maxRawX = onTaskPoints.last.x;
+    final maxX = maxRawX == minX ? minX + 1 : maxRawX;
+    final centerX = minX + ((maxX - minX) / 2);
+    final allValues = [
+      ...onTaskPoints.map((p) => p.y),
+      ...writingPoints.map((p) => p.y),
+      ...disengagedPoints.map((p) => p.y),
+      ...sleepingPoints.map((p) => p.y),
+      ...phonePoints.map((p) => p.y),
+    ];
+    final maxYValue = allValues.reduce((a, b) => a > b ? a : b);
+    final maxY = maxYValue < 3 ? 3.0 : maxYValue + 1;
+    final isCompact = MediaQuery.of(context).size.width < 460;
+
+    LineChartBarData behaviorBar(List<FlSpot> spots, Color color) {
+      return LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        color: color,
+        barWidth: 2,
+        isStrokeCapRound: true,
+        dotData: const FlDotData(show: false),
+        belowBarData: BarAreaData(show: false),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        Text(
+          "Behavior Timeline",
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          "Hover over the timeline for exact date, time, and values.",
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _sessionSummaryChip(context, "On Task", textColor: onTaskColor),
+            _sessionSummaryChip(context, "Writing", textColor: writingColor),
+            _sessionSummaryChip(context, "Disengaged",
+                textColor: disengagedColor),
+            _sessionSummaryChip(context, "Sleeping", textColor: sleepingColor),
+            _sessionSummaryChip(context, "Phone", textColor: phoneColor),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: isCompact ? 180 : 220,
+          child: LineChart(
+            LineChartData(
+              minX: minX,
+              maxX: maxX,
+              minY: 0,
+              maxY: maxY,
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(
+                show: true,
+                border: Border(
+                  left: BorderSide(color: theme.dividerColor, width: 1),
+                  bottom: BorderSide(color: theme.dividerColor, width: 1),
+                ),
+              ),
+              titlesData: FlTitlesData(
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: 1,
+                    getTitlesWidget: (value, meta) => Text(
+                      value.toStringAsFixed(0),
+                      style: theme.textTheme.labelSmall,
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    getTitlesWidget: (value, meta) {
+                      final tolerance = (maxX - minX) * 0.03;
+                      if ((value - minX).abs() > tolerance &&
+                          (value - centerX).abs() > tolerance &&
+                          (value - maxX).abs() > tolerance) {
+                        return const SizedBox.shrink();
+                      }
+
+                      final timestamp = (value - centerX).abs() <= tolerance
+                          ? centerX
+                          : (value - minX).abs() <= tolerance
+                              ? minX
+                              : maxX;
+                      final time = DateTime.fromMillisecondsSinceEpoch(
+                          timestamp.toInt());
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          DateFormat('HH:mm').format(time),
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                enabled: true,
+                handleBuiltInTouches: true,
+                getTouchedSpotIndicator: (barData, spotIndexes) {
+                  final isPrimaryIndicator = barData.color == onTaskColor;
+                  return spotIndexes
+                      .map(
+                        (_) => TouchedSpotIndicatorData(
+                          FlLine(
+                            color: isPrimaryIndicator
+                                ? onTaskColor.withOpacity(0.38)
+                                : Colors.transparent,
+                            strokeWidth: isPrimaryIndicator ? 1 : 0,
+                          ),
+                          FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, bar, index) =>
+                                FlDotCirclePainter(
+                              radius: 2.8,
+                              color: bar.color ?? theme.colorScheme.primary,
+                              strokeWidth: 1.2,
+                              strokeColor: theme.colorScheme.surface,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList();
+                },
+                touchTooltipData: LineTouchTooltipData(
+                  tooltipBgColor: theme.colorScheme.surface.withOpacity(0.95),
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (items) {
+                    final sorted = [...items]
+                      ..sort((a, b) => a.barIndex.compareTo(b.barIndex));
+                    return sorted.map((spot) {
+                      final logIndex = spot.spotIndex.clamp(0, logs.length - 1);
+                      final log = logs[logIndex];
+                      String metricLine;
+                      if (spot.barIndex == 0) {
+                        metricLine = "On Task ${log.onTask}";
+                      } else if (spot.barIndex == 1) {
+                        metricLine = "Writing ${log.writing}";
+                      } else if (spot.barIndex == 2) {
+                        metricLine = "Disengaged ${log.disengagedPosture}";
+                      } else if (spot.barIndex == 3) {
+                        metricLine = "Sleeping ${log.sleeping}";
+                      } else {
+                        metricLine = "Phone ${log.usingPhone}";
+                      }
+                      final showTimestamp = spot.barIndex == 0;
+                      return LineTooltipItem(
+                        "${showTimestamp ? "${_tooltipDateFormat.format(log.timestamp)}\n${_tooltipTimeFormat.format(log.timestamp)}\n" : ""}$metricLine",
+                        theme.textTheme.bodySmall!.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: spot.bar.color ?? theme.colorScheme.onSurface,
+                        ),
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
+              lineBarsData: [
+                behaviorBar(onTaskPoints, onTaskColor),
+                behaviorBar(writingPoints, writingColor),
+                behaviorBar(disengagedPoints, disengagedColor),
+                behaviorBar(sleepingPoints, sleepingColor),
+                behaviorBar(phonePoints, phoneColor),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1918,63 +2240,6 @@ class _ActiveSessionsTabState extends State<_ActiveSessionsTab>
     if (value >= 70) return const Color(0xFF2E7D32);
     if (value >= 40) return const Color(0xFFF57C00);
     return Theme.of(context).colorScheme.error;
-  }
-
-  void _showSessionDetailSheet(BuildContext context, SessionSummaryModel item) {
-    final duration = item.endTime != null
-        ? item.endTime!.difference(item.startTime)
-        : const Duration();
-    final durationLabel =
-        item.endTime == null ? "In progress" : "${duration.inMinutes} minutes";
-
-    showModalBottomSheet(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              "${item.subjectName} - ${item.sectionName}",
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text("Started: ${_dateFormat.format(item.startTime)}"),
-            Text("Duration: $durationLabel"),
-            Text(
-              "Engagement: ${item.averageEngagement.toStringAsFixed(1)}% (${_engagementBand(item.averageEngagement)})",
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _engagementBand(double value) {
-    if (value >= 70) return "Strong";
-    if (value >= 40) return "Moderate";
-    return "Needs attention";
   }
 
   Widget _buildMetricsSummary(
