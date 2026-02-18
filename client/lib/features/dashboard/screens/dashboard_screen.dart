@@ -261,28 +261,26 @@ class _ClassesTabState extends State<_ClassesTab> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Your Classes",
-                              style: theme.textTheme.headlineSmall?.copyWith(
+                              "Classes",
+                              style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
-                              "Manage subjects and start monitoring quickly.",
-                              style: theme.textTheme.bodyMedium?.copyWith(
+                              "Manage your subjects,sections, and sessions",
+                              style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.textTheme.bodySmall?.color,
                               ),
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 10),
                             Row(
                               children: [
                                 Expanded(child: _classesSearchField(theme)),
-                                const SizedBox(width: 10),
-                                Flexible(
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: _addSubjectButton(theme, context),
-                                  ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 50,
+                                  child: _addSubjectButton(theme, context),
                                 ),
                               ],
                             ),
@@ -552,7 +550,7 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     controller: _nameController,
                     style: theme.textTheme.bodyMedium,
                     decoration: const InputDecoration(
-                      hintText: "e.g. Computer Science",
+                      hintText: "e.g. Computer Programming 1",
                     ),
                   ),
                   const SizedBox(height: 12),
