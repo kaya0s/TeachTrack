@@ -13,7 +13,7 @@ class User(Base):
     hashed_password = Column(String(255))
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
-    reset_code = Column(String(6), nullable=True)
+    reset_code = Column(String(128), nullable=True)
     reset_code_expires = Column(Integer, nullable=True) # Unix timestamp
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

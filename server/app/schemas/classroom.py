@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 
@@ -15,6 +15,7 @@ class Section(SectionBase):
     subject_id: Optional[int]
     teacher_id: int
     created_at: Optional[datetime]
+
     class Config:
         from_attributes = True
 
@@ -38,7 +39,7 @@ class Subject(SubjectBase):
     id: int
     teacher_id: int
     created_at: Optional[datetime]
-    sections: List[Section] = [] # Now Section is defined
+    sections: List[Section] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

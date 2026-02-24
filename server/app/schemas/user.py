@@ -1,6 +1,6 @@
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 # Shared properties
 class UserBase(BaseModel):
@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     email: EmailStr
     username: str
-    password: str
+    password: str = Field(min_length=8, max_length=128)
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -20,7 +20,7 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 # Properties to return via API
 class User(UserBase):
@@ -43,12 +43,12 @@ class ForgotPassword(BaseModel):
 
 class VerifyCode(BaseModel):
     email: EmailStr
-    code: str
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 class ResetPassword(BaseModel):
     email: EmailStr
-    code: str
-    new_password: str
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=8, max_length=128)
 
 class GoogleLogin(BaseModel):
     id_token: str

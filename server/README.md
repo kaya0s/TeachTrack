@@ -1,78 +1,46 @@
-# TeachTrack (Capstone Project)
+# TeachTrack Backend
 
-A FastAPI-based backend for a Classroom Behavior Detection System. This system manages teachers, classrooms, sessions, and tracks student engagement using machine learning data.
+FastAPI backend for teacher sessions, classroom management, and behavior detection telemetry.
 
-## 🛠️ Tech Stack
-- **Framework:** FastAPI
-- **Database:** MySQL (via SQLAlchemy)
-- **Authentication:** OAuth2 with Password Flow (JWT)
-- **Configuration:** Pydantic Settings + Dotenv
+## Stack
+- FastAPI
+- SQLAlchemy + MySQL
+- JWT auth (OAuth2 password flow)
+- Alembic migrations
 
-## ⚠️ Model Status
-**The YOLOv8 model (`best.pt`) is currently untrained.**
-- The system expects a trained model at `ml_engine/weights/best.pt`.
-- You will need to train a YOLOv8 model on a classroom dataset and place the weights file in that directory for the detection script to work.
-
-## 🚀 Getting Started
-
-### 1. Prerequisites
+## Prerequisites
 - Python 3.10+
-- MySQL Server running locally or remotely
+- MySQL 8+
 
-### 2. Installation
-
-**Using Conda (Recommended)**
-
-1. Create the environment using the provided YML file:
-   ```bash
-   conda env create -f environment.yml
-   ```
-2. Activate the environment:
-   ```bash
-   conda activate capstone
-   ```
-3. Install the specific project dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### 3. Configuration (.env)
-
-This project uses environment variables for configuration. 
-1. Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-2. Open `.env` and fill in your details:
-   ```ini
-   SECRET_KEY=your_secure_secret_key
-   SQLALCHEMY_DATABASE_URL=mysql+pymysql://user:password@localhost/capstone_db
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
-   ```
-
-### 4. Database Setup
-Make sure your MySQL server is running and create the database:
+## Setup
+1. Create environment and install dependencies:
+```bash
+conda env create -f environment.yml
+conda activate capstone
+pip install -r requirements.txt
+```
+2. Configure environment variables:
+```bash
+cp .env.example .env
+```
+3. Create database:
 ```sql
 CREATE DATABASE capstone_db;
 ```
-The application will automatically create tables on startup.
-
-### 4.1 Migrations (Engagement + History)
-If you already have a database, run the migration script to add engagement metrics and history tables:
+4. Run schema migrations:
 ```bash
-python migrate_engagement.py
+alembic upgrade head
 ```
 
-### 5. Running the Server
-
-Start the live server with hot-reload enabled:
+## Run
 ```bash
 uvicorn app.main:app --reload
 ```
 
-## 📚 API Documentation
-Once the server is running, you can explore the API using the interactive documentation:
+## Docs
+- Swagger: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
 
-- **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-
+## Notes
+- Runtime table auto-creation is disabled by design. Use migrations only.
+- `migrate_engagement.py` is legacy and should not be used for new deployments.

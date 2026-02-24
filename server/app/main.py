@@ -1,61 +1,49 @@
-from app.api import auth, users, classroom, session
-from app.core.config import settings
-from app.db.database import Base, engine
-
-# Create the database tables
-Base.metadata.create_all(bind=engine)
-
-# Initialize FastAPI app
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Configure logging
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger(__name__)
+from app.api.v1.routers import auth_router, users_router, classrooms_router, sessions_router
+from app.core.config import settings
+from app.core.exceptions import unhandled_exception_handler
+from app.core.logging import RequestIdFilter, configure_logging
+from app.core.middleware import RequestContextMiddleware
+
+configure_logging(settings.LOG_LEVEL)
+root_logger = logging.getLogger()
+root_logger.addFilter(RequestIdFilter())
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="FastAPI backend setup for CAPSTONE project",
-    version="0.1.0",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    description="TeachTrack API",
+    version="1.0.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    debug=settings.DEBUG,
 )
+app.add_exception_handler(Exception, unhandled_exception_handler)
+app.add_middleware(RequestContextMiddleware)
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Global Error: {str(exc)}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"},
+cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
-# Include routers
-app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
-app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
-app.include_router(classroom.router, prefix=f"{settings.API_V1_STR}/classroom", tags=["classroom"])
-app.include_router(session.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
-app.include_router(session.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
+app.include_router(auth_router.router, prefix=settings.API_V1_STR, tags=["auth"])
+app.include_router(users_router.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(classrooms_router.router, prefix=f"{settings.API_V1_STR}/classroom", tags=["classroom"])
+app.include_router(sessions_router.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
+app.include_router(sessions_router.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok", "service": settings.PROJECT_NAME, "env": settings.ENV}
+
 
 @app.get("/")
 def read_root():
-    """
-    Root endpoint.
-
-    Returns:
-        dict: A welcome message confirming the API is running.
-    """
-    return {"message": "Hello, FastAPI! Auth is ready."}
-
-@app.get("/intro")
-def project_intro():
-    """
-    CAPSTONE introduction endpoint.
-
-    Returns:
-        dict: Basic information about the CAPSTONE project and API.
-    """
-    return {
-        "project": "CAPSTONE",
-        "description": "This API is the starting point for the CAPSTONE object detection project using FastAPI and Python 3.10",
-        "status": "Setup complete"
-    }
+    return {"message": "TeachTrack API is running."}
