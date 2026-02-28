@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 6%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 6%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 0 0% 97%;
+  --muted-foreground: 0 0% 43%;
+  --accent: 0 0% 95%;
+  --accent-foreground: 0 0% 10%;
+  --border: 0 0% 89%;
+  --input: 0 0% 89%;
+  --ring: 0 0% 15%;
+  --success: 142 63% 35%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 12%;
+  --danger: 0 73% 51%;
+  --danger-foreground: 0 0% 98%;
+}
+
+.dark {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 96%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 0 0% 8%;
+  --secondary: 0 0% 13%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 0 0% 62%;
+  --accent: 0 0% 14%;
+  --accent-foreground: 0 0% 96%;
+  --border: 0 0% 17%;
+  --input: 0 0% 17%;
+  --ring: 0 0% 85%;
+  --success: 142 56% 44%;
+  --success-foreground: 0 0% 98%;
+  --warning: 39 100% 58%;
+  --warning-foreground: 0 0% 10%;
+  --danger: 0 84% 66%;
+  --danger-foreground: 0 0% 98%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image: radial-gradient(circle at 50% -10%, hsl(var(--muted)) 0%, transparent 55%);
+}
+
+::selection {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
