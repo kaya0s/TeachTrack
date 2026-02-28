@@ -14,6 +14,7 @@ class Section(SectionBase):
     id: int
     subject_id: Optional[int]
     teacher_id: int
+    teacher_username: Optional[str] = None
     created_at: Optional[datetime]
 
     class Config:
@@ -38,6 +39,7 @@ class SubjectUpdate(BaseModel):
 class Subject(SubjectBase):
     id: int
     teacher_id: int
+    teacher_username: Optional[str] = None
     created_at: Optional[datetime]
     sections: List[Section] = Field(default_factory=list)
 

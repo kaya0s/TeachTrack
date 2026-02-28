@@ -78,6 +78,8 @@ class ClassroomProvider extends ChangeNotifier {
         _subjects[subjectIndex] = SubjectModel(
           id: subject.id,
           name: subject.name,
+          teacherId: subject.teacherId,
+          teacherUsername: subject.teacherUsername,
           code: subject.code,
           description: subject.description,
           coverImageUrl: subject.coverImageUrl,

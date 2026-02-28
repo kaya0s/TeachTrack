@@ -848,6 +848,8 @@ class _SubjectCardState extends State<_SubjectCard> {
 
   Future<void> _showSectionsPicker() async {
     final subject = widget.subject;
+    final authProvider = context.read<AuthProvider>();
+    final currentUserId = authProvider.user?.id;
 
     await showModalBottomSheet(
       context: context,
@@ -911,6 +913,9 @@ class _SubjectCardState extends State<_SubjectCard> {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final section = subject.sections[index];
+                          final isAssigned = (subject.teacherId == currentUserId) ||
+                              (section.teacherId == currentUserId);
+
                           return Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
@@ -923,9 +928,10 @@ class _SubjectCardState extends State<_SubjectCard> {
                             child: ListTile(
                               leading: const Icon(Icons.groups_rounded),
                               title: Text(section.name),
+                              subtitle: !isAssigned ? const Text('Not Assigned', style: TextStyle(fontSize: 12)) : null,
                               trailing: FilledButton.tonal(
                                 style: _startSubjectButtonStyle(context),
-                                onPressed: _isStarting
+                                onPressed: (_isStarting || !isAssigned)
                                     ? null
                                     : () async {
                                         setSheetState(() => _isStarting = true);
@@ -944,7 +950,7 @@ class _SubjectCardState extends State<_SubjectCard> {
                                         child: CircularProgressIndicator(
                                             strokeWidth: 2),
                                       )
-                                    : const Text('Start'),
+                                    : (isAssigned ? const Text('Start') : const Icon(Icons.lock_outline, size: 18)),
                               ),
                             ),
                           );
@@ -1013,7 +1019,18 @@ class _SubjectCardState extends State<_SubjectCard> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 2),
+                    if (subject.teacherUsername != null)
+                      Text(
+                        "Assigned by: Admin to ${subject.teacherUsername}", // Better way to say it? Let's just put Assigned to:
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
                     Text(
                       subject.description?.trim().isNotEmpty == true
                           ? subject.description!

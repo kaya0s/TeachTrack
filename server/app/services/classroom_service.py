@@ -103,6 +103,7 @@ async def upload_subject_cover_image(file: UploadFile, teacher_id: int) -> Subje
 
 
 def read_sections_by_subject(db: Session, subject_id: int, teacher_id: int):
+    # get_subject now accepts section-level teacher assignments too
     subject = ClassroomRepository.get_subject(db, subject_id, teacher_id, with_sections=False)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")

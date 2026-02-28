@@ -21,6 +21,8 @@ DateTime _parseApiDateTime(String raw) {
 class SubjectModel {
   final int id;
   final String name;
+  final int teacherId;
+  final String? teacherUsername;
   final String? code;
   final String? description;
   final String? coverImageUrl;
@@ -29,6 +31,8 @@ class SubjectModel {
   SubjectModel({
     required this.id,
     required this.name,
+    required this.teacherId,
+    this.teacherUsername,
     this.code,
     this.description,
     this.coverImageUrl,
@@ -39,6 +43,8 @@ class SubjectModel {
     return SubjectModel(
       id: json['id'],
       name: json['name'],
+      teacherId: json['teacher_id'] ?? 0,
+      teacherUsername: json['teacher_username'] as String?,
       code: json['code'],
       description: json['description'],
       coverImageUrl: json['cover_image_url'],
@@ -53,14 +59,24 @@ class SectionModel {
   final int id;
   final String name;
   final int subjectId;
+  final int? teacherId;
+  final String? teacherUsername;
 
-  SectionModel({required this.id, required this.name, required this.subjectId});
+  SectionModel({
+    required this.id,
+    required this.name,
+    required this.subjectId,
+    this.teacherId,
+    this.teacherUsername,
+  });
 
   factory SectionModel.fromJson(Map<String, dynamic> json) {
     return SectionModel(
       id: json['id'],
       name: json['name'],
       subjectId: json['subject_id'] ?? 0,
+      teacherId: json['teacher_id'] as int?,
+      teacherUsername: json['teacher_username'] as String?,
     );
   }
 }

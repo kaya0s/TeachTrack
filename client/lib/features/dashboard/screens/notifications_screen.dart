@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../provider/notification_provider.dart';
+import '../../classroom/provider/classroom_provider.dart';
+import '../../classroom/screens/subject_details_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -110,6 +113,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         onPressed: () => provider.markAsRead(item.id),
                                         child: const Text('Mark read'),
                                       ),
+                                onTap: () {
+                                  if (!item.isRead) {
+                                    provider.markAsRead(item.id);
+                                  }
+                                  if (item.metadataJson != null && item.metadataJson!.isNotEmpty) {
+                                    try {
+                                      final meta = jsonDecode(item.metadataJson!);
+                                      final subjectId = meta['subject_id'];
+                                      if (subjectId != null && subjectId is int) {
+                                        final classroom = context.read<ClassroomProvider>();
+                                        final subject = classroom.subjects.where((s) => s.id == subjectId).firstOrNull;
+                                        if (subject != null) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => SubjectDetailsScreen(subject: subject),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    } catch (e) {
+                                      // ignore parse error
+                                    }
+                                  }
+                                },
                               ),
                             );
                           },

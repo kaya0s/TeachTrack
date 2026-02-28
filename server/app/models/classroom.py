@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
 
+
 class Subject(Base):
     __tablename__ = "subjects"
 
@@ -19,11 +20,16 @@ class Subject(Base):
     sections = relationship("ClassSection", back_populates="subject")
     sessions = relationship("ClassSession", back_populates="subject")
 
+    @property
+    def teacher_username(self) -> str | None:
+        return self.teacher.username if self.teacher else None
+
+
 class ClassSection(Base):
     __tablename__ = "class_sections"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False) # e.g. "Grade 10 - A"
+    name = Column(String(100), nullable=False)  # e.g. "Grade 10 - A"
     subject_id = Column(Integer, ForeignKey("subjects.id"))
     teacher_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -32,3 +38,7 @@ class ClassSection(Base):
     teacher = relationship("User", back_populates="sections")
     subject = relationship("Subject", back_populates="sections")
     sessions = relationship("ClassSession", back_populates="section")
+
+    @property
+    def teacher_username(self) -> str | None:
+        return self.teacher.username if self.teacher else None

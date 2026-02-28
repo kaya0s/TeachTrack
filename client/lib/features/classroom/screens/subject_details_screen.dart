@@ -7,6 +7,7 @@ import '../../../data/models/classroom_session_models.dart';
 import '../provider/classroom_provider.dart';
 import '../../session/provider/session_provider.dart';
 import '../../session/screens/monitoring_screen.dart';
+import '../../auth/provider/auth_provider.dart';
 import '../../../core/config/env_config.dart';
 
 class SubjectDetailsScreen extends StatefulWidget {
@@ -307,6 +308,8 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
@@ -348,34 +351,44 @@ class _OverviewTab extends StatelessWidget {
             child: const Text('No sections created yet.'),
           ),
         ...subject.sections.map(
-          (section) => Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.4)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    section.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+          (section) {
+            final isAssigned = (subject.teacherId == currentUserId) || (section.teacherId == currentUserId);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                   Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          section.name,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        if (!isAssigned)
+                          Text('Not Assigned', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
+                      ],
+                    ),
                   ),
-                ),
-                FilledButton.tonalIcon(
-                  style: _startMonitoringButtonStyle(context),
-                  onPressed: () => onStartMonitoring(section),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Start Monitoring'),
-                ),
-              ],
-            ),
-          ),
+                  FilledButton.tonalIcon(
+                    style: _startMonitoringButtonStyle(context),
+                    onPressed: isAssigned ? () => onStartMonitoring(section) : null,
+                    icon: isAssigned ? const Icon(Icons.play_arrow_rounded) : const Icon(Icons.lock_outline, size: 18),
+                    label: isAssigned ? const Text('Start Monitoring') : const Text('Locked'),
+                  ),
+                ],
+              ),
+            );
+          }
         ),
       ],
     );
