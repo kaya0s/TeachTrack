@@ -59,6 +59,7 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  /// Fast polling used while the NotificationsScreen is open (8 s).
   void startRealtimePolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
@@ -71,9 +72,28 @@ class NotificationProvider extends ChangeNotifier {
     _pollTimer = null;
   }
 
+  // ── Background polling ────────────────────────────────────────────────────
+  Timer? _bgPollTimer;
+
+  /// Slow polling used while the app is running in the foreground but the
+  /// NotificationsScreen is NOT open (60 s). Call this once after login so
+  /// the bell badge stays up-to-date without draining battery.
+  void startBackgroundPolling() {
+    _bgPollTimer?.cancel();
+    _bgPollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      load(silent: true);
+    });
+  }
+
+  void stopBackgroundPolling() {
+    _bgPollTimer?.cancel();
+    _bgPollTimer = null;
+  }
+
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _bgPollTimer?.cancel();
     super.dispose();
   }
 }

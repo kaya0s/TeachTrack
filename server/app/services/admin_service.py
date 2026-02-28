@@ -521,12 +521,30 @@ def _ensure_teacher(db: Session, teacher_id: int) -> User:
 
 def assign_subject_teacher(db: Session, subject_id: int, teacher_id: int) -> dict[str, Any]:
     teacher = _ensure_teacher(db, teacher_id)
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    subject = (
+        db.query(Subject)
+        .options(joinedload(Subject.sections))
+        .filter(Subject.id == subject_id)
+        .first()
+    )
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
     subject.teacher_id = teacher.id
     db.add(subject)
+    notification_service.create_notification(
+        db,
+        user_id=teacher.id,
+        title="New Subject Assignment",
+        body=f"You were assigned as the teacher for {subject.name}.",
+        type="SUBJECT_ASSIGNMENT",
+        metadata_json=json.dumps(
+            {
+                "subject_id": subject.id,
+                "subject_name": subject.name,
+            }
+        ),
+    )
     db.commit()
     db.refresh(subject)
 

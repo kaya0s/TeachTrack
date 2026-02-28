@@ -55,7 +55,9 @@ void main() async {
           create: (_) => SessionProvider(di.sl())..checkActiveSession(),
         ),
         ChangeNotifierProvider(
-          create: (_) => NotificationProvider(di.sl())..load(silent: true),
+          create: (_) => NotificationProvider(di.sl())
+            ..load(silent: true)
+            ..startBackgroundPolling(),
         ),
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(),
