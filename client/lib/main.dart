@@ -12,6 +12,7 @@ import 'core/services/foreground_session_service.dart';
 import 'core/widgets/foreground_task_listener.dart';
 
 import 'features/classroom/provider/classroom_provider.dart';
+import 'features/dashboard/provider/notification_provider.dart';
 import 'features/session/provider/session_provider.dart';
 import 'features/session/screens/monitoring_screen.dart';
 
@@ -52,6 +53,9 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => SessionProvider(di.sl())..checkActiveSession(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => NotificationProvider(di.sl())..load(silent: true),
         ),
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(),

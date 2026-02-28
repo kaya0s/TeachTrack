@@ -13,6 +13,8 @@ import '../../classroom/provider/classroom_provider.dart';
 import '../../classroom/screens/subject_details_screen.dart';
 import '../../session/provider/session_provider.dart';
 import '../../session/screens/monitoring_screen.dart';
+import '../provider/notification_provider.dart';
+import 'notifications_screen.dart';
 import '../../../data/models/classroom_session_models.dart';
 import '../../../core/config/env_config.dart';
 
@@ -41,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final notifications = context.watch<NotificationProvider>();
     final user = auth.user;
     final username = user?.username.trim() ?? '';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
@@ -65,6 +68,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: IconButton(
+              tooltip: "Notifications",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.notifications_none_rounded),
+                  if (notifications.unreadCount > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.error,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 14),
+                        child: Text(
+                          notifications.unreadCount > 9 ? '9+' : '${notifications.unreadCount}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onError,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: IconButton(
@@ -3423,6 +3468,14 @@ class _MachineLearningSettingsTabState
             );
           }
 
+          String currentModelLabel = session.currentModelFile ?? 'Unknown model';
+          for (final model in session.availableModels) {
+            if (model.fileName == session.currentModelFile) {
+              currentModelLabel = model.displayName;
+              break;
+            }
+          }
+
           return RefreshIndicator(
             onRefresh: () => session.fetchAvailableModels(),
             child: ListView(
@@ -3437,7 +3490,7 @@ class _MachineLearningSettingsTabState
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose a model:',
+                  'Current model is managed by admin:',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -3460,45 +3513,79 @@ class _MachineLearningSettingsTabState
                         color: Theme.of(context).dividerColor.withOpacity(0.45),
                       ),
                     ),
+                    child: ListTile(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      leading: Icon(
+                        Icons.verified_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      title: Text(
+                        currentModelLabel,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      subtitle: Text(
+                        'Model switching is disabled on teacher app. Ask admin to change it.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ),
+                if (session.availableModels.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Theme.of(context).dividerColor.withOpacity(0.45),
+                      ),
+                    ),
                     child: Column(
                       children: [
-                        for (int i = 0;
-                            i < session.availableModels.length;
-                            i++) ...[
-                          _ModelOptionTile(
-                            title: session.availableModels[i].displayName,
-                            selected: session.availableModels[i].fileName ==
-                                session.currentModelFile,
-                            enabled: !session.modelsLoading,
-                            onTap: () async {
-                              final model = session.availableModels[i];
-                              final ok =
-                                  await session.selectModel(model.fileName);
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? 'Model set to ${model.displayName}'
-                                        : (session.modelsError ??
-                                            'Failed to select model'),
+                        for (int i = 0; i < session.availableModels.length; i++) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    session.availableModels[i].displayName,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
                                 ),
-                              );
-                            },
+                                if (session.availableModels[i].fileName == session.currentModelFile)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      'Current',
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                           if (i != session.availableModels.length - 1)
                             Divider(
                               height: 1,
                               thickness: 1,
-                              color: Theme.of(context)
-                                  .dividerColor
-                                  .withOpacity(0.35),
+                              color: Theme.of(context).dividerColor.withOpacity(0.35),
                             ),
                         ],
                       ],
                     ),
                   ),
+                ],
                 const SizedBox(height: 18),
                 Text(
                   'Coming Soon',
@@ -3554,72 +3641,6 @@ class _MachineLearningSettingsTabState
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _ModelOptionTile extends StatelessWidget {
-  final String title;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _ModelOptionTile({
-    required this.title,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.dividerColor.withOpacity(0.7),
-                  width: 1.6,
-                ),
-              ),
-              child: selected
-                  ? Center(
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ),
-            if (selected)
-              Icon(Icons.check_rounded,
-                  size: 18, color: theme.colorScheme.primary),
-          ],
-        ),
       ),
     );
   }
