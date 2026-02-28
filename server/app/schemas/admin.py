@@ -12,6 +12,7 @@ class AdminUser(BaseModel):
     username: str
     is_active: bool
     is_superuser: bool
+    profile_picture_url: Optional[str] = None
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -37,6 +38,7 @@ class AdminSessionSummary(BaseModel):
     start_time: datetime
     end_time: Optional[datetime] = None
     is_active: bool
+    teacher_profile_picture_url: Optional[str] = None
     average_engagement: float
 
 
@@ -49,6 +51,7 @@ class AdminAlertSummary(BaseModel):
     message: str
     severity: AlertSeverityEnum
     is_read: bool
+    teacher_profile_picture_url: Optional[str] = None
     triggered_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -144,6 +147,7 @@ class AdminTeacherSummary(BaseModel):
     email: EmailStr
     username: str
     is_active: bool
+    profile_picture_url: Optional[str] = None
     updated_at: Optional[datetime] = None
 
 
@@ -160,6 +164,7 @@ class AdminSubjectSummary(BaseModel):
     cover_image_url: Optional[str] = None
     teacher_id: Optional[int] = None
     teacher_username: str
+    teacher_profile_picture_url: Optional[str] = None
     sections_count: int
     created_at: Optional[datetime] = None
 
@@ -176,6 +181,7 @@ class AdminSectionSummary(BaseModel):
     subject_name: str
     teacher_id: Optional[int] = None
     teacher_username: str
+    teacher_profile_picture_url: Optional[str] = None
     created_at: Optional[datetime] = None
 
 

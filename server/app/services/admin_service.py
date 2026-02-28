@@ -126,6 +126,7 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
             "start_time": row.start_time,
             "end_time": row.end_time,
             "is_active": row.is_active,
+            "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             "average_engagement": _avg_engagement_from_stats(
                 behavior_rows.get(row.id),
                 row.students_present,
@@ -258,6 +259,7 @@ def list_subjects(
             "cover_image_url": row.cover_image_url,
             "teacher_id": row.teacher_id,
             "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             "sections_count": len(row.sections or []),
             "created_at": row.created_at,
         }
@@ -275,6 +277,7 @@ def _serialize_subject(row: Subject) -> dict[str, Any]:
         "cover_image_url": row.cover_image_url,
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
         "sections_count": len(row.sections or []),
         "created_at": row.created_at,
     }
@@ -388,6 +391,7 @@ def list_sections(
             "subject_name": row.subject.name if row.subject else "unassigned",
             "teacher_id": row.teacher_id,
             "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             "created_at": row.created_at,
         }
         for row in rows
@@ -403,6 +407,7 @@ def _serialize_section(row: ClassSection) -> dict[str, Any]:
         "subject_name": row.subject.name if row.subject else "unassigned",
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
         "created_at": row.created_at,
     }
 
@@ -533,6 +538,7 @@ def assign_subject_teacher(db: Session, subject_id: int, teacher_id: int) -> dic
         "cover_image_url": subject.cover_image_url,
         "teacher_id": teacher.id,
         "teacher_username": teacher.username,
+        "teacher_profile_picture_url": teacher.profile_picture_url,
         "sections_count": len(subject.sections or []),
         "created_at": subject.created_at,
     }
@@ -577,6 +583,7 @@ def assign_section_teacher(db: Session, section_id: int, teacher_id: int) -> dic
         "subject_name": section.subject.name if section.subject else "unassigned",
         "teacher_id": teacher.id,
         "teacher_username": teacher.username,
+        "teacher_profile_picture_url": teacher.profile_picture_url,
         "created_at": section.created_at,
     }
 
@@ -685,6 +692,7 @@ def list_sessions(
                 "start_time": row.start_time,
                 "end_time": row.end_time,
                 "is_active": row.is_active,
+                "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
                 "average_engagement": _avg_engagement_from_stats(
                     behavior_map.get(row.id), row.students_present
                 ),
@@ -762,6 +770,7 @@ def get_session_detail(
         "start_time": session.start_time,
         "end_time": session.end_time,
         "is_active": session.is_active,
+        "teacher_profile_picture_url": session.teacher.profile_picture_url if session.teacher else None,
         "average_engagement": _avg_engagement_from_stats(stats_row, session.students_present),
     }
 

@@ -15,6 +15,7 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     reset_code = Column(String(128), nullable=True)
     reset_code_expires = Column(Integer, nullable=True) # Unix timestamp
+    profile_picture_url = Column(String(512), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     subjects = relationship("Subject", back_populates="teacher")

@@ -7,6 +7,7 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = None
     is_active: Optional[bool] = True
+    profile_picture_url: Optional[str] = None
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):
@@ -17,6 +18,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = None
+    profile_picture_url: Optional[str] = None
 
 class PasswordChange(BaseModel):
     current_password: str

@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
@@ -27,6 +27,17 @@ def update_user_me(
     current_user: UserModel = Depends(deps.get_current_active_user),
 ) -> Any:
     return user_service.update_user_me(db, data, current_user)
+
+
+@router.post("/me/profile-picture")
+async def upload_profile_picture(
+    *,
+    db: Session = Depends(get_db),
+    file: UploadFile,
+    current_user: UserModel = Depends(deps.get_current_active_user),
+) -> Any:
+    url = await user_service.upload_profile_picture(db, file, current_user)
+    return {"profile_picture_url": url}
 
 
 @router.post("/me/change-password")
