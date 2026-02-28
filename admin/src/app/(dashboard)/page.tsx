@@ -1,31 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Bell, CircleAlert, Radio, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { Activity, Bell, CircleAlert, LayoutDashboard, Radio, RefreshCw, ShieldAlert, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Modal } from "@/components/ui/modal";
-import { SessionTrendChart } from "@/components/session-trend-chart";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { Drawer } from "@/components/ui/drawer";
+import { SessionDetailView } from "@/features/admin/components/session-detail-view";
 import { getDashboard, getSessionDetail } from "@/features/admin/api";
 import type { AdminSession, AdminSessionDetail, DashboardResponse } from "@/features/admin/types";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [liveModalOpen, setLiveModalOpen] = useState(false);
-  const [liveSession, setLiveSession] = useState<AdminSession | null>(null);
-  const [liveDetail, setLiveDetail] = useState<AdminSessionDetail | null>(null);
-  const [loadingLive, setLoadingLive] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeSessionInView, setActiveSessionInView] = useState<AdminSession | null>(null);
+  const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
-  const [liveError, setLiveError] = useState<string | null>(null);
-  const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<Date | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (silent) {
@@ -49,80 +50,50 @@ export default function DashboardPage() {
     loadDashboard(false);
   }, [loadDashboard]);
 
-  const fetchLiveDetail = useCallback(async (sessionId: number, silent = false) => {
+  const fetchSessionDetail = useCallback(async (sessionId: number, silent = false) => {
     if (silent) {
       setSyncingLive(true);
     } else {
-      setLoadingLive(true);
-      setLiveError(null);
+      setLoadingDetail(true);
+      setDetailError(null);
     }
     try {
-      const detail = await getSessionDetail(sessionId, "?minutes=180&logs_limit=250");
-      setLiveDetail(detail);
-      setLastLiveRefreshAt(new Date());
+      const res = await getSessionDetail(sessionId, "?minutes=180&logs_limit=250");
+      setDetail(res);
+      setLastRefreshAt(new Date());
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load live detail.";
-      setLiveError(message);
+      setDetailError(err instanceof Error ? err.message : "Failed to load details.");
     } finally {
-      setLoadingLive(false);
+      setLoadingDetail(false);
       setSyncingLive(false);
     }
   }, []);
 
-  async function openLiveModal(session: AdminSession) {
-    setLiveSession(session);
-    setLiveDetail(null);
-    setLiveModalOpen(true);
-    await fetchLiveDetail(session.id, false);
+  async function openSessionDetail(session: AdminSession) {
+    setActiveSessionInView(session);
+    setDetail(null);
+    setIsDetailOpen(true);
+    await fetchSessionDetail(session.id, false);
   }
 
   useEffect(() => {
-    if (!liveModalOpen || !liveSession) return;
+    if (!isDetailOpen || !activeSessionInView || !activeSessionInView.is_active) {
+      return;
+    }
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        fetchLiveDetail(liveSession.id, true);
+        fetchSessionDetail(activeSessionInView.id, true);
       }
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [liveModalOpen, liveSession, fetchLiveDetail]);
+  }, [isDetailOpen, activeSessionInView, fetchSessionDetail]);
 
-  const liveRollupData = useMemo(() => {
-    if (!liveDetail) return [];
-    return liveDetail.metrics_rollup.map((m) => ({
-      time: new Date(m.window_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      engagement_score: m.engagement_score,
-      on_task_avg: m.on_task_avg,
-      sleeping_avg: m.sleeping_avg,
-      phone_avg: m.phone_avg,
-    }));
-  }, [liveDetail]);
-
-  const liveLogsData = useMemo(() => {
-    if (!liveDetail) return [];
-    return liveDetail.logs.map((log) => ({
-      time: new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-      on_task: log.on_task,
-      sleeping: log.sleeping,
-      using_phone: log.using_phone,
-      disengaged_posture: log.disengaged_posture,
-    }));
-  }, [liveDetail]);
-
-  const latestBehavior = useMemo(() => {
-    if (!liveDetail?.logs.length) return null;
-    return liveDetail.logs[liveDetail.logs.length - 1];
-  }, [liveDetail]);
-
-  const recentBehaviorRows = useMemo(() => {
-    if (!liveDetail?.logs.length) return [];
-    return [...liveDetail.logs].slice(-12).reverse();
-  }, [liveDetail]);
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (loading || !data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Dashboard" description="Global classroom operations and health snapshot." />
+        <PageHeader title={<><LayoutDashboard className="h-5 w-5" />Dashboard</>} description="Global classroom operations and health snapshot." />
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
@@ -145,12 +116,110 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 transition-opacity duration-300">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <PageHeader title="Dashboard" description="Global classroom operations and health snapshot." />
+        <PageHeader title={<><LayoutDashboard className="h-5 w-5" />Dashboard</>} description="Global classroom operations and health snapshot." />
         <Button variant="outline" onClick={() => loadDashboard(true)} disabled={refreshing}>
           <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
         </Button>
       </div>
+
+      {data.active_sessions.length > 0 && (
+        <Card className="border-success/30 bg-success/5 shadow-none overflow-hidden ring-1 ring-success/10 ">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2 text-lg font-bold text-success/90">
+                  <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                  Live Classroom Activity
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Real-time oversight of {data.active_sessions.length} running session{data.active_sessions.length > 1 ? "s" : ""}.
+                </CardDescription>
+              </div>
+              <Badge tone="success" className="animate-in fade-in zoom-in duration-500 rounded-full px-3 h-7 text-[10px] font-bold uppercase tracking-wider">
+                System Live
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-xl border border-success/20 bg-background/40 overflow-hidden">
+              <Table>
+                <THead className="bg-success/5">
+                  <TR className="border-success/10">
+                    <TH className="py-3 px-4">Session</TH>
+                    <TH className="py-3">Teacher</TH>
+                    <TH className="py-3">Subject & Section</TH>
+                    <TH className="py-3 text-center">Students</TH>
+                    <TH className="py-3">Engagement</TH>
+                    <TH className="py-3 text-right pr-6 px-4">Stream</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {data.active_sessions.map((s) => (
+                    <TR
+                      key={`active-${s.id}`}
+                      className="group cursor-pointer hover:bg-success/[0.03] transition-all border-success/5"
+                      onClick={() => openSessionDetail(s)}
+                    >
+                      <TD className="font-mono text-[10px] font-semibold text-muted-foreground px-4">#{s.id}</TD>
+                      <TD>
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-success/20 bg-background shadow-sm">
+                            {s.teacher_profile_picture_url ? (
+                              <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold uppercase text-success/60">
+                                {s.teacher_username.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-semibold text-sm text-foreground/90">{s.teacher_username}</span>
+                        </div>
+                      </TD>
+                      <TD>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-sm text-foreground">{s.subject_name}</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-tight">{s.section_name}</span>
+                        </div>
+                      </TD>
+                      <TD className="font-semibold text-sm font-mono text-center">{s.students_present}</TD>
+                      <TD>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 max-w-[100px] h-1.5 bg-muted/40 rounded-full overflow-hidden border border-border/5">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-700 ease-out",
+                                s.average_engagement >= 80 ? 'bg-success' : s.average_engagement >= 50 ? 'bg-warning' : 'bg-danger'
+                              )}
+                              style={{ width: `${s.average_engagement}%` }}
+                            />
+                          </div>
+                          <span className={cn(
+                            "text-xs font-bold tabular-nums",
+                            s.average_engagement >= 80 ? 'text-success' : s.average_engagement >= 50 ? 'text-warning' : 'text-danger'
+                          )}>
+                            {s.average_engagement}%
+                          </span>
+                        </div>
+                      </TD>
+                      <TD className="text-right pr-4 px-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 rounded-full p-0 border-success/20 text-success hover:bg-success hover:text-white transition-all shadow-sm"
+                          onClick={(e) => { e.stopPropagation(); openSessionDetail(s); }}
+                        >
+                          <Radio className="h-4 w-4" />
+                        </Button>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -183,58 +252,6 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      {data.active_sessions.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Radio className="h-4 w-4 text-success" />
-              Active Sessions Live
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {data.active_sessions.length} live session{data.active_sessions.length > 1 ? "s" : ""} running now.
-            </p>
-          </CardHeader>
-        </Card>
-      ) : null}
-
-      {data.active_sessions.length ? (
-        <Card>
-          <CardHeader><CardTitle>Active sessions now</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <THead>
-                <TR><TH>ID</TH><TH>Teacher</TH><TH>Subject</TH><TH>Section</TH><TH>Students</TH><TH>Engagement</TH><TH>Status</TH><TH>Live</TH></TR>
-              </THead>
-              <TBody>
-                {data.active_sessions.map((s) => (
-                  <TR key={`active-${s.id}`}>
-                    <TD>{s.id}</TD>
-                    <TD>{s.teacher_username}</TD>
-                    <TD>{s.subject_name}</TD>
-                    <TD>{s.section_name}</TD>
-                    <TD>{s.students_present}</TD>
-                    <TD>{s.average_engagement}%</TD>
-                    <TD><Badge tone="success">Active</Badge></TD>
-                    <TD>
-                      <Button size="sm" variant="outline" onClick={() => openLiveModal(s)}>Live</Button>
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex items-center justify-between gap-3 pt-4 text-sm text-muted-foreground">
-            <span>No active sessions now.</span>
-            <Button size="sm" variant="outline" onClick={() => loadDashboard(true)} disabled={refreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
@@ -252,9 +269,34 @@ export default function DashboardPage() {
                 </THead>
                 <TBody>
                   {data.recent_sessions.map((s) => (
-                    <TR key={s.id}>
+                    <TR
+                      key={s.id}
+                      className="cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openSessionDetail(s)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openSessionDetail(s);
+                        }
+                      }}
+                    >
                       <TD>{s.id}</TD>
-                      <TD>{s.teacher_username}</TD>
+                      <TD>
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                            {s.teacher_profile_picture_url ? (
+                              <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[7px] font-bold uppercase text-muted-foreground">
+                                {s.teacher_username.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          <span>{s.teacher_username}</span>
+                        </div>
+                      </TD>
                       <TD>{s.subject_name}</TD>
                       <TD>{s.average_engagement}%</TD>
                       <TD><Badge tone={s.is_active ? "success" : "default"}>{s.is_active ? "Active" : "Ended"}</Badge></TD>
@@ -277,160 +319,101 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {data.recent_alerts.length ? (
-              <Table>
-                <THead>
-                  <TR><TH>ID</TH><TH>Teacher</TH><TH>Type</TH><TH>Severity</TH><TH>Status</TH></TR>
-                </THead>
-                <TBody>
-                  {data.recent_alerts.map((a) => (
-                    <TR key={a.id}>
-                      <TD>{a.id}</TD>
-                      <TD>{a.teacher_username}</TD>
-                      <TD>{a.alert_type}</TD>
-                      <TD><Badge tone={a.severity === "CRITICAL" ? "danger" : "warning"}>{a.severity}</Badge></TD>
-                      <TD><Badge tone={a.is_read ? "default" : "warning"}>{a.is_read ? "Read" : "Unread"}</Badge></TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
+              <div className="space-y-1">
+                {data.recent_alerts.map((a) => (
+                  <div
+                    key={a.id}
+                    className={`group relative flex items-center gap-4 rounded-xl border border-transparent p-3 transition-all duration-200 hover:border-border/60 hover:bg-muted/30 ${!a.is_read ? "bg-muted/10 font-medium" : ""
+                      }`}
+                  >
+                    {!a.is_read && (
+                      <div className="absolute -left-1 top-1/2 -translate-y-1/2">
+                        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning shadow-[0_0_8px_hsl(var(--warning))]" />
+                      </div>
+                    )}
+
+                    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
+                      {a.teacher_profile_picture_url ? (
+                        <img src={a.teacher_profile_picture_url} alt={a.teacher_username} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-bold uppercase text-muted-foreground">
+                          {a.teacher_username.charAt(0)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm tracking-tight">{a.teacher_username}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border uppercase ${a.severity === "CRITICAL"
+                          ? "border-danger/20 bg-danger/5 text-danger"
+                          : "border-warning/20 bg-warning/5 text-warning"
+                          }`}>
+                          {a.alert_type}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground truncate leading-relaxed">
+                        {a.message}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 text-right">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {new Date(a.triggered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <Badge tone={a.is_read ? "default" : "warning"} className="h-4 text-[9px] uppercase px-1.5">
+                        {a.is_read ? "Archived" : "New"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No recent alerts.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No recent alerts recorded.</p>
             )}
           </CardContent>
         </Card>
       </section>
 
-      <Modal
-        open={liveModalOpen}
-        onClose={() => setLiveModalOpen(false)}
-        title={liveSession ? `Live Session #${liveSession.id}` : "Live Session"}
-        description={liveSession ? `${liveSession.subject_name} - ${liveSession.section_name}` : ""}
-        className="max-h-[90vh] max-w-6xl overflow-y-auto"
+      <Drawer
+        open={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        title={activeSessionInView ? `Intelligence View #${activeSessionInView.id}` : "Session details"}
+        description={activeSessionInView ? `${activeSessionInView.subject_name} • ${activeSessionInView.section_name}` : "Behavior analytics and historical data"}
+        widthClassName="max-w-5xl"
       >
-        <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${syncingLive ? "bg-warning animate-pulse" : "bg-success"}`} />
-            {syncingLive ? "Syncing live data..." : "Live sync active (3s)"}
-          </span>
-          <span>
-            {lastLiveRefreshAt ? `Last refresh: ${lastLiveRefreshAt.toLocaleTimeString()}` : "Waiting for first refresh..."}
-          </span>
-        </div>
-        {loadingLive ? (
-          <div className="space-y-3">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-64 w-full" />
+        {activeSessionInView?.is_active && (
+          <div className="mb-4 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border/50">
+            <span className="inline-flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${syncingLive ? "bg-warning animate-pulse" : "bg-success"}`} />
+              {syncingLive ? "Syncing live behavioral data..." : "Live synchronization active (3s)"}
+            </span>
+            <span>
+              {lastRefreshAt ? `Last update: ${lastRefreshAt.toLocaleTimeString()}` : "Initializing stream..."}
+            </span>
           </div>
-        ) : liveDetail ? (
+        )}
+
+        {loadingDetail && !detail ? (
           <div className="space-y-4">
-            {liveError ? (
-              <p className="rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">{liveError}</p>
-            ) : null}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Teacher</p>
-                <p className="font-medium">{liveDetail.session.teacher_username}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Students Present</p>
-                <p className="font-medium">{liveDetail.session.students_present}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Average Engagement</p>
-                <p className="font-medium">{liveDetail.session.average_engagement}%</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Start Time</p>
-                <p className="font-medium">{new Date(liveDetail.session.start_time).toLocaleString()}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Behavior Logs</p>
-                <p className="font-medium">{liveDetail.total_logs}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-                <p className="text-xs text-muted-foreground">Alerts (Unread)</p>
-                <p className="font-medium">{liveDetail.total_alerts} ({liveDetail.unread_alerts})</p>
-              </div>
-            </div>
-
-            {latestBehavior ? (
-              <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-card/70 p-3 md:grid-cols-4 xl:grid-cols-7">
-                <div><p className="text-[11px] text-muted-foreground">On task</p><p className="text-lg font-semibold">{latestBehavior.on_task}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Sleeping</p><p className="text-lg font-semibold">{latestBehavior.sleeping}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Writing</p><p className="text-lg font-semibold">{latestBehavior.writing}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Phone</p><p className="text-lg font-semibold">{latestBehavior.using_phone}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Disengaged</p><p className="text-lg font-semibold">{latestBehavior.disengaged_posture}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Not visible</p><p className="text-lg font-semibold">{latestBehavior.not_visible}</p></div>
-                <div><p className="text-[11px] text-muted-foreground">Detected</p><p className="text-lg font-semibold">{latestBehavior.total_detected}</p></div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No behavior points yet for this live session.</p>
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-72 w-full" />
+            <Skeleton className="h-72 w-full" />
+          </div>
+        ) : detail ? (
+          <div className="space-y-4">
+            {detailError && (
+              <p className="rounded-md border border-danger/20 bg-danger/5 p-3 text-xs text-danger font-medium">{detailError}</p>
             )}
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <SessionTrendChart
-                title="Engagement Rollup"
-                data={liveRollupData}
-                xLabel={(row) => String(row.time)}
-                yMax={100}
-                lines={[
-                  { key: "engagement_score", label: "Engagement %", colorClass: "bg-primary", stroke: "hsl(var(--primary))" },
-                  { key: "on_task_avg", label: "On task avg", colorClass: "bg-success", stroke: "hsl(var(--success))" },
-                  { key: "sleeping_avg", label: "Sleeping avg", colorClass: "bg-danger", stroke: "hsl(var(--danger))" },
-                  { key: "phone_avg", label: "Phone avg", colorClass: "bg-warning", stroke: "hsl(var(--warning))" },
-                ]}
-              />
-
-              <SessionTrendChart
-                title="Behavior Timeline"
-                data={liveLogsData}
-                xLabel={(row) => String(row.time)}
-                yMax={liveDetail.session.students_present}
-                lines={[
-                  { key: "on_task", label: "On task", colorClass: "bg-success", stroke: "hsl(var(--success))" },
-                  { key: "sleeping", label: "Sleeping", colorClass: "bg-danger", stroke: "hsl(var(--danger))" },
-                  { key: "using_phone", label: "Phone", colorClass: "bg-warning", stroke: "hsl(var(--warning))" },
-                  { key: "disengaged_posture", label: "Disengaged", colorClass: "bg-primary", stroke: "hsl(var(--primary))" },
-                ]}
-              />
-            </div>
-
-            <div className="rounded-xl border border-border bg-card">
-              <div className="border-b border-border px-4 py-3">
-                <h4 className="text-sm font-semibold">Behavior Logs Stream (Latest 12)</h4>
-              </div>
-              <div className="max-h-64 overflow-y-auto p-3">
-                {recentBehaviorRows.length ? (
-                  <Table>
-                    <THead>
-                      <TR><TH>Time</TH><TH>On Task</TH><TH>Sleep</TH><TH>Write</TH><TH>Phone</TH><TH>Disengaged</TH><TH>Not Visible</TH><TH>Total</TH></TR>
-                    </THead>
-                    <TBody>
-                      {recentBehaviorRows.map((log, idx) => (
-                        <TR key={`${log.timestamp}-${idx}`}>
-                          <TD>{new Date(log.timestamp).toLocaleTimeString()}</TD>
-                          <TD>{log.on_task}</TD>
-                          <TD>{log.sleeping}</TD>
-                          <TD>{log.writing}</TD>
-                          <TD>{log.using_phone}</TD>
-                          <TD>{log.disengaged_posture}</TD>
-                          <TD>{log.not_visible}</TD>
-                          <TD>{log.total_detected}</TD>
-                        </TR>
-                      ))}
-                    </TBody>
-                  </Table>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No behavior logs yet.</p>
-                )}
-              </div>
-            </div>
+            <SessionDetailView detail={detail} />
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No session detail available.</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <Radio className="h-10 w-10 text-muted-foreground/20 animate-pulse mb-4" />
+            <p className="text-sm text-muted-foreground font-medium">Connecting to session intelligence stream...</p>
+          </div>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }

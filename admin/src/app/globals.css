@@ -59,6 +59,17 @@ body {
   background-image: radial-gradient(circle at 50% -10%, hsl(var(--muted)) 0%, transparent 55%);
 }
 
+@keyframes progress-indefinite {
+  0% { transform: translateX(-100%) scaleX(0.2); }
+  50% { transform: translateX(0%) scaleX(0.5); }
+  100% { transform: translateX(100%) scaleX(0.2); }
+}
+
+.animate-progress-indefinite {
+  animation: progress-indefinite 1.5s infinite linear;
+  transform-origin: left;
+}
+
 ::selection {
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));

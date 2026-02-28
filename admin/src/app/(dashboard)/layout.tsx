@@ -35,11 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!navLoading) return;
-    const timer = setTimeout(() => {
-      setNavLoading(false);
-      navStartRef.current = null;
-    }, 0);
-    return () => clearTimeout(timer);
+    setNavLoading(false);
   }, [pathname, navLoading]);
 
   const loadPulse = useCallback(
@@ -182,22 +178,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             onOpenLogs={() => setLogsOpen(true)}
           />
           <main className="relative min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
-            {children}
-            {navLoading ? (
-              <div className="pointer-events-none absolute inset-0 z-20 bg-background/85 backdrop-blur-[1px]">
-                <div className="space-y-4 p-2">
-                  <Skeleton className="h-8 w-64" />
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="h-28 w-full" />
-                    ))}
-                  </div>
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={`row-${i}`} className="h-12 w-full" />
-                  ))}
-                </div>
+            {/* Top Progress Bar for Navigation */}
+            {navLoading && (
+              <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
+                <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
               </div>
-            ) : null}
+            )}
+            {children}
           </main>
         </div>
       </div>
