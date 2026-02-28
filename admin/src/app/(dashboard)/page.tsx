@@ -254,61 +254,82 @@ export default function DashboardPage() {
 
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              Recent sessions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.recent_sessions.length ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-bold tracking-tight">Recent sessions</h3>
+          </div>
+          {data.recent_sessions.length ? (
+            <div className="rounded-xl border border-border/50 bg-card/50 overflow-hidden shadow-sm">
               <Table>
-                <THead>
-                  <TR><TH>ID</TH><TH>Teacher</TH><TH>Subject</TH><TH>Engagement</TH><TH>Status</TH></TR>
+                <THead className="bg-muted/30">
+                  <TR>
+                    <TH className="py-2.5 text-[10px] uppercase tracking-wider">Session</TH>
+                    <TH className="text-[10px] uppercase tracking-wider">Teacher</TH>
+                    <TH className="text-[10px] uppercase tracking-wider">Subject & Section</TH>
+                    <TH className="text-center text-[10px] uppercase tracking-wider">Studs</TH>
+                    <TH className="text-[10px] uppercase tracking-wider">Engagement</TH>
+                    <TH className="text-right pr-6 text-[10px] uppercase tracking-wider">Status</TH>
+                  </TR>
                 </THead>
                 <TBody>
                   {data.recent_sessions.map((s) => (
                     <TR
                       key={s.id}
-                      className="cursor-pointer"
-                      role="button"
-                      tabIndex={0}
+                      className="group cursor-pointer hover:bg-muted/40 transition-colors border-border/40"
                       onClick={() => openSessionDetail(s)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openSessionDetail(s);
-                        }
-                      }}
                     >
-                      <TD>{s.id}</TD>
+                      <TD className="py-2">
+                        <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded">#{s.id}</span>
+                      </TD>
                       <TD>
                         <div className="flex items-center gap-2">
-                          <div className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                          <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
                             {s.teacher_profile_picture_url ? (
                               <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
                             ) : (
-                              <span className="text-[7px] font-bold uppercase text-muted-foreground">
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">
                                 {s.teacher_username.charAt(0)}
                               </span>
                             )}
                           </div>
-                          <span>{s.teacher_username}</span>
+                          <span className="font-semibold text-xs">{s.teacher_username}</span>
                         </div>
                       </TD>
-                      <TD>{s.subject_name}</TD>
-                      <TD>{s.average_engagement}%</TD>
-                      <TD><Badge tone={s.is_active ? "success" : "default"}>{s.is_active ? "Active" : "Ended"}</Badge></TD>
+                      <TD>
+                        <div className="flex flex-col leading-tight">
+                          <span className="font-medium text-xs">{s.subject_name}</span>
+                          <span className="text-[9px] text-muted-foreground">{s.section_name}</span>
+                        </div>
+                      </TD>
+                      <TD className="text-center">
+                        <span className="text-xs font-medium">{s.students_present}</span>
+                      </TD>
+                      <TD>
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold",
+                          s.average_engagement >= 85 ? "border-success/40 bg-success/10 text-success" :
+                            s.average_engagement >= 60 ? "border-primary/40 bg-primary/10 text-primary" :
+                              s.average_engagement >= 40 ? "border-warning/40 bg-warning/10 text-warning" :
+                                "border-danger/40 bg-danger/10 text-danger"
+                        )}>
+                          {s.average_engagement.toFixed(0)}%
+                        </div>
+                      </TD>
+                      <TD className="text-right pr-6">
+                        <Badge tone={s.is_active ? "success" : "default"} className="h-4 text-[9px] px-1.5 uppercase font-bold tracking-wider">
+                          {s.is_active ? "Live" : "Ended"}
+                        </Badge>
+                      </TD>
                     </TR>
                   ))}
                 </TBody>
               </Table>
-            ) : (
-              <p className="text-sm text-muted-foreground">No recent sessions.</p>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground px-1">No recent sessions.</p>
+          )}
+        </div>
 
         <Card>
           <CardHeader>

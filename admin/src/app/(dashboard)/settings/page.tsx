@@ -6,18 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function SettingsPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title={<><Settings className="h-5 w-5" />Settings</>} description="Recommended governance settings to add next." />
+      <PageHeader title={<><Settings className="h-5 w-5" />Settings</>} description="System preferences and controls." />
       <Card>
-        <CardHeader>
-          <CardTitle>Roadmap configuration</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Alert threshold tuning by school or subject.</li>
-            <li>Retention rules for logs, events, and alert history.</li>
-            <li>CSV export controls and access policies.</li>
-            <li>Audit viewer for admin actions.</li>
-          </ul>
+        <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+          <div className="mb-4 text-4xl">🚧</div>
+          <h2 className="text-xl font-bold">Settings Under Development</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            We are working on bringing advanced governance and configuration tools to TeachTrack.
+          </p>
         </CardContent>
       </Card>
     </div>
