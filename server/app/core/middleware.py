@@ -1,7 +1,11 @@
 import time
 import uuid
+import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
+from app.core.config import settings
+
+logger = logging.getLogger("app.request")
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -10,8 +14,24 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
 
         start = time.perf_counter()
-        response = await call_next(request)
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception:
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.exception(
+                f"{request.method} {request.url.path} -> 500 ({duration_ms:.2f}ms)",
+                extra={"request_id": request_id},
+            )
+            raise
+
         duration_ms = (time.perf_counter() - start) * 1000
+        if settings.ENABLE_ADMIN_LOG_STREAM:
+            logger.info(
+                f"{request.method} {request.url.path} -> {status_code} ({duration_ms:.2f}ms)",
+                extra={"request_id": request_id},
+            )
 
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time-Ms"] = f"{duration_ms:.2f}"

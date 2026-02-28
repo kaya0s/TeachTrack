@@ -19,7 +19,7 @@ test_system_flow.py
 .env
 
 #weights
-ml_engine/weights/best.pt
+ml_engine/weights/
 trained_weights/
 runs/
 

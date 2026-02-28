@@ -2,13 +2,13 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.routers import admin_router, auth_router, users_router, classrooms_router, sessions_router
+from app.api.v1.routers import admin_router, auth_router, users_router, classrooms_router, sessions_router, notifications_router
 from app.core.config import settings
 from app.core.exceptions import unhandled_exception_handler
 from app.core.logging import RequestIdFilter, configure_logging
 from app.core.middleware import RequestContextMiddleware
 
-configure_logging(settings.LOG_LEVEL)
+configure_logging(settings.LOG_LEVEL, enable_admin_log_stream=settings.ENABLE_ADMIN_LOG_STREAM)
 root_logger = logging.getLogger()
 root_logger.addFilter(RequestIdFilter())
 
@@ -37,6 +37,7 @@ app.include_router(users_router.router, prefix=f"{settings.API_V1_STR}/users", t
 app.include_router(classrooms_router.router, prefix=f"{settings.API_V1_STR}/classroom", tags=["classroom"])
 app.include_router(sessions_router.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
 app.include_router(sessions_router.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
+app.include_router(notifications_router.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
 app.include_router(admin_router.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 
 

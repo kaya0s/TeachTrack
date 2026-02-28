@@ -1,15 +1,19 @@
 from datetime import datetime, timedelta
+import json
 from typing import Any, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
+from app.core.logging import get_recent_server_logs
 from app.core import security
 from app.models.classroom import ClassSection, Subject
 from app.models.session import Alert, AlertHistory, AlertSeverity, BehaviorLog, ClassSession, SessionHistory, SessionMetrics
 from app.models.user import User
-from app.services import detector_service
+from app.services import detector_service, notification_service
 
 W_ON_TASK = 1.0
 W_WRITING = 0.8
@@ -198,6 +202,371 @@ def list_users(
         .all()
     )
     return {"total": total, "items": items}
+
+
+def list_teachers(
+    db: Session,
+    skip: int = 0,
+    limit: int = 25,
+    q: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> dict[str, Any]:
+    query = db.query(User).filter(User.is_superuser == False)
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter((User.username.like(pattern)) | (User.email.like(pattern)))
+    if is_active is not None:
+        query = query.filter(User.is_active == is_active)
+
+    total = query.count()
+    items = (
+        query.order_by(User.id.desc())
+        .offset(max(0, skip))
+        .limit(_clamp_limit(limit))
+        .all()
+    )
+    return {"total": total, "items": items}
+
+
+def list_subjects(
+    db: Session,
+    skip: int = 0,
+    limit: int = 50,
+    q: Optional[str] = None,
+) -> dict[str, Any]:
+    query = (
+        db.query(Subject)
+        .options(joinedload(Subject.teacher), joinedload(Subject.sections))
+    )
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter((Subject.name.like(pattern)) | (Subject.code.like(pattern)))
+
+    total = query.count()
+    rows = (
+        query.order_by(Subject.created_at.desc(), Subject.id.desc())
+        .offset(max(0, skip))
+        .limit(_clamp_limit(limit))
+        .all()
+    )
+    items = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "code": row.code,
+            "description": row.description,
+            "teacher_id": row.teacher_id,
+            "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "sections_count": len(row.sections or []),
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+    return {"total": total, "items": items}
+
+
+def _serialize_subject(row: Subject) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "name": row.name,
+        "code": row.code,
+        "description": row.description,
+        "teacher_id": row.teacher_id,
+        "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "sections_count": len(row.sections or []),
+        "created_at": row.created_at,
+    }
+
+
+def create_subject(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Subject name is required")
+    code = (payload.get("code") or None)
+    if isinstance(code, str):
+        code = code.strip() or None
+
+    if db.query(Subject).filter(Subject.name == name).first():
+        raise HTTPException(status_code=400, detail="Subject already exists")
+    if code and db.query(Subject).filter(Subject.code == code).first():
+        raise HTTPException(status_code=400, detail="Subject already exists")
+
+    row = Subject(
+        name=name,
+        code=code,
+        description=payload.get("description"),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == row.id).first()
+    return _serialize_subject(row)
+
+
+def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == subject_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    if payload.get("name") is not None:
+        name = str(payload["name"]).strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Subject name cannot be empty")
+        row.name = name
+    if payload.get("code") is not None:
+        code = payload.get("code")
+        row.code = str(code).strip() if isinstance(code, str) and code.strip() else None
+    if "description" in payload:
+        row.description = payload.get("description")
+    if payload.get("teacher_id") is not None:
+        teacher = _ensure_teacher(db, int(payload["teacher_id"]))
+        row.teacher_id = teacher.id
+
+    try:
+        db.add(row)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Subject name or code already exists")
+    db.refresh(row)
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == subject_id).first()
+    return _serialize_subject(row)
+
+
+def delete_subject(db: Session, subject_id: int) -> dict[str, Any]:
+    row = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    sessions_count = db.query(func.count(ClassSession.id)).filter(ClassSession.subject_id == subject_id).scalar() or 0
+    if sessions_count > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete subject with existing sessions")
+    sections_count = db.query(func.count(ClassSection.id)).filter(ClassSection.subject_id == subject_id).scalar() or 0
+    if sections_count > 0:
+        raise HTTPException(status_code=400, detail="Delete related sections first")
+    db.delete(row)
+    db.commit()
+    return {"message": "Subject deleted"}
+
+
+def list_sections(
+    db: Session,
+    skip: int = 0,
+    limit: int = 50,
+    q: Optional[str] = None,
+) -> dict[str, Any]:
+    query = (
+        db.query(ClassSection)
+        .options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher))
+    )
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter(ClassSection.name.like(pattern))
+
+    total = query.count()
+    rows = (
+        query.order_by(ClassSection.created_at.desc(), ClassSection.id.desc())
+        .offset(max(0, skip))
+        .limit(_clamp_limit(limit))
+        .all()
+    )
+    items = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "subject_id": row.subject_id,
+            "subject_name": row.subject.name if row.subject else "unassigned",
+            "teacher_id": row.teacher_id,
+            "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+    return {"total": total, "items": items}
+
+
+def _serialize_section(row: ClassSection) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "name": row.name,
+        "subject_id": row.subject_id,
+        "subject_name": row.subject.name if row.subject else "unassigned",
+        "teacher_id": row.teacher_id,
+        "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "created_at": row.created_at,
+    }
+
+
+def create_section(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    subject_id = int(payload.get("subject_id"))
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    teacher_id = payload.get("teacher_id")
+    if teacher_id is not None:
+        _ensure_teacher(db, int(teacher_id))
+
+    row = ClassSection(
+        name=str(payload.get("name") or "").strip(),
+        subject_id=subject_id,
+        teacher_id=int(teacher_id) if teacher_id is not None else subject.teacher_id,
+    )
+    if not row.name:
+        raise HTTPException(status_code=400, detail="Section name is required")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == row.id).first()
+    return _serialize_section(row)
+
+
+def update_section(db: Session, section_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == section_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    if payload.get("name") is not None:
+        name = str(payload["name"]).strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Section name cannot be empty")
+        row.name = name
+    if payload.get("subject_id") is not None:
+        subject_id = int(payload["subject_id"])
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        row.subject_id = subject_id
+    if payload.get("teacher_id") is not None:
+        teacher = _ensure_teacher(db, int(payload["teacher_id"]))
+        row.teacher_id = teacher.id
+
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == section_id).first()
+    return _serialize_section(row)
+
+
+def delete_section(db: Session, section_id: int) -> dict[str, Any]:
+    row = db.query(ClassSection).filter(ClassSection.id == section_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Section not found")
+    sessions_count = db.query(func.count(ClassSession.id)).filter(ClassSession.section_id == section_id).scalar() or 0
+    if sessions_count > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete section with existing sessions")
+    db.delete(row)
+    db.commit()
+    return {"message": "Section deleted"}
+
+
+def create_class(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    subject_id = payload.get("subject_id")
+    subject = None
+    if subject_id is not None:
+        subject = db.query(Subject).filter(Subject.id == int(subject_id)).first()
+    else:
+        subject_name = str(payload.get("subject_name") or "").strip()
+        if not subject_name:
+            raise HTTPException(status_code=400, detail="Provide subject_id or subject_name")
+        subject_code = payload.get("subject_code")
+        subject = Subject(name=subject_name, code=(str(subject_code).strip() if isinstance(subject_code, str) and subject_code.strip() else None))
+        db.add(subject)
+        db.flush()
+
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    section_name = str(payload.get("section_name") or "").strip()
+    if not section_name:
+        raise HTTPException(status_code=400, detail="Section name is required")
+
+    row = ClassSection(
+        name=section_name,
+        subject_id=subject.id,
+        teacher_id=subject.teacher_id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == row.id).first()
+    return _serialize_section(row)
+
+
+def _ensure_teacher(db: Session, teacher_id: int) -> User:
+    teacher = (
+        db.query(User)
+        .filter(User.id == teacher_id, User.is_superuser == False)
+        .first()
+    )
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    return teacher
+
+
+def assign_subject_teacher(db: Session, subject_id: int, teacher_id: int) -> dict[str, Any]:
+    teacher = _ensure_teacher(db, teacher_id)
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    subject.teacher_id = teacher.id
+    db.add(subject)
+    db.commit()
+    db.refresh(subject)
+
+    return {
+        "id": subject.id,
+        "name": subject.name,
+        "code": subject.code,
+        "description": subject.description,
+        "teacher_id": teacher.id,
+        "teacher_username": teacher.username,
+        "sections_count": len(subject.sections or []),
+        "created_at": subject.created_at,
+    }
+
+
+def assign_section_teacher(db: Session, section_id: int, teacher_id: int) -> dict[str, Any]:
+    teacher = _ensure_teacher(db, teacher_id)
+    section = (
+        db.query(ClassSection)
+        .options(joinedload(ClassSection.subject))
+        .filter(ClassSection.id == section_id)
+        .first()
+    )
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    section.teacher_id = teacher.id
+    subject_name = section.subject.name if section.subject else "Unknown Subject"
+    db.add(section)
+    notification_service.create_notification(
+        db,
+        user_id=teacher.id,
+        title="New Class Assignment",
+        body=f"You were assigned to {subject_name} - {section.name}.",
+        type="CLASS_ASSIGNMENT",
+        metadata_json=json.dumps(
+            {
+                "section_id": section.id,
+                "subject_id": section.subject_id,
+                "section_name": section.name,
+                "subject_name": subject_name,
+            }
+        ),
+    )
+    db.commit()
+    db.refresh(section)
+
+    return {
+        "id": section.id,
+        "name": section.name,
+        "subject_id": section.subject_id,
+        "subject_name": section.subject.name if section.subject else "unassigned",
+        "teacher_id": teacher.id,
+        "teacher_username": teacher.username,
+        "created_at": section.created_at,
+    }
 
 
 def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_id: int) -> User:
@@ -541,3 +910,10 @@ def select_model(file_name: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+def list_server_logs(limit: int = 120) -> dict[str, Any]:
+    if not settings.ENABLE_ADMIN_LOG_STREAM:
+        return {"total": 0, "items": []}
+    items = get_recent_server_logs(limit=limit)
+    return {"total": len(items), "items": items}

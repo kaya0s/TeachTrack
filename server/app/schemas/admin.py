@@ -124,3 +124,96 @@ class AdminSessionDetail(BaseModel):
     unread_alerts: int
     logs: list[AdminBehaviorLogPoint]
     metrics_rollup: list[AdminMetricPoint]
+
+
+class AdminServerLogEntry(BaseModel):
+    timestamp: datetime
+    level: str
+    source: str
+    request_id: str
+    message: str
+
+
+class AdminServerLogsResponse(BaseModel):
+    total: int
+    items: list[AdminServerLogEntry]
+
+
+class AdminTeacherSummary(BaseModel):
+    id: int
+    email: EmailStr
+    username: str
+    is_active: bool
+    updated_at: Optional[datetime] = None
+
+
+class PaginatedTeachersResponse(BaseModel):
+    total: int
+    items: list[AdminTeacherSummary]
+
+
+class AdminSubjectSummary(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    description: Optional[str] = None
+    teacher_id: Optional[int] = None
+    teacher_username: str
+    sections_count: int
+    created_at: Optional[datetime] = None
+
+
+class PaginatedSubjectsResponse(BaseModel):
+    total: int
+    items: list[AdminSubjectSummary]
+
+
+class AdminSectionSummary(BaseModel):
+    id: int
+    name: str
+    subject_id: Optional[int] = None
+    subject_name: str
+    teacher_id: Optional[int] = None
+    teacher_username: str
+    created_at: Optional[datetime] = None
+
+
+class PaginatedSectionsResponse(BaseModel):
+    total: int
+    items: list[AdminSectionSummary]
+
+
+class AdminTeacherAssignment(BaseModel):
+    teacher_id: int
+
+
+class AdminSubjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    code: Optional[str] = Field(default=None, max_length=20)
+    description: Optional[str] = None
+
+
+class AdminSubjectUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    code: Optional[str] = Field(default=None, max_length=20)
+    description: Optional[str] = None
+    teacher_id: Optional[int] = None
+
+
+class AdminSectionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    subject_id: int
+    teacher_id: Optional[int] = None
+
+
+class AdminSectionUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+
+
+class AdminClassCreate(BaseModel):
+    subject_id: Optional[int] = None
+    subject_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    subject_code: Optional[str] = Field(default=None, max_length=20)
+    section_name: str = Field(min_length=1, max_length=100)

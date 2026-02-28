@@ -20,3 +20,4 @@ class User(Base):
     subjects = relationship("Subject", back_populates="teacher")
     sections = relationship("ClassSection", back_populates="teacher")
     sessions = relationship("ClassSession", back_populates="teacher")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

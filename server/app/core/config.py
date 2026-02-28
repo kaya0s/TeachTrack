@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     ENV: str = "development"
     LOG_LEVEL: str = "INFO"
+    ENABLE_ADMIN_LOG_STREAM: bool = True
     DEBUG: bool = False
     CORS_ORIGINS: str = ""
 
