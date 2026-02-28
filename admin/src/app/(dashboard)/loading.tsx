@@ -1,3 +1,5 @@
+import { LoaderCircle } from "lucide-react";
+
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -5,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function DashboardRouteLoading() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Loading..." description="Preparing admin data..." />
+      <PageHeader title={<><LoaderCircle className="h-5 w-5 animate-spin" />Loading...</>} description="Preparing admin data..." />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (

@@ -1,10 +1,12 @@
+import { Settings } from "lucide-react";
+
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title="Settings" description="Recommended governance settings to add next." />
+      <PageHeader title={<><Settings className="h-5 w-5" />Settings</>} description="Recommended governance settings to add next." />
       <Card>
         <CardHeader>
           <CardTitle>Roadmap configuration</CardTitle>

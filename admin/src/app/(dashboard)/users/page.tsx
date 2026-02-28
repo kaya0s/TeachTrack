@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { UserCog } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Users" description="Manage teacher/operator access and account states." />
+      <PageHeader title={<><UserCog className="h-5 w-5" />Users</>} description="Manage teacher/operator access and account states." />
       <Card>
         <CardContent className="pt-4">
           <form onSubmit={onSearch} className="mb-4 flex gap-2">
@@ -61,16 +62,27 @@ export default function UsersPage() {
             </div>
           ) : items.length ? (
             <Table>
-              <THead><TR><TH>ID</TH><TH>Username</TH><TH>Email</TH><TH>Role</TH><TH>Status</TH><TH>Actions</TH></TR></THead>
+              <THead><TR><TH className="w-10"></TH><TH>ID</TH><TH>Username</TH><TH>Email</TH><TH>Role</TH><TH>Status</TH><TH className="text-right">Actions</TH></TR></THead>
               <TBody>
                 {items.map((user) => (
                   <TR key={user.id}>
-                    <TD>{user.id}</TD>
-                    <TD>{user.username}</TD>
-                    <TD>{user.email}</TD>
+                    <TD>
+                      <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                        {user.profile_picture_url ? (
+                          <img src={user.profile_picture_url} alt={user.username} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                            {user.username.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                    </TD>
+                    <TD className="font-mono text-xs">{user.id}</TD>
+                    <TD className="font-medium">{user.username}</TD>
+                    <TD className="text-muted-foreground">{user.email}</TD>
                     <TD><Badge tone={user.is_superuser ? "warning" : "default"}>{user.is_superuser ? "Admin" : "User"}</Badge></TD>
                     <TD><Badge tone={user.is_active ? "success" : "danger"}>{user.is_active ? "Active" : "Disabled"}</Badge></TD>
-                    <TD className="flex gap-2">
+                    <TD className="flex justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={async () => {
                         try {
                           await patchUser(user.id, { is_active: !user.is_active });

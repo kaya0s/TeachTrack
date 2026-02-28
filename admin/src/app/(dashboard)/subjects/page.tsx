@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { BookOpen } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { assignSubjectTeacher, getSubjects, getTeachers } from "@/features/admin/api";
 import type { AdminSubject, AdminTeacher } from "@/features/admin/types";
+import { TeacherSelect } from "@/features/admin/components/teacher-select";
 
 export default function SubjectsPage() {
   const { notify } = useToast();
@@ -49,7 +51,7 @@ export default function SubjectsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Subjects" description="Assign subject ownership to teachers." />
+      <PageHeader title={<><BookOpen className="h-5 w-5" />Subjects</>} description="Assign subject ownership to teachers." />
       <Card>
         <CardContent className="pt-4">
           <form onSubmit={onSearch} className="mb-4 flex gap-2">
@@ -70,25 +72,37 @@ export default function SubjectsPage() {
                     <TD>{subject.id}</TD>
                     <TD>{subject.name}</TD>
                     <TD>{subject.code ?? "-"}</TD>
-                    <TD>{subject.teacher_username}</TD>
+                    <TD>
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                          {subject.teacher_profile_picture_url ? (
+                            <img src={subject.teacher_profile_picture_url} alt={subject.teacher_username} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-[8px] font-bold uppercase text-muted-foreground">
+                              {subject.teacher_username === "unassigned" ? "?" : subject.teacher_username.charAt(0)}
+                            </span>
+                          )}
+                        </div>
+                        <span className="truncate max-w-[120px]">{subject.teacher_username}</span>
+                      </div>
+                    </TD>
                     <TD>{subject.sections_count}</TD>
                     <TD>
                       <div className="flex gap-2">
-                        <select
-                          className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                          value={selectedTeacherBySubject[subject.id] ?? subject.teacher_id ?? ""}
-                          onChange={(e) => {
-                            setSelectedTeacherBySubject((prev) => ({
-                              ...prev,
-                              [subject.id]: Number(e.target.value),
-                            }));
-                          }}
-                        >
-                          <option value="" disabled>Select teacher</option>
-                          {teachers.map((teacher) => (
-                            <option key={teacher.id} value={teacher.id}>{teacher.username}</option>
-                          ))}
-                        </select>
+                        <div className="w-[180px]">
+                          <TeacherSelect
+                            teachers={teachers}
+                            value={selectedTeacherBySubject[subject.id] ?? subject.teacher_id ?? null}
+                            onChange={(id) => {
+                              setSelectedTeacherBySubject((prev) => ({
+                                ...prev,
+                                [subject.id]: id,
+                              }));
+                            }}
+                            placeholder="Select teacher"
+                            triggerClassName="!h-8"
+                          />
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"

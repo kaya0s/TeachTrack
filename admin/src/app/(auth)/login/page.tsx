@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { BrandLogo } from "@/components/brand-logo";
@@ -34,6 +34,14 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const authError = sessionStorage.getItem("teachtrack_admin_auth_error");
+    if (authError) {
+      notify({ tone: "warning", title: "Session Expired", description: authError });
+      sessionStorage.removeItem("teachtrack_admin_auth_error");
+    }
+  }, [notify]);
 
   async function onLoginSubmit(event: FormEvent) {
     event.preventDefault();

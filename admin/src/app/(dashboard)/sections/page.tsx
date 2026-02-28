@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { Layers3 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ export default function SectionsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Sections" description="Assign class sections to teachers." />
+      <PageHeader title={<><Layers3 className="h-5 w-5" />Sections</>} description="Assign class sections to teachers." />
       <Card>
         <CardContent className="pt-4">
           <form onSubmit={onSearch} className="mb-4 flex gap-2">
