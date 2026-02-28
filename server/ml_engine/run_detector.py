@@ -1,135 +1,160 @@
-from ultralytics import YOLO
+from __future__ import annotations
+
+import argparse
+import os
+import time
+from pathlib import Path
+
 import cv2
 import requests
-import time
-import os
+from ultralytics import YOLO
 
-# CONFIGURATION
-API_URL = os.getenv("API_V1_STR", "http://127.0.0.1:8000/api/v1")
-MODEL_PATH = "ml_engine/weights/best.pt" 
-CONFIDENCE_THRESHOLD = 0.5
-INTERVAL_SECONDS = 3
 
-def run_detection():
-    print("🎥 CAPSTONE CLASSROOM BEHAVIOR DETECTOR v1.0")
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "weights" / "Track_1.0.pt"
+DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
+
+
+def normalize_api_url(raw_url: str | None) -> str:
+    value = (raw_url or "").strip()
+    if not value:
+        return DEFAULT_API_BASE
+    if value.startswith("http://") or value.startswith("https://"):
+        return value.rstrip("/")
+    if value.startswith("/"):
+        return f"http://127.0.0.1:8000{value}".rstrip("/")
+    return f"http://{value}".rstrip("/")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run real-time classroom behavior detection and send logs to API.")
+    parser.add_argument("--session-id", type=int, default=1, help="Active class session ID (default: 1)")
+    parser.add_argument("--model", type=str, default=str(DEFAULT_MODEL_PATH), help="Path to YOLO model weights")
+    parser.add_argument(
+        "--api-url",
+        type=str,
+        default=os.getenv("DETECTOR_API_URL")
+        or os.getenv("API_BASE_URL")
+        or os.getenv("API_V1_STR")
+        or DEFAULT_API_BASE,
+        help="API base URL, e.g. http://127.0.0.1:8000/api/v1",
+    )
+    parser.add_argument("--confidence", type=float, default=0.5, help="Detection confidence threshold (default: 0.5)")
+    parser.add_argument("--interval", type=float, default=3.0, help="Seconds between API log sends (default: 3)")
+    parser.add_argument("--camera", type=int, default=0, help="Webcam index for OpenCV (default: 0)")
+    parser.add_argument("--no-window", action="store_true", help="Disable OpenCV preview window")
+    return parser.parse_args()
+
+
+def run_detection(
+    session_id: int,
+    model_path: str,
+    api_url: str,
+    confidence_threshold: float,
+    interval_seconds: float,
+    camera_index: int,
+    show_window: bool,
+) -> None:
+    print("CAPSTONE CLASSROOM BEHAVIOR DETECTOR v1.0")
     print("---------------------------------------------")
 
-    try:
-        sid_input = input(f"Enter Active Session ID (default: 1): ").strip()
-        SESSION_ID = int(sid_input) if sid_input else 1
-    except ValueError:
-        print("❌ Invalid ID. Using default: 1")
-        SESSION_ID = 1
-
-    if not os.path.exists(MODEL_PATH):
-        print(f"❌ Model file not found at {MODEL_PATH}")
-        print("Please place your trained 'best.pt' inside ml_engine/weights/")
+    model_file = Path(model_path).expanduser().resolve()
+    if not model_file.exists():
+        print(f"ERROR: Model file not found: {model_file}")
         return
 
-    print(f"Loading model from {MODEL_PATH}...")
+    print(f"Session ID: {session_id}")
+    print(f"Model: {model_file}")
+    print(f"API: {api_url}")
+    print(f"Camera: {camera_index}")
+    print(f"Confidence threshold: {confidence_threshold}")
+    print(f"Send interval: {interval_seconds}s")
+
     try:
-        model = YOLO(MODEL_PATH)
-    except Exception as e:
-        print(f"❌ Failed to load model: {e}")
+        model = YOLO(str(model_file))
+    except Exception as exc:
+        print(f"ERROR: Failed to load model: {exc}")
         return
-    
-    print("Opening webcam...")
-    cap = cv2.VideoCapture(0)
-    
+
+    cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
-        print("❌ Could not open webcam.")
+        print(f"ERROR: Could not open webcam index {camera_index}")
         return
 
-    print(f"✅ Starting detection loop for SESSION {SESSION_ID}...")
-    print("Press 'q' in the video window to stop.")
-
-    last_send_time = 0
+    print("Starting detection loop. Press 'q' in preview window to stop.")
+    last_send_time = 0.0
+    endpoint = f"{api_url}/sessions/{session_id}/log"
 
     try:
         while True:
-            ret, frame = cap.read()
-            if not ret: 
-                print("Failed to read frame")
+            ok, frame = cap.read()
+            if not ok:
+                print("ERROR: Failed to read frame from webcam")
                 break
 
-            # Run Inference
-            results = model(frame, verbose=False) # verbose=False to keep stdout clean
-            
-            # Visualize (Optional - shows bounding boxes on screen)
-            annotated_frame = results[0].plot()
-            cv2.imshow("Classroom Behavior Detection", annotated_frame)
-            
-            # Only send data every INTERVAL_SECONDS
+            results = model(frame, verbose=False)
+
+            if show_window:
+                annotated = results[0].plot()
+                cv2.imshow("Classroom Behavior Detection", annotated)
+
             current_time = time.time()
-            if current_time - last_send_time >= INTERVAL_SECONDS:
-                
-                # --- Aggregate Counts ---
-                # We map the model's class names to our schema keys.
-                # Schema keys: on_task, sleeping, writing, using_phone, disengaged_posture
-                # We assume your model classes match these names loosely or exactly.
-                
+            if current_time - last_send_time >= interval_seconds:
                 counts = {
-                    "on_task": 0, 
-                    "sleeping": 0, 
-                    "writing": 0, 
-                    "using_phone": 0, 
+                    "on_task": 0,
+                    "sleeping": 0,
+                    "writing": 0,
+                    "using_phone": 0,
                     "disengaged_posture": 0,
                     "not_visible": 0,
                 }
-                
-                # Iterate detections
+
                 for box in results[0].boxes:
                     cls_id = int(box.cls[0])
                     conf = float(box.conf[0])
-                    
-                    if conf < CONFIDENCE_THRESHOLD:
+                    if conf < confidence_threshold:
                         continue
-                        
-                    class_name = model.names[cls_id]
-                    
-                    # Normalize class name to match our keys (lowercase, replace spaces)
-                    # e.g. "On Task" -> "on_task"
-                    normalized_name = class_name.lower().replace(" ", "_")
-                    if normalized_name == "attentive":
-                        normalized_name = "on_task"
-                    elif normalized_name == "raising_hand":
-                        normalized_name = "on_task"
-                    elif normalized_name in {"bow_down", "bown_down"}:
-                        normalized_name = "disengaged_posture"
-                    
-                    if normalized_name in counts:
-                        counts[normalized_name] += 1
-                    else:
-                        print(f"⚠️ Warning: Detected class '{class_name}' not in schema.")
 
-                # Send to Backend
-                payload = counts
+                    class_name = str(model.names[cls_id])
+                    normalized = class_name.lower().replace(" ", "_")
+                    if normalized in {"attentive", "raising_hand"}:
+                        normalized = "on_task"
+                    elif normalized in {"bow_down", "bown_down"}:
+                        normalized = "disengaged_posture"
+
+                    if normalized in counts:
+                        counts[normalized] += 1
+
                 try:
-                    # Sending asynchronously-ish (requests is sync but we are in a loop)
-                    endpoint = f"{API_URL}/sessions/{SESSION_ID}/log"
-                    response = requests.post(endpoint, json=payload)
-                    
+                    response = requests.post(endpoint, json=counts, timeout=8)
                     if response.status_code == 200:
-                        print(f"✅ Sent: {payload}")
+                        print(f"OK sent: {counts}")
                     elif response.status_code == 404:
-                         print(f"❌ Session {SESSION_ID} not found or inactive. Please create a new session.")
+                        print(f"ERROR session {session_id} not found/inactive")
                     else:
-                         print(f"❌ Error {response.status_code}: {response.text}")
-                         
-                except Exception as e:
-                    print(f"Connection Error: {e}")
+                        print(f"ERROR {response.status_code}: {response.text}")
+                except requests.RequestException as exc:
+                    print(f"ERROR request failed: {exc}")
 
                 last_send_time = current_time
 
-            # Exit on 'q'
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if show_window and (cv2.waitKey(1) & 0xFF == ord("q")):
                 break
 
     except KeyboardInterrupt:
-        print("Stopping...")
+        print("Stopping detector...")
     finally:
         cap.release()
         cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
-    run_detection()
+    args = parse_args()
+    run_detection(
+        session_id=args.session_id,
+        model_path=args.model,
+        api_url=normalize_api_url(args.api_url),
+        confidence_threshold=args.confidence,
+        interval_seconds=args.interval,
+        camera_index=args.camera,
+        show_window=not args.no_window,
+    )
