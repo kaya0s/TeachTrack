@@ -157,6 +157,7 @@ class AdminSubjectSummary(BaseModel):
     name: str
     code: Optional[str] = None
     description: Optional[str] = None
+    cover_image_url: Optional[str] = None
     teacher_id: Optional[int] = None
     teacher_username: str
     sections_count: int
@@ -191,12 +192,14 @@ class AdminSubjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     code: Optional[str] = Field(default=None, max_length=20)
     description: Optional[str] = None
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
 
 
 class AdminSubjectUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     code: Optional[str] = Field(default=None, max_length=20)
     description: Optional[str] = None
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
     teacher_id: Optional[int] = None
 
 

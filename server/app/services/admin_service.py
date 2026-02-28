@@ -255,6 +255,7 @@ def list_subjects(
             "name": row.name,
             "code": row.code,
             "description": row.description,
+            "cover_image_url": row.cover_image_url,
             "teacher_id": row.teacher_id,
             "teacher_username": row.teacher.username if row.teacher else "unassigned",
             "sections_count": len(row.sections or []),
@@ -271,6 +272,7 @@ def _serialize_subject(row: Subject) -> dict[str, Any]:
         "name": row.name,
         "code": row.code,
         "description": row.description,
+        "cover_image_url": row.cover_image_url,
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
         "sections_count": len(row.sections or []),
@@ -285,6 +287,9 @@ def create_subject(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
     code = (payload.get("code") or None)
     if isinstance(code, str):
         code = code.strip() or None
+    cover_image_url = payload.get("cover_image_url")
+    if isinstance(cover_image_url, str):
+        cover_image_url = cover_image_url.strip() or None
 
     if db.query(Subject).filter(Subject.name == name).first():
         raise HTTPException(status_code=400, detail="Subject already exists")
@@ -295,6 +300,7 @@ def create_subject(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         name=name,
         code=code,
         description=payload.get("description"),
+        cover_image_url=cover_image_url,
     )
     db.add(row)
     db.commit()
@@ -318,6 +324,11 @@ def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dic
         row.code = str(code).strip() if isinstance(code, str) and code.strip() else None
     if "description" in payload:
         row.description = payload.get("description")
+    if "cover_image_url" in payload:
+        cover_image_url = payload.get("cover_image_url")
+        row.cover_image_url = (
+            str(cover_image_url).strip() if isinstance(cover_image_url, str) and cover_image_url.strip() else None
+        )
     if payload.get("teacher_id") is not None:
         teacher = _ensure_teacher(db, int(payload["teacher_id"]))
         row.teacher_id = teacher.id
@@ -519,6 +530,7 @@ def assign_subject_teacher(db: Session, subject_id: int, teacher_id: int) -> dic
         "name": subject.name,
         "code": subject.code,
         "description": subject.description,
+        "cover_image_url": subject.cover_image_url,
         "teacher_id": teacher.id,
         "teacher_username": teacher.username,
         "sections_count": len(subject.sections or []),
