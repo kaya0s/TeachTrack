@@ -4,6 +4,7 @@ export type AdminUser = {
   username: string;
   is_active: boolean;
   is_superuser: boolean;
+  profile_picture_url: string | null;
   updated_at: string | null;
 };
 
@@ -12,6 +13,7 @@ export type AdminTeacher = {
   email: string;
   username: string;
   is_active: boolean;
+  profile_picture_url: string | null;
   updated_at: string | null;
 };
 
@@ -20,8 +22,10 @@ export type AdminSubject = {
   name: string;
   code: string | null;
   description: string | null;
+  cover_image_url: string | null;
   teacher_id: number | null;
   teacher_username: string;
+  teacher_profile_picture_url: string | null;
   sections_count: number;
   created_at: string | null;
 };
@@ -33,6 +37,7 @@ export type AdminSection = {
   subject_name: string;
   teacher_id: number | null;
   teacher_username: string;
+  teacher_profile_picture_url: string | null;
   created_at: string | null;
 };
 
@@ -48,6 +53,7 @@ export type AdminSession = {
   start_time: string;
   end_time: string | null;
   is_active: boolean;
+  teacher_profile_picture_url: string | null;
   average_engagement: number;
 };
 
@@ -56,6 +62,7 @@ export type AdminAlert = {
   session_id: number;
   teacher_id: number;
   teacher_username: string;
+  teacher_profile_picture_url: string | null;
   alert_type: string;
   message: string;
   severity: "WARNING" | "CRITICAL";

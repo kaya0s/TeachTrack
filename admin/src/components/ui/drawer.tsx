@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -24,8 +24,19 @@ export function Drawer({
   children,
   widthClassName = "max-w-xl",
 }: DrawerProps) {
+  const [shouldRender, setShouldRender] = useState(open);
+
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      setShouldRender(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setShouldRender(false), 220);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  useEffect(() => {
+    if (!shouldRender) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -36,16 +47,24 @@ export function Drawer({
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, onClose]);
+  }, [shouldRender, onClose]);
 
-  if (!open || typeof window === "undefined") return null;
+  if (!shouldRender || typeof window === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-50">
-      <button className="absolute inset-0 bg-black/45" onClick={onClose} aria-label="Close drawer overlay" />
+      <button
+        className={cn(
+          "absolute inset-0 bg-black/45 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0"
+        )}
+        onClick={onClose}
+        aria-label="Close drawer overlay"
+      />
       <section
         className={cn(
-          "absolute right-0 top-0 h-full w-full overflow-y-auto border-l border-border/70 bg-background/95 p-6 backdrop-blur-xl",
+          "absolute right-0 top-0 h-full w-full overflow-y-auto border-l border-border/70 bg-background/95 p-6 backdrop-blur-xl transition-transform duration-200 ease-out",
+          open ? "translate-x-0" : "translate-x-full",
           widthClassName
         )}
         role="dialog"

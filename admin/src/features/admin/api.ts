@@ -46,6 +46,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // Keep raw text response when body is not JSON.
     }
+
+    if (res.status === 401) {
+      const { clearToken } = await import("@/lib/auth");
+      clearToken();
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("teachtrack_admin_auth_error", "Please login first to continue.");
+        window.location.replace("/login");
+      }
+    }
+
     throw new Error(`HTTP ${res.status}: ${message}`);
   }
 
@@ -180,6 +190,7 @@ export function createSubject(payload: {
   name: string;
   code?: string;
   description?: string;
+  cover_image_url?: string;
 }): Promise<AdminSubject> {
   return request<AdminSubject>("/admin/subjects", {
     method: "POST",
@@ -189,7 +200,7 @@ export function createSubject(payload: {
 
 export function updateSubject(
   subjectId: number,
-  payload: Partial<{ name: string; code: string; description: string; teacher_id: number }>
+  payload: Partial<{ name: string; code: string; description: string; cover_image_url: string; teacher_id: number }>
 ): Promise<AdminSubject> {
   return request<AdminSubject>(`/admin/subjects/${subjectId}`, {
     method: "PATCH",
@@ -254,6 +265,39 @@ export function assignSectionTeacher(sectionId: number, teacherId: number): Prom
     method: "PUT",
     body: JSON.stringify({ teacher_id: teacherId }),
   });
+}
+
+export async function uploadSubjectCoverImage(file: File): Promise<{ secure_url: string; public_id: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}/subjects/cover-image`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = body || "Upload failed";
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      if (parsed?.detail) {
+        message = parsed.detail;
+      }
+    } catch {
+      // Keep raw text response when body is not JSON.
+    }
+    throw new Error(`HTTP ${res.status}: ${message}`);
+  }
+
+  return res.json();
 }
 
 export function getServerLogs(params = ""): Promise<PaginatedResponse<ServerLogEntry>> {
