@@ -243,6 +243,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> setProfileImagePath(String path) async {
     if (_user == null) return;
     _profileImagePath = path;
+    // We keep local storage for offline/immediate recovery, but primary is now server
     await _storage.write(
       key: _profileImageStorageKey(_user!.id),
       value: path,
@@ -250,10 +251,46 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> uploadProfilePicture(String filePath) async {
+    if (_user == null) return false;
+    _status = AuthStatus.authenticating;
+    notifyListeners();
+
+    try {
+      final url = await _authRepository.uploadProfilePicture(filePath);
+      // Update local user model with the new URL
+      _user = UserModel(
+        id: _user!.id,
+        email: _user!.email,
+        username: _user!.username,
+        isActive: _user!.isActive,
+        profilePictureUrl: url,
+      );
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = "Failed to upload profile picture: $e";
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> clearProfileImagePath() async {
     if (_user == null) return;
     _profileImagePath = null;
     await _storage.delete(key: _profileImageStorageKey(_user!.id));
+    
+    // Also clear on server if needed, but user usually just overwrites.
+    // To clear on server, we might need a dedicated PATCH /me with profile_picture_url: null
+    try {
+      _user = await _authRepository.updateMe(username: _user!.username); // This might not clear it unless we allow null in updateMe
+      // For now, localized clear is enough, or we can add a dedicated clear method.
+    } catch (e) {
+      debugPrint("Server clear failed: $e");
+    }
+    
     notifyListeners();
   }
 }

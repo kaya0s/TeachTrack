@@ -126,10 +126,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 radius: 16,
                 backgroundColor:
                     Theme.of(context).colorScheme.primary.withOpacity(0.14),
-                backgroundImage: hasProfileImage
-                    ? FileImage(File(auth.profileImagePath!))
-                    : null,
-                child: hasProfileImage
+                backgroundImage: (user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty)
+                    ? NetworkImage(user.profilePictureUrl!)
+                    : (hasProfileImage
+                        ? FileImage(File(auth.profileImagePath!))
+                        : null) as ImageProvider?,
+                child: (user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty) || hasProfileImage
                     ? null
                     : Text(
                         initial,
@@ -3699,6 +3701,8 @@ class _MeTab extends StatefulWidget {
 class _MeTabState extends State<_MeTab> {
   final ImagePicker _imagePicker = ImagePicker();
 
+  bool _isUploading = false;
+
   Future<void> _pickProfileImage(
     BuildContext context,
     AuthProvider auth,
@@ -3710,10 +3714,20 @@ class _MeTabState extends State<_MeTab> {
       maxWidth: 1200,
     );
     if (selected == null) return;
+    
+    // Set local path for immediate feedback if needed
     await auth.setProfileImagePath(selected.path);
+    
     if (!mounted) return;
+    setState(() => _isUploading = true);
+    
+    final success = await auth.uploadProfilePicture(selected.path);
+    
+    if (!mounted) return;
+    setState(() => _isUploading = false);
+    
     ScaffoldMessenger.of(this.context).showSnackBar(
-      const SnackBar(content: Text('Profile photo updated')),
+      SnackBar(content: Text(success ? 'Profile photo updated' : 'Upload failed')),
     );
   }
 
@@ -4047,19 +4061,23 @@ class _MeTabState extends State<_MeTab> {
                     CircleAvatar(
                       radius: 34,
                       backgroundColor: theme.colorScheme.surface,
-                      backgroundImage: hasProfileImage
-                          ? FileImage(File(auth.profileImagePath!))
-                          : null,
-                      child: hasProfileImage
-                          ? null
-                          : Text(
-                              initial,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
+                      backgroundImage: (user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty)
+                          ? NetworkImage(user.profilePictureUrl!)
+                          : (hasProfileImage
+                              ? FileImage(File(auth.profileImagePath!))
+                              : null) as ImageProvider?,
+                      child: _isUploading
+                          ? const CircularProgressIndicator(strokeWidth: 2)
+                          : ((user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty) || hasProfileImage
+                              ? null
+                              : Text(
+                                  initial,
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                )),
                     ),
                     Positioned(
                       right: 0,

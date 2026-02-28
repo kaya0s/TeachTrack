@@ -2,6 +2,7 @@ class UserModel {
   final int id;
   final String email;
   final String username;
+  final String? profilePictureUrl;
   final bool isActive;
 
   UserModel({
@@ -9,6 +10,7 @@ class UserModel {
     required this.email,
     required this.username,
     required this.isActive,
+    this.profilePictureUrl,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -17,6 +19,7 @@ class UserModel {
       email: json['email'],
       username: json['username'],
       isActive: json['is_active'] ?? true,
+      profilePictureUrl: json['profile_picture_url'],
     );
   }
 
@@ -26,6 +29,7 @@ class UserModel {
       'email': email,
       'username': username,
       'is_active': isActive,
+      'profile_picture_url': profilePictureUrl,
     };
   }
 }

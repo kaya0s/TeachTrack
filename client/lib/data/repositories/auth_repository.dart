@@ -58,6 +58,18 @@ class AuthRepository {
     return UserModel.fromJson(response.data);
   }
 
+  Future<String> uploadProfilePicture(String filePath) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath),
+    });
+
+    final response = await _apiClient.post(
+      '/users/me/profile-picture',
+      data: formData,
+    );
+    return response.data['profile_picture_url'];
+  }
+
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
