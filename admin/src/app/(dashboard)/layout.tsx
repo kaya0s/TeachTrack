@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { getDashboard, getServerLogs, markAlertRead } from "@/features/admin/api";
 import type { DashboardResponse, ServerLogEntry } from "@/features/admin/types";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -50,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         notify({
           tone: "danger",
           title: "Pulse refresh failed",
-          description: error instanceof Error ? error.message : "Could not refresh dashboard pulse.",
+          description: getErrorMessage(error, "Could not refresh dashboard pulse."),
         });
       } finally {
         if (!signal?.aborted && !silent) setPulseLoading(false);
@@ -88,7 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setLogsError(null);
         setLogsLoadedOnce(true);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Could not read server logs.";
+        const message = getErrorMessage(error, "Could not read server logs.");
         setLogsError(message);
         if (!silent) {
           notify({ tone: "danger", title: "Log stream connection failed", description: message });
@@ -131,7 +132,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         notify({
           tone: "danger",
           title: "Failed to mark alert",
-          description: error instanceof Error ? error.message : "Please try again.",
+          description: getErrorMessage(error, "Please try again."),
         });
       }
     },
@@ -160,7 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       notify({
         tone: "danger",
         title: "Bulk action failed",
-        description: error instanceof Error ? error.message : "Could not mark all notifications.",
+        description: getErrorMessage(error, "Could not mark all notifications."),
       });
     }
   }, [notifications, notify]);

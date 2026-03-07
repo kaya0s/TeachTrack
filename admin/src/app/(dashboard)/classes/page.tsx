@@ -41,6 +41,8 @@ import {
 import type { AdminSection, AdminSubject, AdminTeacher } from "@/features/admin/types";
 import { TeacherSelect } from "@/features/admin/components/teacher-select";
 import { SearchBar } from "@/components/ui/search-bar";
+import { getCurrentActorUserId } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 type ModalMode = "create" | "edit";
 
@@ -86,6 +88,8 @@ export default function ClassesPage() {
   const [activeSection, setActiveSection] = useState<AdminSection | null>(null);
   const [expandedSubjectIds, setExpandedSubjectIds] = useState<number[]>([]);
 
+  const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
+
   const sectionsBySubject = useMemo(() => {
     const map = new Map<number, AdminSection[]>();
     sections.forEach((section) => {
@@ -128,7 +132,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Load failed",
-        description: err instanceof Error ? err.message : "Could not load classes data.",
+        description: getErrorMessage(err, "Could not load classes data."),
       });
     } finally {
       setLoading(false);
@@ -267,7 +271,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Subject save failed",
-        description: err instanceof Error ? err.message : "Could not save subject.",
+        description: getErrorMessage(err, "Could not save subject."),
       });
     }
   }
@@ -295,7 +299,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Section save failed",
-        description: err instanceof Error ? err.message : "Could not save section.",
+        description: getErrorMessage(err, "Could not save section."),
       });
     }
   }
@@ -320,7 +324,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Class creation failed",
-        description: err instanceof Error ? err.message : "Could not create class.",
+        description: getErrorMessage(err, "Could not create class."),
       });
     }
   }
@@ -337,7 +341,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Assignment failed",
-        description: err instanceof Error ? err.message : "Could not assign teacher.",
+        description: getErrorMessage(err, "Could not assign teacher."),
       });
     }
   }
@@ -353,7 +357,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Delete failed",
-        description: err instanceof Error ? err.message : "Could not delete subject.",
+        description: getErrorMessage(err, "Could not delete subject."),
       });
     }
   }
@@ -369,7 +373,7 @@ export default function ClassesPage() {
       notify({
         tone: "danger",
         title: "Delete failed",
-        description: err instanceof Error ? err.message : "Could not delete section.",
+        description: getErrorMessage(err, "Could not delete section."),
       });
     }
   }
@@ -411,21 +415,29 @@ export default function ClassesPage() {
             {filteredSubjects.map((item) => (
               <div
                 key={item.id}
-                className="group relative flex flex-col min-h-[22rem] overflow-visible rounded-2xl border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300"
+                className="group relative flex flex-col min-h-[20rem] overflow-visible rounded-2xl border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-primary/25 transition-all duration-300"
               >
                 {/* Image Section */}
                 <div
-                  className="relative h-48 overflow-hidden rounded-t-2xl bg-cover bg-center"
-                  style={{ backgroundImage: `url('${item.cover_image_url || "/background.png"}')` }}
+                  className="relative h-44 overflow-hidden rounded-t-2xl bg-muted"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent" />
+                  <img
+                    src={item.cover_image_url || "/background.png"}
+                    alt={item.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent" />
 
                   {/* Subject Info Overlap */}
                   <div className="absolute inset-0 flex flex-col justify-end p-6">
-                    <Badge tone="default" className="w-fit mb-2 bg-background/80 backdrop-blur-sm border-white/20 text-[10px] font-black uppercase tracking-widest text-primary">
+                    <Badge
+                      tone="default"
+                      className="w-fit mb-2 bg-background/85 backdrop-blur-sm border-border/60 text-[10px] font-black uppercase tracking-widest text-primary"
+                    >
                       {item.code ?? "CORE"}
                     </Badge>
-                    <h3 className="text-xl font-black text-foreground tracking-tight leading-tight">
+                    <h3 className="text-lg md:text-xl font-black text-foreground tracking-tight leading-tight">
                       {item.name}
                     </h3>
                   </div>
@@ -435,7 +447,7 @@ export default function ClassesPage() {
                     <Button
                       size="icon"
                       variant="outline"
-                      className="h-9 w-9 rounded-xl border-white/20 bg-background/40 text-foreground backdrop-blur-md hover:bg-background/80 transition-all"
+                      className="h-9 w-9 rounded-xl border-border/60 bg-background/60 text-foreground backdrop-blur-md hover:bg-background/85 transition-all"
                       onClick={() => {
                         setOpenSubjectMenuId((prev) => (prev === item.id ? null : item.id));
                         setOpenSectionMenuId(null);
@@ -473,11 +485,11 @@ export default function ClassesPage() {
                   </div>
                 </div>
 
-                <div className="flex-1 p-6 flex flex-col gap-5">
+                <div className="flex-1 p-6 flex flex-col gap-4">
                   {/* Meta Info */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-muted/30 border border-border/50">
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-background">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-muted/20 border border-border/60 px-3 py-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-background">
                         {item.teacher_profile_picture_url ? (
                           <img
                             src={item.teacher_profile_picture_url}
@@ -490,21 +502,24 @@ export default function ClassesPage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-bold text-foreground truncate max-w-[120px]">
-                        {item.teacher_username || "No Lead Teacher"}
-                      </span>
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Lead</span>
+                        <span className="text-xs font-bold text-foreground truncate max-w-[150px]">
+                          {item.teacher_username || "Unassigned"}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/5 border border-indigo-500/10 text-indigo-600">
+                    <div className="flex items-center gap-2 rounded-xl bg-primary/5 border border-primary/15 px-3 py-2 text-primary">
                       <Users className="h-3.5 w-3.5" />
-                      <span className="text-xs font-black uppercase tracking-tighter">
+                      <span className="text-[10px] font-black uppercase tracking-wider">
                         {item.sections_count} Section{item.sections_count === 1 ? "" : "s"}
                       </span>
                     </div>
                   </div>
 
                   {/* Subject Description */}
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 min-h-[2.25rem]">
                     {item.description || "No description provided for this subject."}
                   </p>
 
@@ -559,7 +574,9 @@ export default function ClassesPage() {
                                       </span>
                                     </div>
                                     <span className="text-[10px] font-bold text-foreground">
-                                      {section.teacher_username || "Available"}
+                                      {section.teacher_id && currentActorUserId !== null && section.teacher_id === currentActorUserId
+                                        ? "You"
+                                        : (section.teacher_username || "Available")}
                                     </span>
                                   </div>
                                 </div>

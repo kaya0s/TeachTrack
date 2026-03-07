@@ -16,6 +16,8 @@ import { useToast } from "@/components/ui/toast";
 import { getTeachers, patchUser, resetPassword } from "@/features/admin/api";
 import type { AdminTeacher } from "@/features/admin/types";
 import { SearchBar } from "@/components/ui/search-bar";
+import { getCurrentActorUserId } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function TeachersPage() {
   const { notify } = useToast();
@@ -33,6 +35,8 @@ export default function TeachersPage() {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [pendingActiveState, setPendingActiveState] = useState<boolean | null>(null);
 
+  const currentActorUserId = getCurrentActorUserId();
+
   async function load() {
     setLoading(true);
     try {
@@ -41,7 +45,7 @@ export default function TeachersPage() {
       setItems(res.items);
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load teachers";
+      const message = getErrorMessage(err, "Failed to load teachers");
       setError(message);
       notify({ tone: "danger", title: "Teachers load failed", description: message });
     } finally {
@@ -85,7 +89,7 @@ export default function TeachersPage() {
       notify({
         tone: "danger",
         title: "Status update failed",
-        description: err instanceof Error ? err.message : "Could not update teacher status.",
+        description: getErrorMessage(err, "Could not update teacher status."),
       });
     } finally {
       setResetting(false);
@@ -108,7 +112,7 @@ export default function TeachersPage() {
       notify({
         tone: "danger",
         title: "Password reset failed",
-        description: err instanceof Error ? err.message : "Could not reset password.",
+        description: getErrorMessage(err, "Could not reset password."),
       });
     } finally {
       setResetting(false);
@@ -163,7 +167,7 @@ export default function TeachersPage() {
                         )}
                       </div>
                     </TD>
-                    <TD className="font-medium">{teacher.username}</TD>
+                    <TD className="font-medium">{currentActorUserId !== null && teacher.id === currentActorUserId ? "You" : teacher.username}</TD>
                     <TD className="text-muted-foreground">{teacher.email}</TD>
                     <TD><Badge tone={teacher.is_active ? "success" : "danger"}>{teacher.is_active ? "Active" : "Disabled"}</Badge></TD>
                   </TR>
@@ -180,7 +184,7 @@ export default function TeachersPage() {
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         title={activeTeacher ? `Teacher #${activeTeacher.id}` : "Teacher details"}
-        description={activeTeacher ? `${activeTeacher.username} • ${activeTeacher.email}` : ""}
+        description={activeTeacher ? `${currentActorUserId !== null && activeTeacher.id === currentActorUserId ? "You" : activeTeacher.username} • ${activeTeacher.email}` : ""}
       >
         {activeTeacher ? (
           <div className="space-y-4">

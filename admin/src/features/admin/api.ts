@@ -12,6 +12,7 @@ import type {
   DashboardResponse,
   ModelSelectionResponse,
   PaginatedResponse,
+  AdminAuditLogEntry,
   ServerLogEntry,
 } from "@/features/admin/types";
 
@@ -302,4 +303,8 @@ export async function uploadSubjectCoverImage(file: File): Promise<{ secure_url:
 
 export function getServerLogs(params = ""): Promise<PaginatedResponse<ServerLogEntry>> {
   return request<PaginatedResponse<ServerLogEntry>>(`/admin/server-logs${params}`);
+}
+
+export function getAuditLogs(params = ""): Promise<PaginatedResponse<AdminAuditLogEntry>> {
+  return request<PaginatedResponse<AdminAuditLogEntry>>(`/admin/audit-logs${params}`);
 }

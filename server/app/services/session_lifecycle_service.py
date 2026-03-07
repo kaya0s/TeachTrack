@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.session import ClassSession, SessionHistory
 from app.repositories.session_repository import SessionRepository
 from app.schemas.session import SessionCreate
+from app.services import audit_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,19 @@ def start_session(db: Session, session_in: SessionCreate, current_user) -> Class
     db.commit()
     db.refresh(session)
     _record_session_history(db, session, current_user.id, "CREATE")
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_SESSION_START",
+        entity_type="ClassSession",
+        entity_id=session.id,
+        details={
+            "subject_id": session.subject_id,
+            "section_id": session.section_id,
+            "students_present": session.students_present,
+        },
+    )
     db.commit()
     logger.info(f"Session started: ID {session.id} teacher={current_user.username}")
     return session
@@ -51,10 +65,24 @@ def stop_session(db: Session, session_id: int, current_user, stop_detector_fn) -
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    prev_end_time = session.end_time
     session.is_active = False
     session.end_time = datetime.now()
     stop_detector_fn(session_id)
     _record_session_history(db, session, current_user.id, "END")
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_SESSION_STOP",
+        entity_type="ClassSession",
+        entity_id=session.id,
+        details={
+            "subject_id": session.subject_id,
+            "section_id": session.section_id,
+            "prev_end_time": prev_end_time.isoformat() if isinstance(prev_end_time, datetime) else None,
+        },
+    )
     db.commit()
     db.refresh(session)
     return session

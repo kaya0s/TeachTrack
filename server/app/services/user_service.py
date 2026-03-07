@@ -8,9 +8,16 @@ from app.core import security
 from app.core.config import settings
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import PasswordChange, UserUpdate
+from app.services import audit_service
 
 
 def update_user_me(db: Session, data: UserUpdate, current_user):
+    before = {
+        "email": current_user.email,
+        "username": current_user.username,
+        "profile_picture_url": current_user.profile_picture_url,
+    }
+
     if data.email is not None and data.email != current_user.email:
         existing_email = UserRepository.get_by_email(db, data.email)
         if existing_email:
@@ -27,6 +34,22 @@ def update_user_me(db: Session, data: UserUpdate, current_user):
         current_user.profile_picture_url = data.profile_picture_url
 
     db.add(current_user)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_PROFILE_UPDATE",
+        entity_type="User",
+        entity_id=current_user.id,
+        details={
+            "before": before,
+            "after": {
+                "email": current_user.email,
+                "username": current_user.username,
+                "profile_picture_url": current_user.profile_picture_url,
+            },
+        },
+    )
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -89,6 +112,15 @@ async def upload_profile_picture(db: Session, file: UploadFile, current_user) ->
     # Automatically update user profile picture url
     current_user.profile_picture_url = secure_url
     db.add(current_user)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_PROFILE_PICTURE_UPLOAD",
+        entity_type="User",
+        entity_id=current_user.id,
+        details={"profile_picture_url": secure_url, "file_name": file.filename},
+    )
     db.commit()
     db.refresh(current_user)
 
@@ -103,5 +135,14 @@ def change_password_me(db: Session, data: PasswordChange, current_user):
 
     current_user.hashed_password = security.get_password_hash(data.new_password)
     db.add(current_user)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_PASSWORD_CHANGE",
+        entity_type="User",
+        entity_id=current_user.id,
+        details=None,
+    )
     db.commit()
     return {"message": "Password updated successfully."}

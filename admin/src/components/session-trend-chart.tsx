@@ -76,6 +76,16 @@ export function SessionTrendChart<T extends Record<string, string | number>>({
     return max;
   }, [data, lines, meanVal]);
 
+  useEffect(() => {
+    if (!onHoverRowChange) return;
+    if (hoverIdx === null) {
+      onHoverRowChange(null, null);
+      return;
+    }
+    if (!data[hoverIdx]) return;
+    onHoverRowChange(data[hoverIdx], hoverIdx);
+  }, [data, hoverIdx, onHoverRowChange]);
+
   if (!data.length) {
     return <p className="text-sm text-muted-foreground">No chart data available.</p>;
   }
@@ -120,15 +130,6 @@ export function SessionTrendChart<T extends Record<string, string | number>>({
     }
     return d;
   };
-
-  useEffect(() => {
-    if (!onHoverRowChange) return;
-    if (hoverIdx === null) {
-      onHoverRowChange(null, null);
-      return;
-    }
-    onHoverRowChange(data[hoverIdx], hoverIdx);
-  }, [data, hoverIdx, onHoverRowChange]);
 
   return (
     <div className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/70 p-3 shadow-sm">

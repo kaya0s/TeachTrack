@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.classroom import ClassSection, Subject
 from app.repositories.classroom_repository import ClassroomRepository
 from app.schemas.classroom import SectionCreate, SubjectCreate, SubjectCoverUploadResponse, SubjectUpdate
+from app.services import audit_service
 
 
 def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
@@ -21,7 +22,18 @@ def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
 
 def create_subject(db: Session, subject_in: SubjectCreate, teacher_id: int) -> Subject:
     subject = Subject(**subject_in.dict(), teacher_id=teacher_id)
-    return ClassroomRepository.create_subject(db, subject)
+    subject = ClassroomRepository.create_subject(db, subject)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=teacher_id,
+        actor_username=None,
+        action="TEACHER_SUBJECT_CREATE",
+        entity_type="Subject",
+        entity_id=subject.id,
+        details={"name": subject.name, "code": subject.code},
+    )
+    db.commit()
+    return subject
 
 
 def read_subject(db: Session, subject_id: int, teacher_id: int) -> Subject:
@@ -37,14 +49,42 @@ def update_subject(db: Session, subject_id: int, subject_in: SubjectUpdate, teac
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
+    before = {
+        "name": subject.name,
+        "code": subject.code,
+        "description": subject.description,
+        "cover_image_url": subject.cover_image_url,
+    }
+
     update_data = subject_in.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(subject, field, value)
 
-    return ClassroomRepository.save_subject(db, subject)
+    subject = ClassroomRepository.save_subject(db, subject)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=teacher_id,
+        actor_username=None,
+        action="TEACHER_SUBJECT_UPDATE",
+        entity_type="Subject",
+        entity_id=subject.id,
+        details={
+            "before": before,
+            "after": {
+                "name": subject.name,
+                "code": subject.code,
+                "description": subject.description,
+                "cover_image_url": subject.cover_image_url,
+            },
+        },
+    )
+    db.commit()
+    return subject
 
 
-async def upload_subject_cover_image(file: UploadFile, teacher_id: int) -> SubjectCoverUploadResponse:
+async def upload_subject_cover_image(db: Session, file: UploadFile, current_user) -> SubjectCoverUploadResponse:
+    teacher_id = getattr(current_user, "id", None)
+    teacher_username = getattr(current_user, "username", None)
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are allowed.")
 
@@ -99,6 +139,16 @@ async def upload_subject_cover_image(file: UploadFile, teacher_id: int) -> Subje
             detail="Cloudinary response missing secure_url/public_id.",
         )
 
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=teacher_id,
+        actor_username=teacher_username,
+        action="TEACHER_SUBJECT_COVER_UPLOAD",
+        entity_type="SubjectCover",
+        entity_id=cloud_public_id,
+        details={"secure_url": secure_url, "file_name": file.filename},
+    )
+    db.commit()
     return SubjectCoverUploadResponse(secure_url=secure_url, public_id=cloud_public_id)
 
 
@@ -120,4 +170,15 @@ def create_section(db: Session, section_in: SectionCreate, teacher_id: int) -> C
         raise HTTPException(status_code=404, detail="Subject not found")
 
     section = ClassSection(**section_in.dict(), teacher_id=teacher_id)
-    return ClassroomRepository.create_section(db, section)
+    section = ClassroomRepository.create_section(db, section)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=teacher_id,
+        actor_username=None,
+        action="TEACHER_SECTION_CREATE",
+        entity_type="ClassSection",
+        entity_id=section.id,
+        details={"subject_id": section.subject_id, "name": section.name},
+    )
+    db.commit()
+    return section

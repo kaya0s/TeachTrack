@@ -62,10 +62,11 @@ def update_subject(
 @router.post("/subjects/cover-image", response_model=SubjectCoverUploadResponse)
 async def upload_subject_cover_image(
     *,
+    db: Session = Depends(get_db),
     file: UploadFile = File(...),
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
-    return await classroom_service.upload_subject_cover_image(file, current_user.id)
+    return await classroom_service.upload_subject_cover_image(db, file, current_user)
 
 
 @router.get("/subjects/{subject_id}/sections", response_model=List[SectionSchema])

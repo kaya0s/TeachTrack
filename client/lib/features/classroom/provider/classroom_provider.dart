@@ -85,6 +85,10 @@ class ClassroomProvider extends ChangeNotifier {
           coverImageUrl: subject.coverImageUrl,
           sections: [...subject.sections, section],
         );
+      } else {
+        // Subject list might not be loaded yet in this provider instance.
+        // Refetch to keep UI (e.g., SubjectDetailsScreen) in sync.
+        await fetchClassroomData();
       }
       _sections.add(section);
       notifyListeners();

@@ -142,6 +142,27 @@ class AdminServerLogsResponse(BaseModel):
     items: list[AdminServerLogEntry]
 
 
+class AdminAuditLogEntry(BaseModel):
+    id: int
+    actor_user_id: Optional[int] = None
+    actor_username: Optional[str] = None
+    action: str
+    entity_type: str
+    entity_id: Optional[str] = None
+    details: Optional[dict] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedAuditLogsResponse(BaseModel):
+    total: int
+    items: list[AdminAuditLogEntry]
+
+
 class AdminTeacherSummary(BaseModel):
     id: int
     email: EmailStr

@@ -1,6 +1,7 @@
 from app.models.user import User
 from app.models.classroom import Subject, ClassSection
 from app.models.notification import Notification
+from app.models.audit import AuditLog
 from app.models.session import (
     ClassSession,
     BehaviorLog,
@@ -14,6 +15,7 @@ from app.models.session import (
 __all__ = [
     "User",
     "Notification",
+    "AuditLog",
     "Subject",
     "ClassSection",
     "ClassSession",

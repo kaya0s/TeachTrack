@@ -23,6 +23,8 @@ import autoTable from "jspdf-autotable";
 
 import { SessionDetailView } from "@/features/admin/components/session-detail-view";
 import { SearchBar } from "@/components/ui/search-bar";
+import { getCurrentActorUserId } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function SessionsPage() {
   const { notify } = useToast();
@@ -39,6 +41,8 @@ export default function SessionsPage() {
   const [teacherFilter, setTeacherFilter] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,7 +127,7 @@ export default function SessionsPage() {
       notify({
         tone: "danger",
         title: "Failed to load details",
-        description: error instanceof Error ? error.message : "Please retry.",
+        description: getErrorMessage(error, "Please retry."),
       });
     } finally {
       setLoadingDetail(false);
@@ -143,7 +147,7 @@ export default function SessionsPage() {
     const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Start Time", "End Time", "Engagement"];
     const rows = filteredAndSortedItems.map(s => [
       s.id,
-      s.teacher_username,
+      (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : s.teacher_username,
       s.subject_name,
       s.section_name,
       s.students_present,
@@ -188,7 +192,7 @@ export default function SessionsPage() {
 
         const tableData = filteredAndSortedItems.map(s => [
           s.id,
-          s.teacher_username,
+          (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : s.teacher_username,
           `${s.subject_name}\n(${s.section_name})`,
           s.students_present,
           `${new Date(s.start_time).toLocaleDateString()}\n${new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
@@ -260,7 +264,7 @@ export default function SessionsPage() {
                               </span>
                             )}
                           </div>
-                          <span>{s.teacher_username}</span>
+                          <span>{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : s.teacher_username}</span>
                         </div>
                       </TD>
                       <TD>{s.subject_name}</TD>
@@ -396,7 +400,7 @@ export default function SessionsPage() {
                                 </span>
                               )}
                             </div>
-                            <span className="font-semibold text-sm">{s.teacher_username}</span>
+                            <span className="font-semibold text-sm">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : s.teacher_username}</span>
                           </div>
                         </TD>
                         <TD>

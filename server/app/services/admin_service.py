@@ -10,9 +10,11 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.config import settings
 from app.core.logging import get_recent_server_logs
 from app.core import security
+from app.models.audit import AuditLog
 from app.models.classroom import ClassSection, Subject
 from app.models.session import Alert, AlertHistory, AlertSeverity, BehaviorLog, ClassSession, SessionHistory, SessionMetrics
 from app.models.user import User
+from app.services import audit_service
 from app.services import detector_service, notification_service
 
 W_ON_TASK = 1.0
@@ -30,6 +32,13 @@ def _to_float(value: Any) -> float:
     if value is None:
         return 0.0
     return float(value)
+
+
+def _get_actor_username(db: Session, actor_user_id: int | None) -> str | None:
+    if actor_user_id is None:
+        return None
+    actor = db.query(User).filter(User.id == actor_user_id).first()
+    return actor.username if actor else None
 
 
 def _avg_engagement_from_stats(stats_row: tuple, students_present: int) -> float:
@@ -611,6 +620,13 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    before = {
+        "email": user.email,
+        "username": user.username,
+        "is_active": user.is_active,
+        "is_superuser": user.is_superuser,
+    }
+
     new_email = payload.get("email")
     new_username = payload.get("username")
     new_is_active = payload.get("is_active")
@@ -632,6 +648,23 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
         user.is_superuser = new_is_superuser
 
     db.add(user)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="USER_UPDATE",
+        entity_type="User",
+        entity_id=user.id,
+        details={
+            "before": before,
+            "after": {
+                "email": user.email,
+                "username": user.username,
+                "is_active": user.is_active,
+                "is_superuser": user.is_superuser,
+            },
+        },
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -649,6 +682,15 @@ def admin_reset_user_password(db: Session, user_id: int, new_password: str, acto
     user.reset_code = None
     user.reset_code_expires = None
     db.add(user)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="USER_PASSWORD_RESET",
+        entity_type="User",
+        entity_id=user.id,
+        details={"username": user.username},
+    )
     db.commit()
 
 
@@ -740,6 +782,20 @@ def force_stop_session(db: Session, session_id: int, actor_user_id: int) -> Clas
         )
     )
     db.add(session)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="SESSION_FORCE_STOP",
+        entity_type="ClassSession",
+        entity_id=session.id,
+        details={
+            "teacher_id": session.teacher_id,
+            "section_id": session.section_id,
+            "subject_id": session.subject_id,
+            "prev_end_time": prev_end_time.isoformat() if isinstance(prev_end_time, datetime) else None,
+        },
+    )
     db.commit()
     db.refresh(session)
     return session
@@ -933,6 +989,15 @@ def mark_alert_read(db: Session, alert_id: int, actor_user_id: int) -> Alert:
     )
     alert.is_read = True
     db.add(alert)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="ALERT_MARK_READ",
+        entity_type="Alert",
+        entity_id=alert.id,
+        details={"session_id": alert.session_id, "alert_type": alert.alert_type, "severity": alert.severity},
+    )
     db.commit()
     db.refresh(alert)
     return alert
@@ -942,13 +1007,53 @@ def list_models() -> dict[str, Any]:
     return detector_service.build_model_selection_response()
 
 
-def select_model(file_name: str) -> dict[str, Any]:
+def select_model(db: Session, file_name: str, actor_user_id: int) -> dict[str, Any]:
     try:
-        return detector_service.select_model_file(file_name)
+        response = detector_service.select_model_file(file_name)
+        audit_service.write_audit_log(
+            db,
+            actor_user_id=actor_user_id,
+            actor_username=_get_actor_username(db, actor_user_id),
+            action="MODEL_SELECT",
+            entity_type="Model",
+            entity_id=file_name,
+            details={"selected_model_file": file_name, "current_model_file": response.get("current_model_file")},
+        )
+        db.commit()
+        return response
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+def list_audit_logs(
+    db: Session,
+    skip: int = 0,
+    limit: int = 50,
+    action: str | None = None,
+    entity_type: str | None = None,
+    actor_user_id: int | None = None,
+    entity_id: str | None = None,
+) -> dict[str, Any]:
+    query = db.query(AuditLog)
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if entity_type:
+        query = query.filter(AuditLog.entity_type == entity_type)
+    if actor_user_id is not None:
+        query = query.filter(AuditLog.actor_user_id == actor_user_id)
+    if entity_id:
+        query = query.filter(AuditLog.entity_id == entity_id)
+
+    total = query.count()
+    items = (
+        query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .offset(max(0, skip))
+        .limit(_clamp_limit(limit))
+        .all()
+    )
+    return {"total": total, "items": items}
 
 
 def list_server_logs(limit: int = 120) -> dict[str, Any]:

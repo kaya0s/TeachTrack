@@ -16,6 +16,7 @@ from app.schemas.admin import (
     AdminSectionUpdate,
     AdminSectionSummary,
     AdminServerLogsResponse,
+    PaginatedAuditLogsResponse,
     AdminModelSelectionRequest,
     AdminSessionDetail,
     AdminSubjectCreate,
@@ -307,6 +308,29 @@ def list_admin_models(
 @router.post("/models/select", response_model=ModelSelectionResponse)
 def select_admin_model(
     payload: AdminModelSelectionRequest,
+    db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.select_model(payload.file_name)
+    return admin_service.select_model(db, payload.file_name, current_user.id)
+
+
+@router.get("/audit-logs", response_model=PaginatedAuditLogsResponse)
+def list_admin_audit_logs(
+    skip: int = 0,
+    limit: int = 50,
+    action: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    actor_user_id: Optional[int] = None,
+    entity_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.list_audit_logs(
+        db,
+        skip=skip,
+        limit=limit,
+        action=action,
+        entity_type=entity_type,
+        actor_user_id=actor_user_id,
+        entity_id=entity_id,
+    )

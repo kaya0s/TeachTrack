@@ -137,6 +137,19 @@ export type ServerLogEntry = {
   message: string;
 };
 
+export type AdminAuditLogEntry = {
+  id: number;
+  actor_user_id: number | null;
+  actor_username: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
 export type PaginatedResponse<T> = {
   total: number;
   items: T[];

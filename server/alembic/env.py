@@ -6,7 +6,7 @@ from alembic import context
 
 from app.core.config import settings
 from app.db.database import Base
-from app.models import user, classroom, session  # noqa: F401
+from app.models import user, classroom, session, audit  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URL)

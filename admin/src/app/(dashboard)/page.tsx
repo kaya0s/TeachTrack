@@ -1,19 +1,54 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Bell, CircleAlert, LayoutDashboard, Radio, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import {
+  Activity,
+  ArrowDownUp,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  CircleAlert,
+  LayoutDashboard,
+  List,
+  Radio,
+  RefreshCw,
+  Search,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  X,
+  Filter,
+  Zap,
+  BarChart3,
+  Award,
+  ChevronRight,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Drawer } from "@/components/ui/drawer";
 import { SessionDetailView } from "@/features/admin/components/session-detail-view";
 import { getDashboard, getSessionDetail } from "@/features/admin/api";
-import type { AdminSession, AdminSessionDetail, DashboardResponse } from "@/features/admin/types";
+import type {
+  AdminSession,
+  AdminSessionDetail,
+  DashboardResponse,
+} from "@/features/admin/types";
 import { cn } from "@/lib/utils";
+import { getCurrentActorUserId } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -21,53 +56,98 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [activeSessionInView, setActiveSessionInView] = useState<AdminSession | null>(null);
+  const [activeSessionInView, setActiveSessionInView] =
+    useState<AdminSession | null>(null);
   const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
-  const loadDashboard = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    await getDashboard()
-      .then(setData)
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Failed to load dashboard data.";
-        setError(message);
-      })
-      .finally(() => {
-        setLoading(false);
-        setRefreshing(false);
-      });
-  }, []);
+  const [isTeacherOpen, setIsTeacherOpen] = useState(false);
+  const [activeTeacherId, setActiveTeacherId] = useState<number | null>(null);
+
+  const [analyticsQuery, setAnalyticsQuery] = useState("");
+  const [teacherSort, setTeacherSort] = useState<"avg_desc" | "avg_asc">(
+    "avg_desc"
+  );
+  const [sectionSort, setSectionSort] = useState<"avg_desc" | "avg_asc">(
+    "avg_desc"
+  );
+  const [analyticsView, setAnalyticsView] = useState<"teachers" | "sections">(
+    "teachers"
+  );
+  const [engagementPreset, setEngagementPreset] = useState<
+    "all" | "high" | "low"
+  >("all");
+  const [minEngagement, setMinEngagement] = useState("");
+  const [maxEngagement, setMaxEngagement] = useState("");
+
+  const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
+
+  const loadDashboard = useCallback(
+    async (silent = false, autoPoll = false) => {
+      if (!autoPoll) {
+        if (silent) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+      }
+      await getDashboard()
+        .then(setData)
+        .catch((err: unknown) => {
+          if (!autoPoll) {
+            const message = getErrorMessage(err, "Failed to load dashboard data.");
+            setError(message);
+          }
+        })
+        .finally(() => {
+          if (!autoPoll) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        });
+    },
+    []
+  );
 
   useEffect(() => {
-    loadDashboard(false);
+    loadDashboard(false, false);
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadDashboard(false, true);
+      }
+    }, 5000);
+
+    return () => window.clearInterval(timer);
   }, [loadDashboard]);
 
-  const fetchSessionDetail = useCallback(async (sessionId: number, silent = false) => {
-    if (silent) {
-      setSyncingLive(true);
-    } else {
-      setLoadingDetail(true);
-      setDetailError(null);
-    }
-    try {
-      const res = await getSessionDetail(sessionId, "?minutes=180&logs_limit=250");
-      setDetail(res);
-      setLastRefreshAt(new Date());
-    } catch (err) {
-      setDetailError(err instanceof Error ? err.message : "Failed to load details.");
-    } finally {
-      setLoadingDetail(false);
-      setSyncingLive(false);
-    }
-  }, []);
+  const fetchSessionDetail = useCallback(
+    async (sessionId: number, silent = false) => {
+      if (silent) {
+        setSyncingLive(true);
+      } else {
+        setLoadingDetail(true);
+        setDetailError(null);
+      }
+      try {
+        const res = await getSessionDetail(
+          sessionId,
+          "?minutes=180&logs_limit=250"
+        );
+        setDetail(res);
+        setLastRefreshAt(new Date());
+      } catch (err) {
+        setDetailError(getErrorMessage(err, "Failed to load details."));
+      } finally {
+        setLoadingDetail(false);
+        setSyncingLive(false);
+      }
+    },
+    []
+  );
 
   async function openSessionDetail(session: AdminSession) {
     setActiveSessionInView(session);
@@ -77,7 +157,11 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!isDetailOpen || !activeSessionInView || !activeSessionInView.is_active) {
+    if (
+      !isDetailOpen ||
+      !activeSessionInView ||
+      !activeSessionInView.is_active
+    ) {
       return;
     }
     const timer = window.setInterval(() => {
@@ -88,43 +172,449 @@ export default function DashboardPage() {
     return () => window.clearInterval(timer);
   }, [isDetailOpen, activeSessionInView, fetchSessionDetail]);
 
+  const analyticsSessions = useMemo(() => {
+    const byId = new Map<number, AdminSession>();
+    const sessions = [
+      ...(data?.active_sessions ?? []),
+      ...(data?.recent_sessions ?? []),
+    ];
+    for (const s of sessions) {
+      byId.set(s.id, s);
+    }
+    return Array.from(byId.values());
+  }, [data?.active_sessions, data?.recent_sessions]);
+
+  const filteredAnalyticsSessions = useMemo(() => {
+    const min = minEngagement.trim() ? Number(minEngagement) : null;
+    const max = maxEngagement.trim() ? Number(maxEngagement) : null;
+
+    return analyticsSessions.filter((s) => {
+      const score = s.average_engagement ?? 0;
+      if (engagementPreset === "high" && score < 80) return false;
+      if (engagementPreset === "low" && score >= 50) return false;
+      if (min !== null && Number.isFinite(min) && score < min) return false;
+      if (max !== null && Number.isFinite(max) && score > max) return false;
+      return true;
+    });
+  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement]);
+
+  const teacherAnalytics = useMemo(() => {
+    const q = analyticsQuery.trim().toLowerCase();
+    const agg = new Map<
+      number,
+      {
+        teacher_id: number;
+        teacher_username: string;
+        profile_picture_url: string | null;
+        sessions: number;
+        students: number;
+        avg_engagement: number;
+      }
+    >();
+
+    for (const s of filteredAnalyticsSessions) {
+      if (q) {
+        const hay =
+          `${s.teacher_username} ${s.subject_name} ${s.section_name}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const existing = agg.get(s.teacher_id) ?? {
+        teacher_id: s.teacher_id,
+        teacher_username: s.teacher_username,
+        profile_picture_url: s.teacher_profile_picture_url ?? null,
+        sessions: 0,
+        students: 0,
+        avg_engagement: 0,
+      };
+      const nextSessions = existing.sessions + 1;
+      const nextStudents = existing.students + (s.students_present ?? 0);
+      const nextAvg =
+        (existing.avg_engagement * existing.sessions +
+          (s.average_engagement ?? 0)) /
+        nextSessions;
+      agg.set(s.teacher_id, {
+        ...existing,
+        teacher_username: existing.teacher_username || s.teacher_username,
+        profile_picture_url: existing.profile_picture_url ?? s.teacher_profile_picture_url ?? null,
+        sessions: nextSessions,
+        students: nextStudents,
+        avg_engagement: nextAvg,
+      });
+    }
+
+    const rows = Array.from(agg.values());
+    rows.sort((a, b) =>
+      teacherSort === "avg_desc"
+        ? b.avg_engagement - a.avg_engagement
+        : a.avg_engagement - b.avg_engagement
+    );
+    return rows;
+  }, [analyticsQuery, filteredAnalyticsSessions, teacherSort]);
+
+  const sectionAnalytics = useMemo(() => {
+    const q = analyticsQuery.trim().toLowerCase();
+    const agg = new Map<
+      number,
+      {
+        section_id: number;
+        section_name: string;
+        subject_name: string;
+        sessions: number;
+        students: number;
+        avg_engagement: number;
+      }
+    >();
+
+    for (const s of filteredAnalyticsSessions) {
+      if (q) {
+        const hay =
+          `${s.teacher_username} ${s.subject_name} ${s.section_name}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const existing = agg.get(s.section_id) ?? {
+        section_id: s.section_id,
+        section_name: s.section_name,
+        subject_name: s.subject_name,
+        sessions: 0,
+        students: 0,
+        avg_engagement: 0,
+      };
+      const nextSessions = existing.sessions + 1;
+      const nextStudents = existing.students + (s.students_present ?? 0);
+      const nextAvg =
+        (existing.avg_engagement * existing.sessions +
+          (s.average_engagement ?? 0)) /
+        nextSessions;
+      agg.set(s.section_id, {
+        ...existing,
+        section_name: existing.section_name || s.section_name,
+        subject_name: existing.subject_name || s.subject_name,
+        sessions: nextSessions,
+        students: nextStudents,
+        avg_engagement: nextAvg,
+      });
+    }
+
+    const rows = Array.from(agg.values());
+    rows.sort((a, b) =>
+      sectionSort === "avg_desc"
+        ? b.avg_engagement - a.avg_engagement
+        : a.avg_engagement - b.avg_engagement
+    );
+    return rows;
+  }, [analyticsQuery, filteredAnalyticsSessions, sectionSort]);
+
+  const analyticsKpis = useMemo(() => {
+    if (!filteredAnalyticsSessions.length) {
+      return {
+        sessions: 0,
+        students: 0,
+        avgEngagement: 0,
+        highEngagementSessions: 0,
+        lowEngagementSessions: 0,
+      };
+    }
+    let students = 0;
+    let totalEngagement = 0;
+    let high = 0;
+    let low = 0;
+    for (const s of filteredAnalyticsSessions) {
+      students += s.students_present ?? 0;
+      totalEngagement += s.average_engagement ?? 0;
+      if ((s.average_engagement ?? 0) >= 80) high += 1;
+      if ((s.average_engagement ?? 0) < 50) low += 1;
+    }
+    return {
+      sessions: filteredAnalyticsSessions.length,
+      students,
+      avgEngagement: totalEngagement / filteredAnalyticsSessions.length,
+      highEngagementSessions: high,
+      lowEngagementSessions: low,
+    };
+  }, [filteredAnalyticsSessions]);
+
+  const activeTeacherRow = useMemo(() => {
+    if (activeTeacherId === null) return null;
+    return teacherAnalytics.find((t) => t.teacher_id === activeTeacherId) ?? null;
+  }, [activeTeacherId, teacherAnalytics]);
+
+  const activeTeacherSessions = useMemo(() => {
+    if (activeTeacherId === null) return [];
+    return filteredAnalyticsSessions
+      .filter((s) => s.teacher_id === activeTeacherId)
+      .slice()
+      .sort((a, b) => b.id - a.id);
+  }, [activeTeacherId, filteredAnalyticsSessions]);
+
+  const activeTeacherStats = useMemo(() => {
+    if (activeTeacherId === null || activeTeacherSessions.length === 0) {
+      return {
+        sessions: 0,
+        students: 0,
+        avgEngagement: 0,
+        bestEngagement: 0,
+        worstEngagement: 0,
+        buckets: { high: 0, mid: 0, low: 0 },
+        topSections: [] as Array<{ label: string; sessions: number; avg: number }>,
+      };
+    }
+
+    let students = 0;
+    let totalEngagement = 0;
+    let best = -Infinity;
+    let worst = Infinity;
+    const buckets = { high: 0, mid: 0, low: 0 };
+
+    const bySection = new Map<string, { label: string; sessions: number; avg: number }>();
+
+    for (const s of activeTeacherSessions) {
+      students += s.students_present ?? 0;
+      const score = s.average_engagement ?? 0;
+      totalEngagement += score;
+      best = Math.max(best, score);
+      worst = Math.min(worst, score);
+
+      if (score >= 80) buckets.high += 1;
+      else if (score >= 50) buckets.mid += 1;
+      else buckets.low += 1;
+
+      const key = `${s.subject_name} • ${s.section_name}`;
+      const existing = bySection.get(key) ?? { label: key, sessions: 0, avg: 0 };
+      const nextSessions = existing.sessions + 1;
+      const nextAvg = (existing.avg * existing.sessions + score) / nextSessions;
+      bySection.set(key, { label: key, sessions: nextSessions, avg: nextAvg });
+    }
+
+    const topSections = Array.from(bySection.values())
+      .sort((a, b) => b.sessions - a.sessions || b.avg - a.avg)
+      .slice(0, 5);
+
+    return {
+      sessions: activeTeacherSessions.length,
+      students,
+      avgEngagement: totalEngagement / activeTeacherSessions.length,
+      bestEngagement: Number.isFinite(best) ? best : 0,
+      worstEngagement: Number.isFinite(worst) ? worst : 0,
+      buckets,
+      topSections,
+    };
+  }, [activeTeacherId, activeTeacherSessions]);
+
+  const openTeacherDetail = useCallback((teacherId: number) => {
+    setActiveTeacherId(teacherId);
+    setIsTeacherOpen(true);
+  }, []);
+
+  function PieChart({
+    values,
+    colors,
+    size = 140,
+    strokeWidth = 14,
+  }: {
+    values: number[];
+    colors: string[];
+    size?: number;
+    strokeWidth?: number;
+  }) {
+    const total = values.reduce((acc, v) => acc + v, 0);
+    const r = (size - strokeWidth) / 2;
+    const c = size / 2;
+    const circumference = 2 * Math.PI * r;
+    let offset = 0;
+
+    if (!total) {
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle
+            cx={c}
+            cy={c}
+            r={r}
+            fill="none"
+            stroke="hsl(var(--muted))"
+            strokeWidth={strokeWidth}
+          />
+        </svg>
+      );
+    }
+
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <g transform={`rotate(-90 ${c} ${c})`}>
+          {values.map((v, idx) => {
+            const frac = v / total;
+            const dash = frac * circumference;
+            const dashOffset = circumference - offset;
+            offset += dash;
+            return (
+              <circle
+                key={idx}
+                cx={c}
+                cy={c}
+                r={r}
+                fill="none"
+                stroke={colors[idx]}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="butt"
+              />
+            );
+          })}
+        </g>
+      </svg>
+    );
+  }
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (loading || !data) {
     return (
       <div className="space-y-6">
-        <PageHeader title={<><LayoutDashboard className="h-5 w-5" />Dashboard</>} description="Global classroom operations and health snapshot." />
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <PageHeader
+          title={
+            <>
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </>
+          }
+          description="Global classroom operations and health snapshot."
+        />
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
-              <CardHeader><Skeleton className="h-4 w-24" /></CardHeader>
-              <CardContent><Skeleton className="h-9 w-20" /></CardContent>
+              <CardHeader>
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-9 w-20" />
+              </CardContent>
             </Card>
           ))}
-        </section>
+        </div>
         <Card>
           <CardContent className="space-y-3 pt-4">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const stats = data.stats;
+  const kpiCards = [
+    {
+      label: "Sessions Analyzed",
+      value: analyticsKpis.sessions,
+      icon: <BarChart3 className="h-4 w-4" />,
+      color: "text-primary",
+      bg: "bg-primary/10",
+      border: "border-primary/20",
+    },
+    {
+      label: "Avg Engagement",
+      value: `${analyticsKpis.avgEngagement.toFixed(1)}%`,
+      icon: <Zap className="h-4 w-4" />,
+      color:
+        analyticsKpis.avgEngagement >= 80
+          ? "text-success"
+          : analyticsKpis.avgEngagement >= 50
+            ? "text-warning"
+            : "text-danger",
+      bg:
+        analyticsKpis.avgEngagement >= 80
+          ? "bg-success/10"
+          : analyticsKpis.avgEngagement >= 50
+            ? "bg-warning/10"
+            : "bg-danger/10",
+      border:
+        analyticsKpis.avgEngagement >= 80
+          ? "border-success/20"
+          : analyticsKpis.avgEngagement >= 50
+            ? "border-warning/20"
+            : "border-danger/20",
+    },
+    {
+      label: "High Engagement",
+      value: analyticsKpis.highEngagementSessions,
+      icon: <TrendingUp className="h-4 w-4" />,
+      color: "text-success",
+      bg: "bg-success/10",
+      border: "border-success/20",
+      sub: "≥ 80%",
+    },
+    {
+      label: "Low Engagement",
+      value: analyticsKpis.lowEngagementSessions,
+      icon: <TrendingDown className="h-4 w-4" />,
+      color: "text-danger",
+      bg: "bg-danger/10",
+      border: "border-danger/20",
+      sub: "< 50%",
+    },
+  ];
 
   return (
     <div className="space-y-6 transition-opacity duration-300">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <PageHeader title={<><LayoutDashboard className="h-5 w-5" />Dashboard</>} description="Global classroom operations and health snapshot." />
-        <Button variant="outline" onClick={() => loadDashboard(true)} disabled={refreshing}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        <PageHeader
+          title={
+            <>
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </>
+          }
+          description="Global classroom operations and health snapshot."
+        />
+        <Button
+          variant="outline"
+          onClick={() => loadDashboard(true)}
+          disabled={refreshing}
+        >
+          <RefreshCw
+            className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+          />
           Refresh
         </Button>
       </div>
 
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {kpiCards.map((kpi) => (
+          <Card
+            key={kpi.label}
+            className={cn("border transition-all hover:shadow-md", kpi.border)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1 min-w-0">
+                  <p className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground truncate">
+                    {kpi.label}
+                  </p>
+                  <p className="text-2xl font-black tracking-tight">{kpi.value}</p>
+                  {kpi.sub && (
+                    <p className="text-[10px] text-muted-foreground">{kpi.sub}</p>
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "shrink-0 rounded-lg p-2 border",
+                    kpi.bg,
+                    kpi.border,
+                    kpi.color
+                  )}
+                >
+                  {kpi.icon}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Live Sessions Banner */}
       {data.active_sessions.length > 0 && (
-        <Card className="border-success/30 bg-success/5 shadow-none overflow-hidden ring-1 ring-success/10 ">
+        <Card className="border-success/30 bg-success/5 shadow-none overflow-hidden ring-1 ring-success/10">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -133,10 +623,14 @@ export default function DashboardPage() {
                   Live Classroom Activity
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Real-time oversight of {data.active_sessions.length} running session{data.active_sessions.length > 1 ? "s" : ""}.
+                  Real-time oversight of {data.active_sessions.length} running
+                  session{data.active_sessions.length > 1 ? "s" : ""}.
                 </CardDescription>
               </div>
-              <Badge tone="success" className="animate-in fade-in zoom-in duration-500 rounded-full px-3 h-7 text-[10px] font-bold uppercase tracking-wider">
+              <Badge
+                tone="success"
+                className="animate-in fade-in zoom-in duration-500 rounded-full px-3 h-7 text-[10px] font-bold uppercase tracking-wider"
+              >
                 System Live
               </Badge>
             </div>
@@ -161,43 +655,70 @@ export default function DashboardPage() {
                       className="group cursor-pointer hover:bg-success/[0.03] transition-all border-success/5"
                       onClick={() => openSessionDetail(s)}
                     >
-                      <TD className="font-mono text-[10px] font-semibold text-muted-foreground px-4">#{s.id}</TD>
+                      <TD className="font-mono text-[10px] font-semibold text-muted-foreground px-4">
+                        #{s.id}
+                      </TD>
                       <TD>
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-success/20 bg-background shadow-sm">
                             {s.teacher_profile_picture_url ? (
-                              <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                              <img
+                                src={s.teacher_profile_picture_url}
+                                alt={s.teacher_username}
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
                               <span className="text-[10px] font-bold uppercase text-success/60">
                                 {s.teacher_username.charAt(0)}
                               </span>
                             )}
                           </div>
-                          <span className="font-semibold text-sm text-foreground/90">{s.teacher_username}</span>
+                          <span className="font-semibold text-sm text-foreground/90">
+                            {currentActorUserId !== null &&
+                              s.teacher_id === currentActorUserId
+                              ? "You"
+                              : s.teacher_username}
+                          </span>
                         </div>
                       </TD>
                       <TD>
                         <div className="flex flex-col">
-                          <span className="font-semibold text-sm text-foreground">{s.subject_name}</span>
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-tight">{s.section_name}</span>
+                          <span className="font-semibold text-sm text-foreground">
+                            {s.subject_name}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-tight">
+                            {s.section_name}
+                          </span>
                         </div>
                       </TD>
-                      <TD className="font-semibold text-sm font-mono text-center">{s.students_present}</TD>
+                      <TD className="font-semibold text-sm font-mono text-center">
+                        {s.students_present}
+                      </TD>
                       <TD>
                         <div className="flex items-center gap-3">
                           <div className="flex-1 max-w-[100px] h-1.5 bg-muted/40 rounded-full overflow-hidden border border-border/5">
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all duration-700 ease-out",
-                                s.average_engagement >= 80 ? 'bg-success' : s.average_engagement >= 50 ? 'bg-warning' : 'bg-danger'
+                                s.average_engagement >= 80
+                                  ? "bg-success"
+                                  : s.average_engagement >= 50
+                                    ? "bg-warning"
+                                    : "bg-danger"
                               )}
                               style={{ width: `${s.average_engagement}%` }}
                             />
                           </div>
-                          <span className={cn(
-                            "text-xs font-bold tabular-nums",
-                            s.average_engagement >= 80 ? 'text-success' : s.average_engagement >= 50 ? 'text-warning' : 'text-danger'
-                          )}>
+                          <span
+                            className={cn(
+                              "text-xs font-bold tabular-nums",
+                              s.average_engagement >= 80
+                                ? "text-success"
+                                : s.average_engagement >= 50
+                                  ? "text-warning"
+                                  : "text-danger"
+                            )}
+                          >
                             {s.average_engagement}%
                           </span>
                         </div>
@@ -207,7 +728,10 @@ export default function DashboardPage() {
                           size="sm"
                           variant="outline"
                           className="h-8 w-8 rounded-full p-0 border-success/20 text-success hover:bg-success hover:text-white transition-all shadow-sm"
-                          onClick={(e) => { e.stopPropagation(); openSessionDetail(s); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openSessionDetail(s);
+                          }}
                         >
                           <Radio className="h-4 w-4" />
                         </Button>
@@ -221,43 +745,269 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Total users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight">{stats.total_users}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Active sessions</CardTitle>
-            <Activity className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight">{stats.active_sessions}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Unread alerts</CardTitle>
-            <Bell className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight">{stats.unread_alerts}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Critical unread</CardTitle>
-            <ShieldAlert className="h-4 w-4 text-danger" />
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight">{stats.critical_unread_alerts}</CardContent>
-        </Card>
-      </section>
+      {/* Analytics Section Label */}
+      <div className="flex items-center gap-2 px-1">
+        <CircleAlert className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-bold tracking-tight">Reports & Analytics</h3>
+        <p className="text-xs text-muted-foreground">
+          — Computed from live + recent sessions.
+        </p>
+      </div>
 
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left: search + preset filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={analyticsQuery}
+              onChange={(e) => setAnalyticsQuery(e.target.value)}
+              placeholder="Search teacher / subject / section"
+              className="pl-9 pr-9"
+            />
+            {analyticsQuery.trim() && (
+              <button
+                type="button"
+                onClick={() => setAnalyticsQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {(["all", "high", "low"] as const).map((preset) => (
+              <Button
+                key={preset}
+                size="sm"
+                variant={engagementPreset === preset ? "default" : "outline"}
+                onClick={() => setEngagementPreset(preset)}
+                className="h-8 text-xs"
+              >
+                {preset === "all" ? "All" : preset === "high" ? "High (80%+)" : "Low (<50%)"}
+              </Button>
+            ))}
+          </div>
+        </div>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="space-y-4">
+        {/* Right: range filter + view toggles + sort */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={minEngagement}
+              onChange={(e) => setMinEngagement(e.target.value)}
+              placeholder="Min %"
+              inputMode="numeric"
+              className="h-7 w-16 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <Input
+              value={maxEngagement}
+              onChange={(e) => setMaxEngagement(e.target.value)}
+              placeholder="Max %"
+              inputMode="numeric"
+              className="h-7 w-16 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
+            />
+          </div>
+          <Button
+            size="sm"
+            variant={analyticsView === "teachers" ? "default" : "outline"}
+            onClick={() => setAnalyticsView("teachers")}
+            className="h-8 text-xs"
+          >
+            <Users className="mr-1.5 h-3.5 w-3.5" />
+            Teachers
+          </Button>
+          <Button
+            size="sm"
+            variant={analyticsView === "sections" ? "default" : "outline"}
+            onClick={() => setAnalyticsView("sections")}
+            className="h-8 text-xs"
+          >
+            <List className="mr-1.5 h-3.5 w-3.5" />
+            Sections
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() =>
+              analyticsView === "teachers"
+                ? setTeacherSort((prev) =>
+                  prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                )
+                : setSectionSort((prev) =>
+                  prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                )
+            }
+          >
+            <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
+            {analyticsView === "teachers"
+              ? teacherSort === "avg_desc"
+                ? "High → Low"
+                : "Low → High"
+              : sectionSort === "avg_desc"
+                ? "High → Low"
+                : "Low → High"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Two-column content area */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {/* Left: Analytics Results */}
+        <div>
+          {analyticsView === "teachers" ? (
+            <div className="rounded-xl border border-border/50 bg-card/50 overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Top Teachers — Avg Engagement
+                  </p>
+                </div>
+                <Badge className="text-[10px]">{teacherAnalytics.length}</Badge>
+              </div>
+              <Table>
+                <THead className="bg-muted/20">
+                  <TR>
+                    <TH className="text-[10px] uppercase tracking-wider">Teacher</TH>
+                    <TH className="text-right text-[10px] uppercase tracking-wider">Avg</TH>
+                    <TH className="text-right text-[10px] uppercase tracking-wider">Sessions</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {teacherAnalytics.length === 0 ? (
+                    <TR>
+                      <TD colSpan={3} className="py-8 text-center text-xs text-muted-foreground">
+                        No results match your filters.
+                      </TD>
+                    </TR>
+                  ) : (
+                    teacherAnalytics.slice(0, 12).map((row) => (
+                      <TR
+                        key={`t-${row.teacher_id}`}
+                        className="hover:bg-muted/30 cursor-pointer"
+                        onClick={() => openTeacherDetail(row.teacher_id)}
+                      >
+                        <TD className="text-xs font-medium">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
+                                {row.profile_picture_url ? (
+                                  <img
+                                    src={row.profile_picture_url}
+                                    alt={row.teacher_username}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                                    {row.teacher_username.charAt(0)}
+                                  </span>
+                                )}
+                              </div>
+                              <span>
+                                {currentActorUserId !== null &&
+                                  row.teacher_id === currentActorUserId
+                                  ? "You"
+                                  : row.teacher_username}
+                              </span>
+                            </div>
+                            <div className="hidden sm:block h-1.5 w-24 rounded-full bg-muted/40 overflow-hidden">
+                              <div
+                                className="h-full bg-primary"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, row.avg_engagement))}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </TD>
+                        <TD className="text-right text-xs font-mono">
+                          {row.avg_engagement.toFixed(1)}%
+                        </TD>
+                        <TD className="text-right text-xs font-mono">
+                          {row.sessions}
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border/50 bg-card/50 overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <List className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Top Sections — Avg Engagement
+                  </p>
+                </div>
+                <Badge className="text-[10px]">{sectionAnalytics.length}</Badge>
+              </div>
+              <Table>
+                <THead className="bg-muted/20">
+                  <TR>
+                    <TH className="text-[10px] uppercase tracking-wider">Section</TH>
+                    <TH className="text-right text-[10px] uppercase tracking-wider">Avg</TH>
+                    <TH className="text-right text-[10px] uppercase tracking-wider">Sessions</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {sectionAnalytics.length === 0 ? (
+                    <TR>
+                      <TD colSpan={3} className="py-8 text-center text-xs text-muted-foreground">
+                        No results match your filters.
+                      </TD>
+                    </TR>
+                  ) : (
+                    sectionAnalytics.slice(0, 12).map((row) => (
+                      <TR
+                        key={`s-${row.section_id}`}
+                        className="hover:bg-muted/30"
+                      >
+                        <TD className="text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col leading-tight">
+                              <span className="font-medium">{row.section_name}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {row.subject_name}
+                              </span>
+                            </div>
+                            <div className="hidden sm:block h-1.5 w-24 rounded-full bg-muted/40 overflow-hidden">
+                              <div
+                                className="h-full bg-primary"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, row.avg_engagement))}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </TD>
+                        <TD className="text-right text-xs font-mono">
+                          {row.avg_engagement.toFixed(1)}%
+                        </TD>
+                        <TD className="text-right text-xs font-mono">
+                          {row.sessions}
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Recent Sessions */}
+        <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <Activity className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-bold tracking-tight">Recent sessions</h3>
+            <h3 className="text-sm font-bold tracking-tight">Recent Sessions</h3>
           </div>
           {data.recent_sessions.length ? (
             <div className="rounded-xl border border-border/50 bg-card/50 overflow-hidden shadow-sm">
@@ -280,20 +1030,31 @@ export default function DashboardPage() {
                       onClick={() => openSessionDetail(s)}
                     >
                       <TD className="py-2">
-                        <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded">#{s.id}</span>
+                        <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded">
+                          #{s.id}
+                        </span>
                       </TD>
                       <TD>
                         <div className="flex items-center gap-2">
                           <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted">
                             {s.teacher_profile_picture_url ? (
-                              <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                              <img
+                                src={s.teacher_profile_picture_url}
+                                alt={s.teacher_username}
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
                               <span className="text-[10px] font-bold uppercase text-muted-foreground">
                                 {s.teacher_username.charAt(0)}
                               </span>
                             )}
                           </div>
-                          <span className="font-semibold text-xs">{s.teacher_username}</span>
+                          <span className="font-semibold text-xs">
+                            {currentActorUserId !== null &&
+                              s.teacher_id === currentActorUserId
+                              ? "You"
+                              : s.teacher_username}
+                          </span>
                         </div>
                       </TD>
                       <TD>
@@ -306,18 +1067,26 @@ export default function DashboardPage() {
                         <span className="text-xs font-medium">{s.students_present}</span>
                       </TD>
                       <TD>
-                        <div className={cn(
-                          "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold",
-                          s.average_engagement >= 85 ? "border-success/40 bg-success/10 text-success" :
-                            s.average_engagement >= 60 ? "border-primary/40 bg-primary/10 text-primary" :
-                              s.average_engagement >= 40 ? "border-warning/40 bg-warning/10 text-warning" :
-                                "border-danger/40 bg-danger/10 text-danger"
-                        )}>
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold",
+                            s.average_engagement >= 85
+                              ? "border-success/40 bg-success/10 text-success"
+                              : s.average_engagement >= 60
+                                ? "border-primary/40 bg-primary/10 text-primary"
+                                : s.average_engagement >= 40
+                                  ? "border-warning/40 bg-warning/10 text-warning"
+                                  : "border-danger/40 bg-danger/10 text-danger"
+                          )}
+                        >
                           {s.average_engagement.toFixed(0)}%
                         </div>
                       </TD>
                       <TD className="text-right pr-6">
-                        <Badge tone={s.is_active ? "success" : "default"} className="h-4 text-[9px] px-1.5 uppercase font-bold tracking-wider">
+                        <Badge
+                          tone={s.is_active ? "success" : "default"}
+                          className="h-4 text-[9px] px-1.5 uppercase font-bold tracking-wider"
+                        >
                           {s.is_active ? "Live" : "Ended"}
                         </Badge>
                       </TD>
@@ -327,90 +1096,43 @@ export default function DashboardPage() {
               </Table>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground px-1">No recent sessions.</p>
+            <p className="text-xs text-muted-foreground px-1">
+              No recent sessions.
+            </p>
           )}
         </div>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CircleAlert className="h-4 w-4 text-warning" />
-              Recent alerts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.recent_alerts.length ? (
-              <div className="space-y-1">
-                {data.recent_alerts.map((a) => (
-                  <div
-                    key={a.id}
-                    className={`group relative flex items-center gap-4 rounded-xl border border-transparent p-3 transition-all duration-200 hover:border-border/60 hover:bg-muted/30 ${!a.is_read ? "bg-muted/10 font-medium" : ""
-                      }`}
-                  >
-                    {!a.is_read && (
-                      <div className="absolute -left-1 top-1/2 -translate-y-1/2">
-                        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning shadow-[0_0_8px_hsl(var(--warning))]" />
-                      </div>
-                    )}
-
-                    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
-                      {a.teacher_profile_picture_url ? (
-                        <img src={a.teacher_profile_picture_url} alt={a.teacher_username} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-bold uppercase text-muted-foreground">
-                          {a.teacher_username.charAt(0)}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm tracking-tight">{a.teacher_username}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border uppercase ${a.severity === "CRITICAL"
-                          ? "border-danger/20 bg-danger/5 text-danger"
-                          : "border-warning/20 bg-warning/5 text-warning"
-                          }`}>
-                          {a.alert_type}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground truncate leading-relaxed">
-                        {a.message}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1 text-right">
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {new Date(a.triggered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <Badge tone={a.is_read ? "default" : "warning"} className="h-4 text-[9px] uppercase px-1.5">
-                        {a.is_read ? "Archived" : "New"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">No recent alerts recorded.</p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
+      {/* Session Detail Drawer */}
       <Drawer
         open={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        title={activeSessionInView ? `Intelligence View #${activeSessionInView.id}` : "Session details"}
-        description={activeSessionInView ? `${activeSessionInView.subject_name} • ${activeSessionInView.section_name}` : "Behavior analytics and historical data"}
+        title={
+          activeSessionInView
+            ? `Intelligence View #${activeSessionInView.id}`
+            : "Session details"
+        }
+        description={
+          activeSessionInView
+            ? `${activeSessionInView.subject_name} • ${activeSessionInView.section_name}`
+            : "Behavior analytics and historical data"
+        }
         widthClassName="max-w-5xl"
       >
         {activeSessionInView?.is_active && (
           <div className="mb-4 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border/50">
             <span className="inline-flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${syncingLive ? "bg-warning animate-pulse" : "bg-success"}`} />
-              {syncingLive ? "Syncing live behavioral data..." : "Live synchronization active (3s)"}
+              <span
+                className={`h-2 w-2 rounded-full ${syncingLive ? "bg-warning animate-pulse" : "bg-success"}`}
+              />
+              {syncingLive
+                ? "Syncing live behavioral data..."
+                : "Live synchronization active (3s)"}
             </span>
             <span>
-              {lastRefreshAt ? `Last update: ${lastRefreshAt.toLocaleTimeString()}` : "Initializing stream..."}
+              {lastRefreshAt
+                ? `Last update: ${lastRefreshAt.toLocaleTimeString()}`
+                : "Initializing stream..."}
             </span>
           </div>
         )}
@@ -424,16 +1146,339 @@ export default function DashboardPage() {
         ) : detail ? (
           <div className="space-y-4">
             {detailError && (
-              <p className="rounded-md border border-danger/20 bg-danger/5 p-3 text-xs text-danger font-medium">{detailError}</p>
+              <p className="rounded-md border border-danger/20 bg-danger/5 p-3 text-xs text-danger font-medium">
+                {detailError}
+              </p>
             )}
             <SessionDetailView detail={detail} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Radio className="h-10 w-10 text-muted-foreground/20 animate-pulse mb-4" />
-            <p className="text-sm text-muted-foreground font-medium">Connecting to session intelligence stream...</p>
+            <p className="text-sm text-muted-foreground font-medium">
+              Connecting to session intelligence stream...
+            </p>
           </div>
         )}
+      </Drawer>
+
+      <Drawer
+        open={isTeacherOpen}
+        onClose={() => setIsTeacherOpen(false)}
+        title=""
+        description=""
+        widthClassName="max-w-4xl"
+      >
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+                <div className="relative">
+                  <div className="h-20 w-20 overflow-hidden rounded-xl border border-border bg-muted">
+                    {activeTeacherRow?.profile_picture_url ? (
+                      <img
+                        src={activeTeacherRow.profile_picture_url}
+                        alt={activeTeacherRow.teacher_username}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
+                        {(activeTeacherRow?.teacher_username ?? "?").charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <span className="absolute -bottom-2 -right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card shadow-sm">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                  </span>
+                </div>
+
+                <div className="flex-1 space-y-3">
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    {activeTeacherRow
+                      ? currentActorUserId !== null &&
+                        activeTeacherRow.teacher_id === currentActorUserId
+                        ? "You"
+                        : activeTeacherRow.teacher_username
+                      : "Teacher"}
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="default" className="gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {activeTeacherStats.sessions} session
+                      {activeTeacherStats.sessions === 1 ? "" : "s"}
+                    </Badge>
+                    <Badge tone="default" className="gap-1.5">
+                      <Users className="h-3.5 w-3.5" />
+                      {activeTeacherStats.students} students
+                    </Badge>
+                    <Badge tone="default" className="gap-1.5">
+                      <Award className="h-3.5 w-3.5" />
+                      {activeTeacherStats.avgEngagement.toFixed(1)}% avg engagement
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="lg:text-right">
+                  <p className="text-3xl font-semibold">
+                    {activeTeacherStats.avgEngagement.toFixed(0)}%
+                  </p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Overall Score
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Card>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Best</span>
+                </div>
+                <p className="text-2xl font-semibold">
+                  {activeTeacherStats.bestEngagement.toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Peak performance</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <Activity className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Average</span>
+                </div>
+                <p className="text-2xl font-semibold">
+                  {activeTeacherStats.avgEngagement.toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Consistent level</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <TrendingDown className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Lowest</span>
+                </div>
+                <p className="text-2xl font-semibold">
+                  {activeTeacherStats.worstEngagement.toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Needs attention</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <Target className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Total</span>
+                </div>
+                <p className="text-2xl font-semibold">
+                  {activeTeacherStats.buckets.high +
+                    activeTeacherStats.buckets.mid +
+                    activeTeacherStats.buckets.low}
+                </p>
+                <p className="text-xs text-muted-foreground">Sessions tracked</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Engagement Distribution</CardTitle>
+                <CardDescription>
+                  Breakdown of performance across all sessions
+                </CardDescription>
+              </div>
+              <PieChart
+                values={[
+                  activeTeacherStats.buckets.high,
+                  activeTeacherStats.buckets.mid,
+                  activeTeacherStats.buckets.low,
+                ]}
+                colors={[
+                  "hsl(var(--success))",
+                  "hsl(var(--warning))",
+                  "hsl(var(--danger))",
+                ]}
+                size={80}
+                strokeWidth={12}
+              />
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.high}</p>
+                <p className="mt-1 text-xs text-muted-foreground">High (80%+)</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-success"
+                    style={{
+                      width: `${(activeTeacherStats.buckets.high /
+                        Math.max(
+                          1,
+                          activeTeacherStats.buckets.high +
+                            activeTeacherStats.buckets.mid +
+                            activeTeacherStats.buckets.low
+                        )) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.mid}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Medium (50-79%)</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-warning"
+                    style={{
+                      width: `${(activeTeacherStats.buckets.mid /
+                        Math.max(
+                          1,
+                          activeTeacherStats.buckets.high +
+                            activeTeacherStats.buckets.mid +
+                            activeTeacherStats.buckets.low
+                        )) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-background p-4 text-center">
+                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.low}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Low (&lt;50%)</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-danger"
+                    style={{
+                      width: `${(activeTeacherStats.buckets.low /
+                        Math.max(
+                          1,
+                          activeTeacherStats.buckets.high +
+                            activeTeacherStats.buckets.mid +
+                            activeTeacherStats.buckets.low
+                        )) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Top Performing Classes</CardTitle>
+                <CardDescription>
+                  Classes with most sessions and highest engagement
+                </CardDescription>
+              </div>
+              <Badge tone="default" className="text-xs">
+                {activeTeacherStats.topSections.length}
+              </Badge>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {activeTeacherStats.topSections.length ? (
+                activeTeacherStats.topSections.map((row, index) => (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between rounded-xl border border-border bg-background p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{row.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.sessions} session{row.sessions === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold">{row.avg.toFixed(0)}%</p>
+                      <p className="text-xs text-muted-foreground">avg engagement</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <BookOpen className="mx-auto mb-3 h-12 w-12 opacity-50" />
+                  <p className="text-sm">No sessions match your current filters.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Recent Sessions</CardTitle>
+                <CardDescription>
+                  Latest teaching activities and performance
+                </CardDescription>
+              </div>
+              <Badge tone="default" className="text-xs">
+                {activeTeacherSessions.slice(0, 6).length}
+              </Badge>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {activeTeacherSessions.slice(0, 6).length ? (
+                activeTeacherSessions.slice(0, 6).map((s) => (
+                  <button
+                    key={`t-s-${s.id}`}
+                    type="button"
+                    onClick={() => openSessionDetail(s)}
+                    className="group w-full rounded-xl border border-border bg-background p-4 text-left transition-colors hover:bg-accent/40"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium">
+                            {s.subject_name} - {s.section_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Session #{s.id} - {s.students_present ?? 0} students
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                            s.average_engagement >= 85
+                              ? "border-success/35 bg-success/10 text-success"
+                              : s.average_engagement >= 60
+                                ? "border-primary/35 bg-primary/10 text-primary"
+                                : s.average_engagement >= 40
+                                  ? "border-warning/35 bg-warning/10 text-warning"
+                                  : "border-danger/35 bg-danger/10 text-danger"
+                          )}
+                        >
+                          {s.average_engagement.toFixed(0)}%
+                        </span>
+                        {s.is_active ? (
+                          <Badge tone="success" className="gap-1 text-[10px] uppercase">
+                            <Zap className="h-3 w-3" />
+                            Live
+                          </Badge>
+                        ) : null}
+                        <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+                      </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Calendar className="mx-auto mb-3 h-12 w-12 opacity-50" />
+                  <p className="text-sm">No sessions match your current filters.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </Drawer>
     </div>
   );
