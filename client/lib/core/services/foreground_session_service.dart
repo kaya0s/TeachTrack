@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import '../../data/models/classroom_session_models.dart';
+import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
 
 const String kForegroundSessionStartMsKey = 'sessionStartMs';
 const String kForegroundSessionEngagementKey = 'engagementPercent';
@@ -216,3 +216,5 @@ class SessionTaskHandler extends TaskHandler {
     );
   }
 }
+
+

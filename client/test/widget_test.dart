@@ -6,7 +6,8 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:teachtrack/main.dart';
+import 'package:flutter/material.dart';
+import 'package:teachtrack/app/app.dart';
 import 'package:teachtrack/core/di/injection.dart' as di;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -21,7 +22,7 @@ void main() {
 
   testWidgets('App smoke test - verifies login screen shows', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const TeachTrackApp());
+    await tester.pumpWidget(TeachTrackApp(navigatorKey: GlobalKey<NavigatorState>()));
     await tester.pump(const Duration(milliseconds: 1400));
 
     // Verify that our login screen text is present.
