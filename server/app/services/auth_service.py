@@ -16,11 +16,15 @@ from app.schemas.user import ForgotPassword, GoogleLogin, ResetPassword, UserCre
 
 
 def login_access_token(db: Session, username: str, password: str) -> dict[str, str]:
-    user = UserRepository.get_by_username(db, username)
+    # OAuth2 form field remains named "username", but we now treat it as email-first.
+    login_identifier = username.strip()
+    user = UserRepository.get_by_email(db, login_identifier)
+    if not user:
+        user = UserRepository.get_by_username(db, login_identifier)
     if not user or not security.verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
@@ -32,18 +36,10 @@ def login_access_token(db: Session, username: str, password: str) -> dict[str, s
 
 
 def register_user(db: Session, user_in: UserCreate) -> User:
-    if UserRepository.get_by_email(db, user_in.email):
-        raise HTTPException(status_code=400, detail="The user with this user email already exists in the system.")
-    if UserRepository.get_by_username(db, user_in.username):
-        raise HTTPException(status_code=400, detail="The user with this username already exists in the system.")
-
-    user = User(
-        email=user_in.email,
-        username=user_in.username,
-        hashed_password=security.get_password_hash(user_in.password),
-        is_active=user_in.is_active,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Self-registration is disabled. Contact an administrator for account creation.",
     )
-    return UserRepository.create(db, user)
 
 
 def login_google(db: Session, google_in: GoogleLogin) -> dict[str, str]:
@@ -67,9 +63,12 @@ def login_google(db: Session, google_in: GoogleLogin) -> dict[str, str]:
                 counter += 1
 
             user = User(
+                firstname=idinfo.get("given_name", username),
+                lastname=idinfo.get("family_name", ""),
                 email=email,
                 username=username,
                 hashed_password=security.get_password_hash(random_password),
+                role="teacher",
                 is_active=True,
             )
             user = UserRepository.create(db, user)

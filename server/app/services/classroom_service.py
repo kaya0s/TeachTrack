@@ -15,9 +15,49 @@ from app.services import audit_service
 
 def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
     subjects = ClassroomRepository.list_subjects(db, teacher_id, skip, limit)
+    formatted_subjects = []
     for subject in subjects:
-        subject.sections = [section for section in subject.sections if section.subject_id == subject.id]
-    return subjects
+        # Filter sections to only include those belonging to this subject
+        subject_sections = [section for section in subject.sections if section.subject_id == subject.id]
+        
+        # Format sections with college and major info
+        formatted_sections = []
+        for section in subject_sections:
+            college_name = None
+            major_name = None
+            
+            if section.section and section.section.major:
+                major_name = section.section.major.name
+                if section.section.major.college:
+                    college_name = section.section.major.college.name
+            
+            formatted_section = {
+                "id": section.id,
+                "name": section.section.name if section.section else section.name,
+                "subject_id": section.subject_id,
+                "teacher_id": section.teacher_id,
+                "teacher_username": section.teacher.username if section.teacher else None,
+                "college_name": college_name,
+                "major_name": major_name,
+                "created_at": section.created_at
+            }
+            formatted_sections.append(formatted_section)
+        
+        # Format subject
+        formatted_subject = {
+            "id": subject.id,
+            "name": subject.name,
+            "teacher_id": subject.teacher_id,
+            "teacher_username": subject.teacher.username if subject.teacher else None,
+            "code": subject.code,
+            "description": subject.description,
+            "cover_image_url": subject.cover_image_url,
+            "created_at": subject.created_at,
+            "sections": formatted_sections
+        }
+        formatted_subjects.append(formatted_subject)
+    
+    return formatted_subjects
 
 
 def create_subject(db: Session, subject_in: SubjectCreate, teacher_id: int) -> Subject:

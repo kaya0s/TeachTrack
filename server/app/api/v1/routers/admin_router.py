@@ -10,6 +10,7 @@ from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminActionMessage,
     AdminClassCreate,
+    AdminTeacherCreate,
     AdminTeacherAssignment,
     AdminDashboardResponse,
     AdminSectionCreate,
@@ -26,6 +27,9 @@ from app.schemas.admin import (
     AdminUser,
     AdminUserUpdate,
     PaginatedAlertsResponse,
+    PaginatedCollegesResponse,
+    PaginatedMajorsResponse,
+    PaginatedSectionPoolResponse,
     PaginatedSectionsResponse,
     PaginatedSessionsResponse,
     PaginatedSubjectsResponse,
@@ -78,6 +82,15 @@ def list_admin_teachers(
     )
 
 
+@router.post("/teachers", response_model=AdminTeacherSummary)
+def create_admin_teacher(
+    payload: AdminTeacherCreate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.create_teacher(db, payload.model_dump(), actor_user_id=current_user.id)
+
+
 @router.get("/subjects", response_model=PaginatedSubjectsResponse)
 def list_admin_subjects(
     skip: int = 0,
@@ -127,15 +140,51 @@ def assign_admin_subject_teacher(
     return admin_service.assign_subject_teacher(db, subject_id=subject_id, teacher_id=payload.teacher_id)
 
 
+@router.get("/colleges", response_model=PaginatedCollegesResponse)
+def list_admin_colleges(
+    skip: int = 0,
+    limit: int = 100,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.list_colleges(db, skip=skip, limit=limit, q=q)
+
+
+@router.get("/majors", response_model=PaginatedMajorsResponse)
+def list_admin_majors(
+    college_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.list_majors(db, college_id=college_id, skip=skip, limit=limit, q=q)
+
+
 @router.get("/sections", response_model=PaginatedSectionsResponse)
 def list_admin_sections(
     skip: int = 0,
     limit: int = 50,
     q: Optional[str] = None,
+    college_id: Optional[int] = None,
+    major_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.list_sections(db, skip=skip, limit=limit, q=q)
+    return admin_service.list_sections(db, skip=skip, limit=limit, q=q, college_id=college_id, major_id=major_id)
+
+
+@router.get("/sections/pool", response_model=PaginatedSectionPoolResponse)
+def list_admin_sections_pool(
+    skip: int = 0,
+    limit: int = 100,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.list_section_pool(db, skip=skip, limit=limit, q=q)
 
 
 @router.post("/sections", response_model=AdminSectionSummary)
@@ -144,7 +193,14 @@ def create_admin_section(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.create_section(db, payload.model_dump())
+    print(f"DEBUG: Router received payload: {payload.model_dump()}")
+    try:
+        result = admin_service.create_section(db, payload.model_dump())
+        print(f"DEBUG: Service returned successfully")
+        return result
+    except Exception as e:
+        print(f"DEBUG: Service raised exception: {e}")
+        raise
 
 
 @router.patch("/sections/{section_id}", response_model=AdminSectionSummary)
@@ -183,6 +239,15 @@ def assign_admin_section_teacher(
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
     return admin_service.assign_section_teacher(db, section_id=section_id, teacher_id=payload.teacher_id)
+
+
+@router.put("/sections/{section_id}/unassign-teacher", response_model=AdminSectionSummary)
+def unassign_admin_section_teacher(
+    section_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.unassign_section_teacher(db, section_id=section_id)
 
 
 @router.get("/users", response_model=PaginatedUsersResponse)
@@ -232,6 +297,8 @@ def list_admin_sessions(
     limit: int = 25,
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
+    college_id: Optional[int] = None,
+    major_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
@@ -241,6 +308,8 @@ def list_admin_sessions(
         limit=limit,
         is_active=is_active,
         teacher_id=teacher_id,
+        college_id=college_id,
+        major_id=major_id,
     )
 
 

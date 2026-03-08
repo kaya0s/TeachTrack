@@ -13,10 +13,21 @@ from app.services import audit_service
 
 def update_user_me(db: Session, data: UserUpdate, current_user):
     before = {
+        "firstname": current_user.firstname,
+        "lastname": current_user.lastname,
+        "fullname": current_user.fullname,
+        "age": current_user.age,
         "email": current_user.email,
         "username": current_user.username,
         "profile_picture_url": current_user.profile_picture_url,
     }
+
+    if data.firstname is not None:
+        current_user.firstname = data.firstname.strip()
+    if data.lastname is not None:
+        current_user.lastname = data.lastname.strip()
+    if data.age is not None:
+        current_user.age = data.age
 
     if data.email is not None and data.email != current_user.email:
         existing_email = UserRepository.get_by_email(db, data.email)
@@ -44,6 +55,10 @@ def update_user_me(db: Session, data: UserUpdate, current_user):
         details={
             "before": before,
             "after": {
+                "firstname": current_user.firstname,
+                "lastname": current_user.lastname,
+                "fullname": current_user.fullname,
+                "age": current_user.age,
                 "email": current_user.email,
                 "username": current_user.username,
                 "profile_picture_url": current_user.profile_picture_url,

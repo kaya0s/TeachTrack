@@ -11,9 +11,10 @@ from app.core.config import settings
 from app.core.logging import get_recent_server_logs
 from app.core import security
 from app.models.audit import AuditLog
-from app.models.classroom import ClassSection, Subject
+from app.models.classroom import ClassSection, Section, Subject, College, Major
 from app.models.session import Alert, AlertHistory, AlertSeverity, BehaviorLog, ClassSession, SessionHistory, SessionMetrics
 from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.services import audit_service
 from app.services import detector_service, notification_service
 
@@ -38,7 +39,39 @@ def _get_actor_username(db: Session, actor_user_id: int | None) -> str | None:
     if actor_user_id is None:
         return None
     actor = db.query(User).filter(User.id == actor_user_id).first()
-    return actor.username if actor else None
+    return _user_display_name(actor) if actor else None
+
+
+def _user_display_name(user: User | None) -> str:
+    if not user:
+        return "unknown"
+    full_name = (user.fullname or "").strip()
+    if full_name:
+        return full_name
+    return user.username
+
+
+def _teacher_name_fields(user: User | None) -> tuple[str, str | None]:
+    if not user:
+        return ("unknown", None)
+    return (user.username, _user_display_name(user))
+
+
+def _generate_unique_username(db: Session, email: str, firstname: str, lastname: str) -> str:
+    local_part = email.split("@")[0].strip()
+    if local_part:
+        base = local_part
+    else:
+        base = f"{firstname}.{lastname}".strip(".").replace(" ", ".").lower()
+    if not base:
+        base = "teacher"
+
+    username = base
+    suffix = 1
+    while UserRepository.get_by_username(db, username):
+        username = f"{base}{suffix}"
+        suffix += 1
+    return username
 
 
 def _avg_engagement_from_stats(stats_row: tuple, students_present: int) -> float:
@@ -123,14 +156,20 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
         behavior_rows = {row[0]: row[1:] for row in stats_rows}
 
     def _serialize_session(row: ClassSession) -> dict[str, Any]:
+        teacher_username, teacher_fullname = _teacher_name_fields(row.teacher)
         return {
             "id": row.id,
             "teacher_id": row.teacher_id,
-            "teacher_username": row.teacher.username if row.teacher else "unknown",
+            "teacher_username": teacher_username,
+            "teacher_fullname": teacher_fullname,
             "subject_id": row.subject_id,
             "subject_name": row.subject.name if row.subject else "unknown",
             "section_id": row.section_id,
             "section_name": row.section.name if row.section else "unknown",
+            "college_id": row.section.section.major.college_id if row.section and row.section.section and row.section.section.major else None,
+            "college_name": row.section.section.major.college.name if row.section and row.section.section and row.section.section.major and row.section.section.major.college else None,
+            "major_id": row.section.section.major_id if row.section and row.section.section else None,
+            "major_name": row.section.section.major.name if row.section and row.section.section and row.section.section.major else None,
             "students_present": row.students_present,
             "start_time": row.start_time,
             "end_time": row.end_time,
@@ -155,12 +194,14 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
     )
     recent_alerts = []
     for alert, _, teacher in recent_alerts_raw:
+        teacher_username, teacher_fullname = _teacher_name_fields(teacher)
         recent_alerts.append(
             {
                 "id": alert.id,
                 "session_id": alert.session_id,
                 "teacher_id": teacher.id if teacher else -1,
-                "teacher_username": teacher.username if teacher else "unknown",
+                "teacher_username": teacher_username,
+                "teacher_fullname": teacher_fullname,
                 "alert_type": alert.alert_type,
                 "message": alert.message,
                 "severity": alert.severity,
@@ -198,7 +239,13 @@ def list_users(
     query = db.query(User)
     if q:
         pattern = f"%{q.strip()}%"
-        query = query.filter((User.username.like(pattern)) | (User.email.like(pattern)))
+        query = query.filter(
+            (User.username.like(pattern))
+            | (User.email.like(pattern))
+            | (User.fullname.like(pattern))
+            | (User.firstname.like(pattern))
+            | (User.lastname.like(pattern))
+        )
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
     if is_superuser is not None:
@@ -224,7 +271,13 @@ def list_teachers(
     query = db.query(User).filter(User.is_superuser == False)
     if q:
         pattern = f"%{q.strip()}%"
-        query = query.filter((User.username.like(pattern)) | (User.email.like(pattern)))
+        query = query.filter(
+            (User.username.like(pattern))
+            | (User.email.like(pattern))
+            | (User.fullname.like(pattern))
+            | (User.firstname.like(pattern))
+            | (User.lastname.like(pattern))
+        )
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
 
@@ -238,6 +291,58 @@ def list_teachers(
     return {"total": total, "items": items}
 
 
+def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> User:
+    firstname = str(payload.get("firstname") or "").strip()
+    lastname = str(payload.get("lastname") or "").strip()
+    age = payload.get("age")
+    email = str(payload.get("email") or "").strip().lower()
+    password = str(payload.get("password") or "")
+
+    if not firstname or not lastname:
+        raise HTTPException(status_code=400, detail="First name and last name are required.")
+    if age is None or int(age) < 1 or int(age) > 120:
+        raise HTTPException(status_code=400, detail="Age must be between 1 and 120.")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+
+    if UserRepository.get_by_email(db, email):
+        raise HTTPException(status_code=400, detail="Email is already in use.")
+
+    username = _generate_unique_username(db, email, firstname, lastname)
+    teacher = User(
+        firstname=firstname,
+        lastname=lastname,
+        age=int(age),
+        email=email,
+        username=username,
+        hashed_password=security.get_password_hash(password),
+        role="teacher",
+        is_active=True,
+        is_superuser=False,
+    )
+    db.add(teacher)
+    db.flush()
+
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="TEACHER_CREATE",
+        entity_type="User",
+        entity_id=teacher.id,
+        details={
+            "email": teacher.email,
+            "username": teacher.username,
+            "fullname": teacher.fullname,
+        },
+    )
+    db.commit()
+    db.refresh(teacher)
+    return teacher
+
+
 def list_subjects(
     db: Session,
     skip: int = 0,
@@ -246,7 +351,7 @@ def list_subjects(
 ) -> dict[str, Any]:
     query = (
         db.query(Subject)
-        .options(joinedload(Subject.teacher), joinedload(Subject.sections))
+        .options(joinedload(Subject.teacher), joinedload(Subject.sections), joinedload(Subject.college))
     )
     if q:
         pattern = f"%{q.strip()}%"
@@ -268,12 +373,36 @@ def list_subjects(
             "cover_image_url": row.cover_image_url,
             "teacher_id": row.teacher_id,
             "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "teacher_fullname": _user_display_name(row.teacher) if row.teacher else None,
             "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             "sections_count": len(row.sections or []),
+            "section_names": row.section_names,
+            "college_id": row.college_id,
+            "college_name": row.college.name if row.college else None,
             "created_at": row.created_at,
         }
         for row in rows
     ]
+    return {"total": total, "items": items}
+
+
+def list_colleges(db: Session, skip: int = 0, limit: int = 100, q: Optional[str] = None):
+    query = db.query(College)
+    if q:
+        query = query.filter(College.name.ilike(f"%{q}%"))
+    total = query.count()
+    items = query.order_by(College.name.asc()).offset(skip).limit(_clamp_limit(limit)).all()
+    return {"total": total, "items": items}
+
+
+def list_majors(db: Session, college_id: Optional[int] = None, skip: int = 0, limit: int = 100, q: Optional[str] = None):
+    query = db.query(Major)
+    if college_id:
+        query = query.filter(Major.college_id == college_id)
+    if q:
+        query = query.filter(Major.name.ilike(f"%{q}%"))
+    total = query.count()
+    items = query.order_by(Major.name.asc()).offset(skip).limit(_clamp_limit(limit)).all()
     return {"total": total, "items": items}
 
 
@@ -286,8 +415,12 @@ def _serialize_subject(row: Subject) -> dict[str, Any]:
         "cover_image_url": row.cover_image_url,
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "teacher_fullname": _user_display_name(row.teacher) if row.teacher else None,
         "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
         "sections_count": len(row.sections or []),
+        "section_names": row.section_names,
+        "college_id": row.college_id,
+        "college_name": row.college.name if row.college else None,
         "created_at": row.created_at,
     }
 
@@ -313,16 +446,19 @@ def create_subject(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         code=code,
         description=payload.get("description"),
         cover_image_url=cover_image_url,
+        college_id=payload.get("college_id")
     )
     db.add(row)
+    db.flush() 
+
     db.commit()
     db.refresh(row)
-    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == row.id).first()
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections), joinedload(Subject.college)).filter(Subject.id == row.id).first()
     return _serialize_subject(row)
 
 
 def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == subject_id).first()
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections), joinedload(Subject.college)).filter(Subject.id == subject_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -341,9 +477,13 @@ def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dic
         row.cover_image_url = (
             str(cover_image_url).strip() if isinstance(cover_image_url, str) and cover_image_url.strip() else None
         )
-    if payload.get("teacher_id") is not None:
-        teacher = _ensure_teacher(db, int(payload["teacher_id"]))
-        row.teacher_id = teacher.id
+    if "teacher_id" in payload:
+        teacher_id = payload.get("teacher_id")
+        if teacher_id is None:
+            row.teacher_id = None
+        else:
+            teacher = _ensure_teacher(db, int(teacher_id))
+            row.teacher_id = teacher.id
 
     try:
         db.add(row)
@@ -352,7 +492,14 @@ def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dic
         db.rollback()
         raise HTTPException(status_code=400, detail="Subject name or code already exists")
     db.refresh(row)
-    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections)).filter(Subject.id == subject_id).first()
+    
+    if "college_id" in payload:
+        row.college_id = payload.get("college_id")
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+    row = db.query(Subject).options(joinedload(Subject.teacher), joinedload(Subject.sections), joinedload(Subject.college)).filter(Subject.id == subject_id).first()
     return _serialize_subject(row)
 
 
@@ -376,14 +523,22 @@ def list_sections(
     skip: int = 0,
     limit: int = 50,
     q: Optional[str] = None,
+    college_id: Optional[int] = None,
+    major_id: Optional[int] = None,
 ) -> dict[str, Any]:
     query = (
         db.query(ClassSection)
-        .options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher))
+        .join(Section, ClassSection.section_id == Section.id)
+        .options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher), joinedload(ClassSection.section))
     )
     if q:
         pattern = f"%{q.strip()}%"
-        query = query.filter(ClassSection.name.like(pattern))
+        query = query.filter(Section.name.like(pattern))
+
+    if major_id:
+        query = query.filter(Section.major_id == major_id)
+    if college_id:
+        query = query.join(Major, Section.major_id == Major.id).filter(Major.college_id == college_id)
 
     total = query.count()
     rows = (
@@ -395,11 +550,12 @@ def list_sections(
     items = [
         {
             "id": row.id,
-            "name": row.name,
+            "name": row.section.name if row.section else "unknown",
             "subject_id": row.subject_id,
             "subject_name": row.subject.name if row.subject else "unassigned",
             "teacher_id": row.teacher_id,
             "teacher_username": row.teacher.username if row.teacher else "unassigned",
+            "teacher_fullname": _user_display_name(row.teacher) if row.teacher else None,
             "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             "created_at": row.created_at,
         }
@@ -411,42 +567,165 @@ def list_sections(
 def _serialize_section(row: ClassSection) -> dict[str, Any]:
     return {
         "id": row.id,
-        "name": row.name,
+        "name": row.section.name if row.section else "unknown",
         "subject_id": row.subject_id,
         "subject_name": row.subject.name if row.subject else "unassigned",
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
+        "teacher_fullname": _user_display_name(row.teacher) if row.teacher else None,
         "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
         "created_at": row.created_at,
     }
 
 
+def list_section_pool(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    q: Optional[str] = None,
+) -> dict[str, Any]:
+    query = db.query(Section).options(
+        joinedload(Section.class_assignments).joinedload(ClassSection.subject)
+    )
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter(Section.name.like(pattern))
+
+    total = query.count()
+    rows = (
+        query.order_by(Section.name.asc())
+        .offset(max(0, skip))
+        .limit(_clamp_limit(limit))
+        .all()
+    )
+    items = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "subjects_count": len(row.class_assignments),
+            "subject_names": [ca.subject.name for ca in row.class_assignments if ca.subject],
+            "major_id": row.major_id,
+            "year_level": row.year_level,
+            "section_letter": row.section_letter,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+    return {"total": total, "items": items}
+
+
 def create_section(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
-    subject_id = int(payload.get("subject_id"))
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if not subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
+    print(f"DEBUG: create_section called with payload: {payload}")
+    
+    # Support both single subject_id and list of subject_ids
+    subject_ids = payload.get("subject_ids")
+    if not subject_ids:
+        sid = payload.get("subject_id")
+        subject_ids = [int(sid)] if sid is not None else []
+        
+    print(f"DEBUG: processed subject_ids: {subject_ids}")
 
     teacher_id = payload.get("teacher_id")
     if teacher_id is not None:
         _ensure_teacher(db, int(teacher_id))
 
-    row = ClassSection(
-        name=str(payload.get("name") or "").strip(),
-        subject_id=subject_id,
-        teacher_id=int(teacher_id) if teacher_id is not None else subject.teacher_id,
-    )
-    if not row.name:
-        raise HTTPException(status_code=400, detail="Section name is required")
-    db.add(row)
+    major_id = payload.get("major_id")
+    year_level = payload.get("year_level")
+    section_letter = str(payload.get("section_letter") or "").strip().upper()
+
+    section_name = str(payload.get("name") or "").strip()
+    
+    # Auto-generate name from hierarchy if provided
+    if major_id and year_level and section_letter:
+        major = db.query(Major).filter(Major.id == major_id).first()
+        if major:
+            section_name = f"{major.code}-{year_level}{section_letter}"
+
+    if not section_name:
+        raise HTTPException(status_code=400, detail="Section name or academic hierarchy is required")
+
+    # Find or create standalone section
+    section = db.query(Section).filter(Section.name == section_name).first()
+    if not section:
+        section = Section(
+            name=section_name,
+            major_id=major_id,
+            year_level=year_level,
+            section_letter=section_letter
+        )
+        db.add(section)
+        db.flush()
+    else:
+        # Update existing section's hierarchy if not set
+        if major_id: section.major_id = major_id
+        if year_level: section.year_level = year_level
+        if section_letter: section.section_letter = section_letter
+        db.add(section)
+        db.flush()
+
+    # If no subjects provided, just return the section without assignments
+    if not subject_ids:
+        print("DEBUG: No subjects provided, returning standalone section")
+        db.commit()
+        db.refresh(section)
+        # Return a serialized version of the section without subject assignments
+        return {
+            "id": section.id,
+            "section_id": section.id,
+            "section_name": section.name,
+            "subject_id": None,
+            "subject_name": None,
+            "teacher_id": None,
+            "teacher_username": None,
+            "teacher_fullname": None,
+            "major_id": section.major_id,
+            "year_level": section.year_level,
+            "section_letter": section.section_letter,
+            "created_at": section.created_at.isoformat() if section.created_at else None,
+            "updated_at": section.updated_at.isoformat() if section.updated_at else None,
+        }
+
+    last_created = None
+    for sub_id in subject_ids:
+        subject = db.query(Subject).filter(Subject.id == sub_id).first()
+        if not subject:
+            continue # Skip invalid subjects or raise error
+            
+        # Check if already exists in this subject
+        exists = db.query(ClassSection).filter(
+            ClassSection.subject_id == sub_id, 
+            ClassSection.section_id == section.id
+        ).first()
+        
+        if exists:
+            last_created = exists
+            continue
+            
+        row = ClassSection(
+            section_id=section.id,
+            subject_id=sub_id,
+            teacher_id=int(teacher_id) if teacher_id is not None else subject.teacher_id,
+        )
+        db.add(row)
+        last_created = row
+
     db.commit()
-    db.refresh(row)
-    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == row.id).first()
-    return _serialize_section(row)
+    if not last_created:
+        raise HTTPException(status_code=400, detail="Could not create any section assignments")
+        
+    db.refresh(last_created)
+    # Reload with relations
+    res = db.query(ClassSection).options(
+        joinedload(ClassSection.subject), 
+        joinedload(ClassSection.teacher), 
+        joinedload(ClassSection.section)
+    ).filter(ClassSection.id == last_created.id).first()
+    
+    return _serialize_section(res)
 
 
 def update_section(db: Session, section_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == section_id).first()
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher), joinedload(ClassSection.section)).filter(ClassSection.id == section_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Section not found")
 
@@ -454,21 +733,50 @@ def update_section(db: Session, section_id: int, payload: dict[str, Any]) -> dic
         name = str(payload["name"]).strip()
         if not name:
             raise HTTPException(status_code=400, detail="Section name cannot be empty")
-        row.name = name
+        # Find or create new section pool item
+        section = db.query(Section).filter(Section.name == name).first()
+        if not section:
+            section = Section(name=name)
+            db.add(section)
+            db.flush()
+        row.section_id = section.id
+
     if payload.get("subject_id") is not None:
         subject_id = int(payload["subject_id"])
         subject = db.query(Subject).filter(Subject.id == subject_id).first()
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
         row.subject_id = subject_id
-    if payload.get("teacher_id") is not None:
-        teacher = _ensure_teacher(db, int(payload["teacher_id"]))
-        row.teacher_id = teacher.id
+    if "teacher_id" in payload:
+        teacher_id = payload.get("teacher_id")
+        if teacher_id is None:
+            row.teacher_id = None
+        else:
+            teacher = _ensure_teacher(db, int(teacher_id))
+            row.teacher_id = teacher.id
 
     db.add(row)
     db.commit()
     db.refresh(row)
-    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == section_id).first()
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher), joinedload(ClassSection.section)).filter(ClassSection.id == section_id).first()
+    return _serialize_section(row)
+
+
+def unassign_section_teacher(db: Session, section_id: int) -> dict[str, Any]:
+    row = (
+        db.query(ClassSection)
+        .options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher))
+        .filter(ClassSection.id == section_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    row.teacher_id = None
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher), joinedload(ClassSection.section)).filter(ClassSection.id == section_id).first()
     return _serialize_section(row)
 
 
@@ -501,19 +809,53 @@ def create_class(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
+    major_id = payload.get("major_id")
+    year_level = payload.get("year_level")
+    section_letter = str(payload.get("section_letter") or "").strip().upper()
     section_name = str(payload.get("section_name") or "").strip()
+
+    # Auto-generate name from hierarchy if provided
+    if major_id and year_level and section_letter:
+        major = db.query(Major).filter(Major.id == major_id).first()
+        if major:
+            section_name = f"{major.code}-{year_level}{section_letter}"
+
     if not section_name:
-        raise HTTPException(status_code=400, detail="Section name is required")
+        raise HTTPException(status_code=400, detail="Section name or academic hierarchy is required")
+
+    # Find or create standalone section
+    section = db.query(Section).filter(Section.name == section_name).first()
+    if not section:
+        section = Section(
+            name=section_name,
+            major_id=major_id,
+            year_level=year_level,
+            section_letter=section_letter
+        )
+        db.add(section)
+        db.flush()
+    else:
+        # Update existing section's hierarchy if not set
+        if major_id: section.major_id = major_id
+        if year_level: section.year_level = year_level
+        if section_letter: section.section_letter = section_letter
+        db.add(section)
+        db.flush()
+
+    # Check if this subject already has this section
+    exists = db.query(ClassSection).filter(ClassSection.subject_id == subject.id, ClassSection.section_id == section.id).first()
+    if exists:
+        return _serialize_section(exists) # Already exists, just return it
 
     row = ClassSection(
-        name=section_name,
+        section_id=section.id,
         subject_id=subject.id,
         teacher_id=subject.teacher_id,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
-    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher)).filter(ClassSection.id == row.id).first()
+    row = db.query(ClassSection).options(joinedload(ClassSection.subject), joinedload(ClassSection.teacher), joinedload(ClassSection.section)).filter(ClassSection.id == row.id).first()
     return _serialize_section(row)
 
 
@@ -565,6 +907,7 @@ def assign_subject_teacher(db: Session, subject_id: int, teacher_id: int) -> dic
         "cover_image_url": subject.cover_image_url,
         "teacher_id": teacher.id,
         "teacher_username": teacher.username,
+        "teacher_fullname": _user_display_name(teacher),
         "teacher_profile_picture_url": teacher.profile_picture_url,
         "sections_count": len(subject.sections or []),
         "created_at": subject.created_at,
@@ -610,6 +953,7 @@ def assign_section_teacher(db: Session, section_id: int, teacher_id: int) -> dic
         "subject_name": section.subject.name if section.subject else "unassigned",
         "teacher_id": teacher.id,
         "teacher_username": teacher.username,
+        "teacher_fullname": _user_display_name(teacher),
         "teacher_profile_picture_url": teacher.profile_picture_url,
         "created_at": section.created_at,
     }
@@ -646,6 +990,7 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
         user.is_active = new_is_active
     if new_is_superuser is not None:
         user.is_superuser = new_is_superuser
+        user.role = "admin" if new_is_superuser else "teacher"
 
     db.add(user)
     audit_service.write_audit_log(
@@ -700,6 +1045,8 @@ def list_sessions(
     limit: int = 25,
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
+    college_id: Optional[int] = None,
+    major_id: Optional[int] = None,
 ) -> dict[str, Any]:
     query = db.query(ClassSession).options(
         joinedload(ClassSession.teacher),
@@ -710,6 +1057,14 @@ def list_sessions(
         query = query.filter(ClassSession.is_active == is_active)
     if teacher_id is not None:
         query = query.filter(ClassSession.teacher_id == teacher_id)
+    
+    if college_id or major_id:
+        # We need to join through ClassSection to get to Section
+        query = query.join(ClassSection, ClassSession.section_id == ClassSection.id).join(Section, ClassSection.section_id == Section.id)
+        if major_id:
+            query = query.filter(Section.major_id == major_id)
+        if college_id:
+            query = query.join(Major, Section.major_id == Major.id).filter(Major.college_id == college_id)
 
     total = query.count()
     rows = (
@@ -739,15 +1094,21 @@ def list_sessions(
 
     items = []
     for row in rows:
+        teacher_username, teacher_fullname = _teacher_name_fields(row.teacher)
         items.append(
             {
                 "id": row.id,
                 "teacher_id": row.teacher_id,
-                "teacher_username": row.teacher.username if row.teacher else "unknown",
+                "teacher_username": teacher_username,
+                "teacher_fullname": teacher_fullname,
                 "subject_id": row.subject_id,
                 "subject_name": row.subject.name if row.subject else "unknown",
                 "section_id": row.section_id,
                 "section_name": row.section.name if row.section else "unknown",
+                "college_id": row.section.section.major.college_id if row.section and row.section.section and row.section.section.major else None,
+                "college_name": row.section.section.major.college.name if row.section and row.section.section and row.section.section.major and row.section.section.major.college else None,
+                "major_id": row.section.section.major_id if row.section and row.section.section else None,
+                "major_name": row.section.section.major.name if row.section and row.section.section and row.section.section.major else None,
                 "students_present": row.students_present,
                 "start_time": row.start_time,
                 "end_time": row.end_time,
@@ -835,7 +1196,8 @@ def get_session_detail(
     summary = {
         "id": session.id,
         "teacher_id": session.teacher_id,
-        "teacher_username": session.teacher.username if session.teacher else "unknown",
+        "teacher_username": _teacher_name_fields(session.teacher)[0],
+        "teacher_fullname": _teacher_name_fields(session.teacher)[1],
         "subject_id": session.subject_id,
         "subject_name": session.subject.name if session.subject else "unknown",
         "section_id": session.section_id,
@@ -953,12 +1315,14 @@ def list_alerts(
     )
     items = []
     for alert, session, teacher in rows:
+        teacher_username, teacher_fullname = _teacher_name_fields(teacher)
         items.append(
             {
                 "id": alert.id,
                 "session_id": alert.session_id,
                 "teacher_id": teacher.id,
-                "teacher_username": teacher.username,
+                "teacher_username": teacher_username,
+                "teacher_fullname": teacher_fullname,
                 "alert_type": alert.alert_type,
                 "message": alert.message,
                 "severity": alert.severity,

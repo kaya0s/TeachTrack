@@ -1,7 +1,7 @@
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.classroom import Subject, ClassSection
+from app.models.classroom import Subject, ClassSection, Section, Major, College
 
 
 class ClassroomRepository:
@@ -15,6 +15,7 @@ class ClassroomRepository:
         return (
             db.query(Subject)
             .options(joinedload(Subject.sections).joinedload(ClassSection.teacher))
+            .options(joinedload(Subject.sections).joinedload(ClassSection.section).joinedload(Section.major).joinedload(Major.college))
             .options(joinedload(Subject.teacher))
             .filter(
                 or_(
