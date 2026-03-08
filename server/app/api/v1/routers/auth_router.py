@@ -10,8 +10,6 @@ from app.schemas.user import (
     GoogleLogin,
     ResetPassword,
     Token,
-    User as UserSchema,
-    UserCreate,
     VerifyCode,
 )
 from app.services import auth_service
@@ -25,15 +23,6 @@ def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     return auth_service.login_access_token(db, form_data.username, form_data.password)
-
-
-@router.post("/register", response_model=UserSchema)
-def register_user(
-    *,
-    db: Session = Depends(get_db),
-    user_in: UserCreate,
-) -> Any:
-    return auth_service.register_user(db, user_in)
 
 
 @router.post("/login/google", response_model=Token)
