@@ -15,6 +15,8 @@ class Section(SectionBase):
     subject_id: Optional[int]
     teacher_id: int
     teacher_username: Optional[str] = None
+    college_name: Optional[str] = None
+    major_name: Optional[str] = None
     created_at: Optional[datetime]
 
     class Config:

@@ -8,11 +8,17 @@ from app.schemas.session import AlertSeverityEnum
 
 class AdminUser(BaseModel):
     id: int
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    fullname: Optional[str] = None
+    age: Optional[int] = None
     email: EmailStr
     username: str
+    role: Optional[str] = None
     is_active: bool
     is_superuser: bool
     profile_picture_url: Optional[str] = None
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -30,6 +36,7 @@ class AdminSessionSummary(BaseModel):
     id: int
     teacher_id: int
     teacher_username: str
+    teacher_fullname: Optional[str] = None
     subject_id: int
     subject_name: str
     section_id: int
@@ -40,6 +47,11 @@ class AdminSessionSummary(BaseModel):
     is_active: bool
     teacher_profile_picture_url: Optional[str] = None
     average_engagement: float
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+
 
 
 class AdminAlertSummary(BaseModel):
@@ -47,6 +59,7 @@ class AdminAlertSummary(BaseModel):
     session_id: int
     teacher_id: int
     teacher_username: str
+    teacher_fullname: Optional[str] = None
     alert_type: str
     message: str
     severity: AlertSeverityEnum
@@ -165,11 +178,25 @@ class PaginatedAuditLogsResponse(BaseModel):
 
 class AdminTeacherSummary(BaseModel):
     id: int
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    fullname: Optional[str] = None
+    age: Optional[int] = None
     email: EmailStr
     username: str
+    role: Optional[str] = None
     is_active: bool
     profile_picture_url: Optional[str] = None
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class AdminTeacherCreate(BaseModel):
+    firstname: str = Field(min_length=1, max_length=100)
+    lastname: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=1, le=120)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
 
 
 class PaginatedTeachersResponse(BaseModel):
@@ -185,8 +212,12 @@ class AdminSubjectSummary(BaseModel):
     cover_image_url: Optional[str] = None
     teacher_id: Optional[int] = None
     teacher_username: str
+    teacher_fullname: Optional[str] = None
     teacher_profile_picture_url: Optional[str] = None
     sections_count: int
+    section_names: list[str] = []
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
@@ -197,13 +228,55 @@ class PaginatedSubjectsResponse(BaseModel):
 
 class AdminSectionSummary(BaseModel):
     id: int
-    name: str
+    name: str # From the linked Section model
     subject_id: Optional[int] = None
     subject_name: str
     teacher_id: Optional[int] = None
     teacher_username: str
+    teacher_fullname: Optional[str] = None
     teacher_profile_picture_url: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class AdminCollegeSummary(BaseModel):
+    id: int
+    name: str
+    logo_path: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class AdminMajorSummary(BaseModel):
+    id: int
+    college_id: int
+    name: str
+    code: str
+    created_at: Optional[datetime] = None
+
+
+class PaginatedCollegesResponse(BaseModel):
+    total: int
+    items: list[AdminCollegeSummary]
+
+
+class PaginatedMajorsResponse(BaseModel):
+    total: int
+    items: list[AdminMajorSummary]
+
+
+class AdminSectionPoolSummary(BaseModel):
+    id: int
+    name: str
+    subjects_count: int = 0
+    subject_names: list[str] = []
+    major_id: Optional[int] = None
+    year_level: Optional[int] = None
+    section_letter: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class PaginatedSectionPoolResponse(BaseModel):
+    total: int
+    items: list[AdminSectionPoolSummary]
 
 
 class PaginatedSectionsResponse(BaseModel):
@@ -220,6 +293,7 @@ class AdminSubjectCreate(BaseModel):
     code: Optional[str] = Field(default=None, max_length=20)
     description: Optional[str] = None
     cover_image_url: Optional[str] = Field(default=None, max_length=500)
+    college_id: Optional[int] = None
 
 
 class AdminSubjectUpdate(BaseModel):
@@ -228,16 +302,24 @@ class AdminSubjectUpdate(BaseModel):
     description: Optional[str] = None
     cover_image_url: Optional[str] = Field(default=None, max_length=500)
     teacher_id: Optional[int] = None
+    college_id: Optional[int] = None
 
 
 class AdminSectionCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    subject_id: int
+    name: Optional[str] = Field(default=None, max_length=100)
+    subject_id: Optional[int] = None # For backward compatibility
+    subject_ids: Optional[list[int]] = None # For bulk linking
     teacher_id: Optional[int] = None
+    # Hierarchy fields
+    major_id: Optional[int] = None
+    year_level: Optional[int] = None
+    section_letter: Optional[str] = None
 
 
 class AdminSectionUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    year_level: Optional[int] = None
+    section_letter: Optional[str] = None
     subject_id: Optional[int] = None
     teacher_id: Optional[int] = None
 
@@ -246,4 +328,7 @@ class AdminClassCreate(BaseModel):
     subject_id: Optional[int] = None
     subject_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     subject_code: Optional[str] = Field(default=None, max_length=20)
-    section_name: str = Field(min_length=1, max_length=100)
+    section_name: Optional[str] = None
+    major_id: Optional[int] = None
+    year_level: Optional[int] = None
+    section_letter: Optional[str] = None

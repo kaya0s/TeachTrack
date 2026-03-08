@@ -1,21 +1,32 @@
 
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
 # Shared properties
 class UserBase(BaseModel):
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    fullname: Optional[str] = None
+    age: Optional[int] = Field(default=None, ge=1, le=120)
     email: Optional[EmailStr] = None
     username: Optional[str] = None
+    role: Optional[str] = None
     is_active: Optional[bool] = True
     profile_picture_url: Optional[str] = None
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):
+    firstname: str = Field(min_length=1, max_length=100)
+    lastname: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=1, le=120)
     email: EmailStr
-    username: str
     password: str = Field(min_length=8, max_length=128)
 
 class UserUpdate(BaseModel):
+    firstname: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    lastname: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    age: Optional[int] = Field(default=None, ge=1, le=120)
     email: Optional[EmailStr] = None
     username: Optional[str] = None
     profile_picture_url: Optional[str] = None
@@ -28,6 +39,8 @@ class PasswordChange(BaseModel):
 class User(UserBase):
     id: int
     is_superuser: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
