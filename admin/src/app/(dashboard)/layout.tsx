@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppTopbar } from "@/components/layout/app-topbar";
+import { PageBackground } from "@/components/layout/page-background";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
@@ -197,7 +198,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
                   </div>
                 )}
-                {navLoading ? <DashboardRouteLoading /> : children}
+                <PageBackground className="min-h-full">
+                  {navLoading ? <DashboardRouteLoading /> : children}
+                </PageBackground>
               </main>
           </div>
         </div>

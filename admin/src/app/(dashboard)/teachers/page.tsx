@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { KeyRound, ShieldCheck, ShieldOff, UserPlus, Users, X } from "lucide-react";
 import { AlertDialog } from "@/components/ui/alert-dialog";
@@ -66,6 +66,8 @@ export default function TeachersPage() {
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
   const [createCollegeId, setCreateCollegeId] = useState("");
+  const [collegeMenuOpen, setCollegeMenuOpen] = useState(false);
+  const collegeMenuRef = useRef<HTMLDivElement | null>(null);
 
   const currentActorUserId = getCurrentActorUserId();
 
@@ -90,10 +92,42 @@ export default function TeachersPage() {
     return { subjectMap, sectionMap };
   }, [sections, subjects]);
 
+  const collegeMap = useMemo(() => {
+    const map = new Map<number, AdminCollege>();
+    colleges.forEach((college) => map.set(college.id, college));
+    return map;
+  }, [colleges]);
+
   const filteredItems = useMemo(() => {
     if (selectedCollegeFilter === "all") return items;
     return items.filter((teacher) => teacher.college_id?.toString() === selectedCollegeFilter);
   }, [items, selectedCollegeFilter]);
+
+  const selectedCollege = useMemo(() => {
+    if (selectedCollegeFilter === "all") return null;
+    const id = Number(selectedCollegeFilter);
+    return colleges.find((college) => college.id === id) ?? null;
+  }, [colleges, selectedCollegeFilter]);
+
+  const teacherStats = useMemo(() => {
+    const total = items.length;
+    const active = items.filter((teacher) => teacher.is_active).length;
+    const disabled = total - active;
+    const filtered = filteredItems.length;
+    return { total, active, disabled, filtered };
+  }, [items, filteredItems]);
+
+  useEffect(() => {
+    if (!collegeMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!collegeMenuRef.current) return;
+      if (!collegeMenuRef.current.contains(event.target as Node)) {
+        setCollegeMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [collegeMenuOpen]);
 
   async function load() {
     setLoading(true);
@@ -238,39 +272,109 @@ export default function TeachersPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader title={<><Users className="h-5 w-5" />Teachers</>} description="Manage teacher accounts and classroom access states." />
-      <div className="flex justify-end">
-        <Button onClick={() => setCreateOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Create Teacher
-        </Button>
-      </div>
+    <>
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <PageHeader title={<><Users className="h-5 w-5" />Teachers</>} description="Manage teacher accounts and classroom access states." />
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Create Teacher
+          </Button>
+        </div>
 
-      <Card>
-        <CardContent className="pt-4">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="w-full max-w-lg">
-              <SearchBar
-                placeholder="Search teacher name, username, or email..."
-                value={query}
-                onChange={setQuery}
-                onSubmit={onSearch}
-              />
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background px-2 py-1.5">
-              <select
-                value={selectedCollegeFilter}
-                onChange={(e) => setSelectedCollegeFilter(e.target.value)}
-                className="h-8 border-0 bg-transparent px-1 text-xs font-bold text-foreground outline-none"
-              >
-                <option value="all" className="bg-card text-foreground">All Colleges</option>
-                {colleges.map((college) => (
-                  <option key={college.id} value={college.id.toString()} className="bg-card text-foreground">
-                    {college.name}
-                  </option>
-                ))}
-              </select>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="bg-card/80 backdrop-blur">
+            <CardContent className="pt-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Total</p>
+              <p className="mt-2 text-2xl font-semibold">{teacherStats.total}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/80 backdrop-blur">
+            <CardContent className="pt-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Active</p>
+              <p className="mt-2 text-2xl font-semibold text-success">{teacherStats.active}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/80 backdrop-blur">
+            <CardContent className="pt-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Disabled</p>
+              <p className="mt-2 text-2xl font-semibold text-danger">{teacherStats.disabled}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/80 backdrop-blur">
+            <CardContent className="pt-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Filtered</p>
+              <p className="mt-2 text-2xl font-semibold">{teacherStats.filtered}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="bg-card/90 backdrop-blur">
+          <CardContent className="pt-4">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="w-full max-w-lg">
+                <SearchBar
+                  placeholder="Search teacher name, username, or email..."
+                  value={query}
+                  onChange={setQuery}
+                  onSubmit={onSearch}
+                />
+              </div>
+              <div ref={collegeMenuRef} className="relative">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-xs font-bold text-foreground"
+                  onClick={() => setCollegeMenuOpen((prev) => !prev)}
+                >
+                  <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                    {selectedCollege?.logo_path ? (
+                      <img src={selectedCollege.logo_path} alt={selectedCollege.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[9px] font-bold text-muted-foreground">ALL</span>
+                    )}
+                  </div>
+                  <span className="max-w-[140px] truncate">
+                    {selectedCollege ? selectedCollege.name : "All Colleges"}
+                  </span>
+                </button>
+                {collegeMenuOpen ? (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-border bg-card p-2 shadow-lg">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold text-muted-foreground hover:bg-muted/50"
+                      onClick={() => {
+                        setSelectedCollegeFilter("all");
+                        setCollegeMenuOpen(false);
+                      }}
+                    >
+                      <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                        <span className="text-[9px] font-bold text-muted-foreground">ALL</span>
+                      </div>
+                      All Colleges
+                    </button>
+                    {colleges.map((college) => (
+                      <button
+                        key={college.id}
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold text-foreground hover:bg-muted/50"
+                        onClick={() => {
+                          setSelectedCollegeFilter(college.id.toString());
+                          setCollegeMenuOpen(false);
+                        }}
+                      >
+                        <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                          {college.logo_path ? (
+                            <img src={college.logo_path} alt={college.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-[9px] font-bold text-muted-foreground">{college.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <span className="truncate">{college.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               {selectedCollegeFilter !== "all" ? (
                 <button
                   type="button"
@@ -281,67 +385,84 @@ export default function TeachersPage() {
                 </button>
               ) : null}
             </div>
-          </div>
-          {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
-            </div>
-          ) : filteredItems.length ? (
-            <Table>
-              <THead><TR><TH className="w-16">ID</TH><TH className="w-10">Photo</TH><TH>Full Name</TH><TH>Email</TH><TH>College</TH><TH>Added On</TH><TH>Assignments</TH><TH>Status</TH></TR></THead>
-              <TBody>
-                {filteredItems.map((teacher) => {
-                  const displayName = getTeacherDisplayName(teacher);
-                  const subjectCount = assignmentsByTeacher.subjectMap.get(teacher.id)?.length ?? 0;
-                  const sectionCount = assignmentsByTeacher.sectionMap.get(teacher.id)?.length ?? 0;
-                  return (
-                    <TR
-                      key={teacher.id}
-                      className="cursor-pointer"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openTeacherDetails(teacher)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openTeacherDetails(teacher);
-                        }
-                      }}
-                    >
-                      <TD className="font-mono text-xs">{teacher.id}</TD>
-                      <TD>
-                        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
-                          {teacher.profile_picture_url ? (
-                            <img src={teacher.profile_picture_url} alt={displayName} className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                              {displayName.charAt(0)}
-                            </span>
-                          )}
-                        </div>
-                      </TD>
-                      <TD className="font-medium">{currentActorUserId !== null && teacher.id === currentActorUserId ? "You" : displayName}</TD>
-                      <TD className="text-muted-foreground">{teacher.email}</TD>
-                      <TD className="text-muted-foreground">{teacher.college_name || "-"}</TD>
-                      <TD className="text-muted-foreground">{formatAddedOn(teacher.created_at)}</TD>
-                      <TD>
-                        <div className="flex gap-1.5">
-                          <Badge tone={subjectCount > 0 ? "success" : "default"}>{subjectCount} subject{subjectCount === 1 ? "" : "s"}</Badge>
-                          <Badge tone={sectionCount > 0 ? "success" : "default"}>{sectionCount} section{sectionCount === 1 ? "" : "s"}</Badge>
-                        </div>
-                      </TD>
-                      <TD><Badge tone={teacher.is_active ? "success" : "danger"}>{teacher.is_active ? "Active" : "Disabled"}</Badge></TD>
-                    </TR>
-                  );
-                })}
-              </TBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground">No teachers found for the current filters.</p>
-          )}
-        </CardContent>
-      </Card>
+            {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
+              </div>
+            ) : filteredItems.length ? (
+              <Table>
+                <THead><TR><TH className="w-16">ID</TH><TH className="w-10">Photo</TH><TH>Full Name</TH><TH>Email</TH><TH>College</TH><TH>Added On</TH><TH>Assignments</TH><TH>Status</TH></TR></THead>
+                <TBody>
+                  {filteredItems.map((teacher) => {
+                    const displayName = getTeacherDisplayName(teacher);
+                    const subjectCount = assignmentsByTeacher.subjectMap.get(teacher.id)?.length ?? 0;
+                    const sectionCount = assignmentsByTeacher.sectionMap.get(teacher.id)?.length ?? 0;
+                    return (
+                      <TR
+                        key={teacher.id}
+                        className="cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openTeacherDetails(teacher)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openTeacherDetails(teacher);
+                          }
+                        }}
+                      >
+                        <TD className="font-mono text-xs">{teacher.id}</TD>
+                        <TD>
+                          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                            {teacher.profile_picture_url ? (
+                              <img src={teacher.profile_picture_url} alt={displayName} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                                {displayName.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                        </TD>
+                        <TD className="font-medium">{currentActorUserId !== null && teacher.id === currentActorUserId ? "You" : displayName}</TD>
+                        <TD className="text-muted-foreground">{teacher.email}</TD>
+                        <TD className="text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            {teacher.college_id ? (
+                              (() => {
+                                const college = collegeMap.get(teacher.college_id);
+                                if (college?.logo_path) {
+                                  return (
+                                    <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                                      <img src={college.logo_path} alt={college.name} className="h-full w-full object-cover" />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()
+                            ) : null}
+                            <span>{teacher.college_name || "-"}</span>
+                          </div>
+                        </TD>
+                        <TD className="text-muted-foreground">{formatAddedOn(teacher.created_at)}</TD>
+                        <TD>
+                          <div className="flex gap-1.5">
+                            <Badge tone={subjectCount > 0 ? "success" : "default"}>{subjectCount} subject{subjectCount === 1 ? "" : "s"}</Badge>
+                            <Badge tone={sectionCount > 0 ? "success" : "default"}>{sectionCount} section{sectionCount === 1 ? "" : "s"}</Badge>
+                          </div>
+                        </TD>
+                        <TD><Badge tone={teacher.is_active ? "success" : "danger"}>{teacher.is_active ? "Active" : "Disabled"}</Badge></TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            ) : (
+              <p className="text-sm text-muted-foreground">No teachers found for the current filters.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Modal
         open={detailsOpen}
@@ -356,87 +477,87 @@ export default function TeachersPage() {
               const teacherSections = assignmentsByTeacher.sectionMap.get(activeTeacher.id) ?? [];
               return (
                 <>
-            <div className="flex items-center gap-4 py-2">
-              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-muted shadow-sm">
-                {activeTeacher.profile_picture_url ? (
-                  <img src={activeTeacher.profile_picture_url} alt={getTeacherDisplayName(activeTeacher)} className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-2xl font-bold uppercase text-muted-foreground">
-                    {getTeacherDisplayName(activeTeacher).charAt(0)}
-                  </span>
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">{getTeacherDisplayName(activeTeacher)}</h3>
-                <p className="text-sm text-muted-foreground">{activeTeacher.email}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground">Assigned Subjects</p>
-                <p className="font-medium">{teacherSubjects.length}</p>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  {teacherSubjects.slice(0, 3).map((subject) => subject.name).join(", ") || "No subject assignment yet"}
-                </p>
-              </div>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground">Assigned Sections</p>
-                <p className="font-medium">{teacherSections.length}</p>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  {teacherSections.slice(0, 3).map((section) => `${section.subject_name} • ${section.name}`).join(", ") || "No section assignment yet"}
-                </p>
-              </div>
-            </div>
-            <div className="rounded-md border border-border/70 bg-background/60 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Assigned Sections (click to open)</p>
-                <Badge tone={teacherSections.length > 0 ? "success" : "default"}>
-                  {teacherSections.length}
-                </Badge>
-              </div>
-              {teacherSections.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {teacherSections.map((section) => (
-                    <Link
-                      key={section.id}
-                      href={`/sections?q=${encodeURIComponent(section.name)}`}
-                      className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold transition-colors hover:border-primary/40 hover:text-primary"
-                    >
-                      {section.subject_name} • {section.name}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">No section assignment yet.</p>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground">User ID</p>
-                <p className="font-mono">{activeTeacher.id}</p>
-              </div>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground">College</p>
-                <p className="font-medium">{activeTeacher.college_name || "Not assigned"}</p>
-              </div>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground">Status</p>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${activeTeacher.is_active ? "bg-success" : "bg-danger"}`} />
-                  <p className="font-medium">{activeTeacher.is_active ? "Active" : "Disabled"}</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setResetModalOpen(true)}>
-                <KeyRound className="mr-2 h-4 w-4" />
-                Reset password
-              </Button>
-              <Button onClick={() => onInitiateToggleStatus(activeTeacher)}>
-                {activeTeacher.is_active ? <ShieldOff className="mr-2 h-4 w-4" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                {activeTeacher.is_active ? "Disable" : "Enable"}
-              </Button>
-            </div>
+                  <div className="flex items-center gap-4 py-2">
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-muted shadow-sm">
+                      {activeTeacher.profile_picture_url ? (
+                        <img src={activeTeacher.profile_picture_url} alt={getTeacherDisplayName(activeTeacher)} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-2xl font-bold uppercase text-muted-foreground">
+                          {getTeacherDisplayName(activeTeacher).charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold">{getTeacherDisplayName(activeTeacher)}</h3>
+                      <p className="text-sm text-muted-foreground">{activeTeacher.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                      <p className="text-xs text-muted-foreground">Assigned Subjects</p>
+                      <p className="font-medium">{teacherSubjects.length}</p>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {teacherSubjects.slice(0, 3).map((subject) => subject.name).join(", ") || "No subject assignment yet"}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                      <p className="text-xs text-muted-foreground">Assigned Sections</p>
+                      <p className="font-medium">{teacherSections.length}</p>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {teacherSections.slice(0, 3).map((section) => `${section.subject_name} • ${section.name}`).join(", ") || "No section assignment yet"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">Assigned Sections (click to open)</p>
+                      <Badge tone={teacherSections.length > 0 ? "success" : "default"}>
+                        {teacherSections.length}
+                      </Badge>
+                    </div>
+                    {teacherSections.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {teacherSections.map((section) => (
+                          <Link
+                            key={section.id}
+                            href={`/sections?q=${encodeURIComponent(section.name)}`}
+                            className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold transition-colors hover:border-primary/40 hover:text-primary"
+                          >
+                            {section.subject_name} • {section.name}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No section assignment yet.</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                      <p className="text-xs text-muted-foreground">User ID</p>
+                      <p className="font-mono">{activeTeacher.id}</p>
+                    </div>
+                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                      <p className="text-xs text-muted-foreground">College</p>
+                      <p className="font-medium">{activeTeacher.college_name || "Not assigned"}</p>
+                    </div>
+                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${activeTeacher.is_active ? "bg-success" : "bg-danger"}`} />
+                        <p className="font-medium">{activeTeacher.is_active ? "Active" : "Disabled"}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setResetModalOpen(true)}>
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      Reset password
+                    </Button>
+                    <Button onClick={() => onInitiateToggleStatus(activeTeacher)}>
+                      {activeTeacher.is_active ? <ShieldOff className="mr-2 h-4 w-4" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                      {activeTeacher.is_active ? "Disable" : "Enable"}
+                    </Button>
+                  </div>
                 </>
               );
             })()}
@@ -586,6 +707,7 @@ export default function TeachersPage() {
         variant="danger"
         loading={resetting}
       />
-    </div>
+      <div />
+    </>
   );
 }

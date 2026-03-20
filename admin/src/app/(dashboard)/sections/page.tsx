@@ -27,7 +27,7 @@ export default function SectionsPage() {
       const params = query ? `?q=${encodeURIComponent(query)}` : "";
       const [sectionsRes, teachersRes] = await Promise.all([getSections(params), getTeachers("?limit=200")]);
       setSections(sectionsRes.items);
-      setTeachers(teachersRes.items.filter((teacher) => teacher.is_active));
+      setTeachers(teachersRes.items.filter((teacher: { is_active: any; }) => teacher.is_active));
     } catch (err) {
       notify({
         tone: "danger",
