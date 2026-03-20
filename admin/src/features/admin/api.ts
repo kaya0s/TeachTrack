@@ -1,9 +1,14 @@
 "use client";
 
-import { getToken } from "@/lib/auth";
-import type {
+import { httpRequest } from "@/lib/utils";
+
+// Types
+export type {
+  AdminCollege,
+  AdminMajor,
   AdminAlert,
   AdminSection,
+  AdminSectionPoolItem,
   AdminSessionDetail,
   AdminSession,
   AdminSubject,
@@ -16,295 +21,239 @@ import type {
   ServerLogEntry,
 } from "@/features/admin/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (init.headers && typeof init.headers === "object" && !Array.isArray(init.headers)) {
-    Object.assign(headers, init.headers as Record<string, string>);
-  }
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let message = body || "Request failed";
-    try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed?.detail) {
-        message = parsed.detail;
-      }
-    } catch {
-      // Keep raw text response when body is not JSON.
-    }
-
-    if (res.status === 401) {
-      const { clearToken } = await import("@/lib/auth");
-      clearToken();
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("teachtrack_admin_auth_error", "Please login first to continue.");
-        window.location.replace("/login");
-      }
-    }
-
-    throw new Error(`HTTP ${res.status}: ${message}`);
-  }
-
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return (await res.json()) as T;
-}
-
-export async function login(username: string, password: string): Promise<{ access_token: string }> {
-  const body = new URLSearchParams();
-  body.append("username", username);
-  body.append("password", password);
-
-  const res = await fetch(`${API_BASE}/login/access-token`, {
+// Auth endpoints
+export async function login(username: string, password: string) {
+  const formData = new URLSearchParams();
+  formData.append("username", username);
+  formData.append("password", password);
+  return httpRequest("/login/access-token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
+    body: formData,
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`HTTP ${res.status}: ${body || "Invalid credentials"}`);
-  }
-
-  return res.json();
 }
 
-export async function loginWithGoogle(idToken: string): Promise<{ access_token: string }> {
-  const res = await fetch(`${API_BASE}/login/google`, {
+export async function loginWithGoogle(idToken: string) {
+  return httpRequest("/login/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id_token: idToken }),
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`HTTP ${res.status}: ${body || "Google login failed"}`);
-  }
-
-  return res.json();
 }
 
-export function forgotPassword(email: string): Promise<{ message: string }> {
-  return request<{ message: string }>("/forgot-password", {
+export async function forgotPassword(email: string) {
+  return httpRequest("/forgot-password", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
 }
 
-export function verifyResetCode(email: string, code: string): Promise<{ message: string }> {
-  return request<{ message: string }>("/verify-reset-code", {
+export async function verifyResetCode(email: string, code: string) {
+  return httpRequest("/verify-reset-code", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, code }),
   });
 }
 
-export function resetPasswordWithCode(
-  email: string,
-  code: string,
-  newPassword: string
-): Promise<{ message: string }> {
-  return request<{ message: string }>("/reset-password", {
+export async function resetPasswordWithCode(email: string, code: string, newPassword: string) {
+  return httpRequest("/reset-password", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, code, new_password: newPassword }),
   });
 }
 
-export function getDashboard(): Promise<DashboardResponse> {
-  return request<DashboardResponse>("/admin/dashboard");
+// Admin endpoints
+export async function getDashboard() {
+  return httpRequest("/admin/dashboard");
 }
 
-export function getUsers(params = ""): Promise<PaginatedResponse<AdminUser>> {
-  return request<PaginatedResponse<AdminUser>>(`/admin/users${params}`);
+export async function getUsers(params = "") {
+  return httpRequest(`/admin/users${params}`);
 }
 
-export function getTeachers(params = ""): Promise<PaginatedResponse<AdminTeacher>> {
-  return request<PaginatedResponse<AdminTeacher>>(`/admin/teachers${params}`);
+export async function getTeachers(params = "") {
+  return httpRequest(`/admin/teachers${params}`);
 }
 
-export function patchUser(userId: number, payload: Partial<AdminUser>): Promise<AdminUser> {
-  return request<AdminUser>(`/admin/users/${userId}`, {
-    method: "PATCH",
+export async function createTeacher(payload: any) {
+  return httpRequest("/admin/teachers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export function resetPassword(userId: number, newPassword: string): Promise<{ message: string }> {
-  return request<{ message: string }>(`/admin/users/${userId}/reset-password`, {
+export async function patchUser(userId: number, payload: any) {
+  return httpRequest(`/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetPassword(userId: number, newPassword: string) {
+  return httpRequest(`/admin/users/${userId}/reset-password`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ new_password: newPassword }),
   });
 }
 
-export function getSessions(params = ""): Promise<PaginatedResponse<AdminSession>> {
-  return request<PaginatedResponse<AdminSession>>(`/admin/sessions${params}`);
+// Session endpoints
+export async function getSessions(params = "") {
+  return httpRequest(`/admin/sessions${params}`);
 }
 
-export function forceStopSession(sessionId: number): Promise<unknown> {
-  return request(`/admin/sessions/${sessionId}/force-stop`, { method: "POST" });
-}
-
-export function getSessionDetail(sessionId: number, params = ""): Promise<AdminSessionDetail> {
-  return request<AdminSessionDetail>(`/admin/sessions/${sessionId}/detail${params}`);
-}
-
-export function getAlerts(params = ""): Promise<PaginatedResponse<AdminAlert>> {
-  return request<PaginatedResponse<AdminAlert>>(`/admin/alerts${params}`);
-}
-
-export function markAlertRead(alertId: number): Promise<AdminAlert> {
-  return request<AdminAlert>(`/admin/alerts/${alertId}/read`, { method: "PUT" });
-}
-
-export function getModels(): Promise<ModelSelectionResponse> {
-  return request<ModelSelectionResponse>("/admin/models");
-}
-
-export function selectModel(file_name: string): Promise<ModelSelectionResponse> {
-  return request<ModelSelectionResponse>("/admin/models/select", {
+export async function forceStopSession(sessionId: number) {
+  return httpRequest(`/admin/sessions/${sessionId}/force-stop`, {
     method: "POST",
+  });
+}
+
+export async function getSessionDetail(sessionId: number, params = "") {
+  return httpRequest(`/admin/sessions/${sessionId}/detail${params}`);
+}
+
+// College & Major endpoints
+export async function getColleges(params = "") {
+  return httpRequest(`/admin/colleges${params}`);
+}
+
+export async function getMajors(collegeId?: number, params = "") {
+  if (collegeId) {
+    // Add college_id as a query parameter instead of in the path
+    const separator = params ? '&' : '?';
+    return httpRequest(`/admin/majors?college_id=${collegeId}${params ? separator + params.slice(1) : ''}`);
+  }
+  return httpRequest(`/admin/majors${params}`);
+}
+
+// Subject endpoints
+export async function getSubjects(params = "") {
+  return httpRequest(`/admin/subjects${params}`);
+}
+
+export async function createSubject(payload: any) {
+  return httpRequest("/admin/subjects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateSubject(subjectId: number, payload: any) {
+  return httpRequest(`/admin/subjects/${subjectId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSubject(subjectId: number) {
+  return httpRequest(`/admin/subjects/${subjectId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function assignSubjectTeacher(subjectId: number, teacherId: number) {
+  return httpRequest(`/admin/subjects/${subjectId}/assign-teacher`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teacher_id: teacherId }),
+  });
+}
+
+export async function uploadSubjectCoverImage(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return httpRequest("/admin/subjects/upload-cover", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+// Section endpoints
+export async function getSections(params = "") {
+  return httpRequest(`/admin/sections${params}`);
+}
+
+
+export async function createSection(payload: any) {
+  return httpRequest("/admin/sections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateSection(sectionId: number, payload: any) {
+  return httpRequest(`/admin/sections/${sectionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSection(sectionId: number) {
+  return httpRequest(`/admin/sections/${sectionId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function assignSectionTeacher(sectionId: number, teacherId: number) {
+  return httpRequest(`/admin/sections/${sectionId}/assign-teacher`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teacher_id: teacherId }),
+  });
+}
+
+export async function unassignSectionTeacher(sectionId: number) {
+  return httpRequest(`/admin/sections/${sectionId}/unassign-teacher`, {
+    method: "PUT",
+  });
+}
+
+// Class endpoints
+export async function createClass(payload: any) {
+  return httpRequest("/admin/classes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+// Alert endpoints
+export async function getAlerts(params = "") {
+  return httpRequest(`/admin/alerts${params}`);
+}
+
+export async function markAlertRead(alertId: number) {
+  return httpRequest(`/admin/alerts/${alertId}/mark-read`, {
+    method: "POST",
+  });
+}
+
+// Model endpoints
+export async function getModels() {
+  return httpRequest("/admin/models");
+}
+
+export async function selectModel(file_name: string) {
+  return httpRequest("/admin/models/select", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_name }),
   });
 }
 
-export function getSubjects(params = ""): Promise<PaginatedResponse<AdminSubject>> {
-  return request<PaginatedResponse<AdminSubject>>(`/admin/subjects${params}`);
+// Logging endpoints
+export async function getServerLogs(params = "") {
+  return httpRequest(`/admin/server-logs${params}`);
 }
 
-export function createSubject(payload: {
-  name: string;
-  code?: string;
-  description?: string;
-  cover_image_url?: string;
-}): Promise<AdminSubject> {
-  return request<AdminSubject>("/admin/subjects", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateSubject(
-  subjectId: number,
-  payload: Partial<{ name: string; code: string; description: string; cover_image_url: string; teacher_id: number }>
-): Promise<AdminSubject> {
-  return request<AdminSubject>(`/admin/subjects/${subjectId}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteSubject(subjectId: number): Promise<{ message: string }> {
-  return request<{ message: string }>(`/admin/subjects/${subjectId}`, {
-    method: "DELETE",
-  });
-}
-
-export function assignSubjectTeacher(subjectId: number, teacherId: number): Promise<AdminSubject> {
-  return request<AdminSubject>(`/admin/subjects/${subjectId}/assign-teacher`, {
-    method: "PUT",
-    body: JSON.stringify({ teacher_id: teacherId }),
-  });
-}
-
-export function getSections(params = ""): Promise<PaginatedResponse<AdminSection>> {
-  return request<PaginatedResponse<AdminSection>>(`/admin/sections${params}`);
-}
-
-export function createSection(payload: { name: string; subject_id: number; teacher_id?: number }): Promise<AdminSection> {
-  return request<AdminSection>("/admin/sections", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateSection(
-  sectionId: number,
-  payload: Partial<{ name: string; subject_id: number; teacher_id: number }>
-): Promise<AdminSection> {
-  return request<AdminSection>(`/admin/sections/${sectionId}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteSection(sectionId: number): Promise<{ message: string }> {
-  return request<{ message: string }>(`/admin/sections/${sectionId}`, {
-    method: "DELETE",
-  });
-}
-
-export function createClass(payload: {
-  subject_id?: number;
-  subject_name?: string;
-  subject_code?: string;
-  section_name: string;
-}): Promise<AdminSection> {
-  return request<AdminSection>("/admin/classes", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function assignSectionTeacher(sectionId: number, teacherId: number): Promise<AdminSection> {
-  return request<AdminSection>(`/admin/sections/${sectionId}/assign-teacher`, {
-    method: "PUT",
-    body: JSON.stringify({ teacher_id: teacherId }),
-  });
-}
-
-export async function uploadSubjectCoverImage(file: File): Promise<{ secure_url: string; public_id: string }> {
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await fetch(`${API_BASE}/subjects/cover-image`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let message = body || "Upload failed";
-    try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed?.detail) {
-        message = parsed.detail;
-      }
-    } catch {
-      // Keep raw text response when body is not JSON.
-    }
-    throw new Error(`HTTP ${res.status}: ${message}`);
-  }
-
-  return res.json();
-}
-
-export function getServerLogs(params = ""): Promise<PaginatedResponse<ServerLogEntry>> {
-  return request<PaginatedResponse<ServerLogEntry>>(`/admin/server-logs${params}`);
-}
-
-export function getAuditLogs(params = ""): Promise<PaginatedResponse<AdminAuditLogEntry>> {
-  return request<PaginatedResponse<AdminAuditLogEntry>>(`/admin/audit-logs${params}`);
+export async function getAuditLogs(params = "") {
+  return httpRequest(`/admin/audit-logs${params}`);
 }
