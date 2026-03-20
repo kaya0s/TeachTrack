@@ -53,8 +53,31 @@ export type AdminSubject = {
 export type AdminCollege = {
   id: number;
   name: string;
+  acronym: string | null;
   logo_path: string | null;
+  majors: AdminMajor[];
   created_at: string | null;
+};
+
+export type AdminCollegeTeacher = {
+  id: number;
+  fullname: string | null;
+  email: string;
+  profile_picture_url: string | null;
+};
+
+export type AdminCollegeDetails = {
+  id: number;
+  name: string;
+  acronym: string | null;
+  logo_path: string | null;
+  teachers_count: number;
+  teachers: AdminCollegeTeacher[];
+  total_sessions: number;
+  active_sessions: number;
+  avg_sessions_per_teacher: number;
+  majors_count: number;
+  majors: AdminMajor[];
 };
 
 export type AdminMajor = {
@@ -213,4 +236,53 @@ export type AdminAuditLogEntry = {
 export type PaginatedResponse<T> = {
   total: number;
   items: T[];
+};
+
+export type AdminSettings = {
+  detection: {
+    detect_interval_seconds: number;
+    detector_heartbeat_timeout_seconds: number;
+    server_camera_enabled: boolean;
+    server_camera_preview: boolean;
+    server_camera_index: number;
+    alert_cooldown_minutes: number;
+  };
+  engagement_weights: {
+    on_task: number;
+    phone: number;
+    sleeping: number;
+    disengaged_posture: number;
+  };
+  admin_ops: {
+    enable_admin_log_stream: boolean;
+  };
+  security: {
+    access_token_expire_minutes: number;
+  };
+  integrations: {
+    cloudinary_configured: boolean;
+    mail_configured: boolean;
+  };
+};
+
+export type AdminSettingsUpdate = {
+  detection?: Partial<AdminSettings["detection"]>;
+  engagement_weights?: Partial<AdminSettings["engagement_weights"]>;
+  admin_ops?: Partial<AdminSettings["admin_ops"]>;
+  security?: Partial<AdminSettings["security"]>;
+  reset?: boolean;
+  confirm_password?: string;
+};
+
+export type AdminBackupRun = {
+  id: number;
+  status: "running" | "success" | "failed";
+  filename: string | null;
+  file_size_bytes: number | null;
+  drive_file_id: string | null;
+  drive_link: string | null;
+  created_at: string;
+  completed_at: string | null;
+  created_by: number | null;
+  error_message: string | null;
 };

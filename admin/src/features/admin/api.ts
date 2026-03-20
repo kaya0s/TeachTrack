@@ -3,8 +3,10 @@
 import { httpRequest } from "@/lib/utils";
 
 // Types
-export type {
+import type {
   AdminCollege,
+  AdminCollegeTeacher,
+  AdminCollegeDetails,
   AdminMajor,
   AdminAlert,
   AdminSection,
@@ -19,7 +21,33 @@ export type {
   PaginatedResponse,
   AdminAuditLogEntry,
   ServerLogEntry,
+  AdminSettings,
+  AdminSettingsUpdate,
+  AdminBackupRun,
 } from "@/features/admin/types";
+
+export type {
+  AdminCollege,
+  AdminCollegeTeacher,
+  AdminCollegeDetails,
+  AdminMajor,
+  AdminAlert,
+  AdminSection,
+  AdminSectionPoolItem,
+  AdminSessionDetail,
+  AdminSession,
+  AdminSubject,
+  AdminTeacher,
+  AdminUser,
+  DashboardResponse,
+  ModelSelectionResponse,
+  PaginatedResponse,
+  AdminAuditLogEntry,
+  ServerLogEntry,
+  AdminSettings,
+  AdminSettingsUpdate,
+  AdminBackupRun,
+};
 
 // Auth endpoints
 export async function login(username: string, password: string) {
@@ -119,6 +147,32 @@ export async function getSessionDetail(sessionId: number, params = "") {
 // College & Major endpoints
 export async function getColleges(params = "") {
   return httpRequest(`/admin/colleges${params}`);
+}
+
+export async function createCollege(payload: any) {
+  return httpRequest("/admin/colleges", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCollege(collegeId: number, payload: any) {
+  return httpRequest(`/admin/colleges/${collegeId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCollege(collegeId: number) {
+  return httpRequest(`/admin/colleges/${collegeId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getCollegeDetails(collegeId: number): Promise<AdminCollegeDetails> {
+  return httpRequest(`/admin/colleges/${collegeId}`);
 }
 
 export async function getMajors(collegeId?: number, params = "") {
@@ -256,4 +310,32 @@ export async function getServerLogs(params = "") {
 
 export async function getAuditLogs(params = "") {
   return httpRequest(`/admin/audit-logs${params}`);
+}
+
+// Settings endpoints
+export async function getSettings() {
+  return httpRequest("/admin/settings");
+}
+
+export async function updateSettings(payload: any) {
+  return httpRequest("/admin/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+// Backup endpoints
+export async function getBackups(params = ""): Promise<AdminBackupRun[]> {
+  return httpRequest(`/admin/backups${params}`);
+}
+
+export async function runBackup(): Promise<AdminBackupRun> {
+  return httpRequest("/admin/backups", {
+    method: "POST",
+  });
+}
+
+export async function getBackupStatus(backupId: number): Promise<AdminBackupRun> {
+  return httpRequest(`/admin/backups/${backupId}`);
 }
