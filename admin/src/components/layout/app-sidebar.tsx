@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BarChart3, Bell, BookOpen, Cog, Database, LayoutDashboard, LifeBuoy, ScrollText, Users } from "lucide-react";
+import { BarChart3, BookOpen, Cog, Database, LayoutDashboard, LifeBuoy, ScrollText, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -13,7 +13,6 @@ const items = [
   { href: "/sessions", label: "Sessions", icon: BarChart3 },
   { href: "/teachers", label: "Teachers", icon: Users },
   { href: "/classes", label: "Classes", icon: BookOpen },
-  { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/models", label: "Models", icon: BookOpen },
   { href: "/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/backup", label: "Backup", icon: Database },

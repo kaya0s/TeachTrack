@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { getDashboard, getServerLogs, markAlertRead } from "@/features/admin/api";
 import type { DashboardResponse, ServerLogEntry } from "@/features/admin/types";
 import { getErrorMessage } from "@/lib/errors";
+import DashboardRouteLoading from "./loading";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -35,9 +36,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   useEffect(() => {
-    if (!navLoading) return;
+    if (!navStartRef.current) return;
+    navStartRef.current = null;
     setNavLoading(false);
-  }, [pathname, navLoading]);
+  }, [pathname]);
 
   const loadPulse = useCallback(
     async (signal?: AbortSignal, silent = false) => {
@@ -190,13 +192,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             />
             <main className="relative min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
               {/* Top Progress Bar for Navigation */}
-              {navLoading && (
-                <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
-                  <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
-                </div>
-              )}
-              {children}
-            </main>
+                {navLoading && (
+                  <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
+                    <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
+                  </div>
+                )}
+                {navLoading ? <DashboardRouteLoading /> : children}
+              </main>
           </div>
         </div>
 

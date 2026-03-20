@@ -1,3 +1,5 @@
+"use client";
+
 import { LoaderCircle } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
