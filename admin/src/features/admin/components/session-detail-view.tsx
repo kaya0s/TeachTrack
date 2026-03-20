@@ -23,6 +23,7 @@ type BehaviorPieSlice = {
 
 export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
     const [hoveredLogRow, setHoveredLogRow] = useState<BehaviorLogChartRow | null>(null);
+    const teacherDisplayName = detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
 
     const detailDurationLabel = useMemo(() => {
         const start = new Date(detail.session.start_time).getTime();
@@ -100,14 +101,14 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                     <div className="flex items-center gap-2">
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
                             {detail.session.teacher_profile_picture_url ? (
-                                <img src={detail.session.teacher_profile_picture_url} alt={detail.session.teacher_username} className="h-full w-full object-cover" />
+                                <img src={detail.session.teacher_profile_picture_url} alt={teacherDisplayName} className="h-full w-full object-cover" />
                             ) : (
                                 <span className="text-[8px] font-bold uppercase text-muted-foreground">
-                                    {detail.session.teacher_username.charAt(0)}
+                                    {teacherDisplayName.charAt(0)}
                                 </span>
                             )}
                         </div>
-                        <p className="font-medium">{detail.session.teacher_username}</p>
+                        <p className="font-medium">{teacherDisplayName}</p>
                     </div>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Subject</p><p className="font-medium">{detail.session.subject_name}</p></div>

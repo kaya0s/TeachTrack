@@ -14,6 +14,10 @@ import { useToast } from "@/components/ui/toast";
 import { getAlerts, markAlertRead } from "@/features/admin/api";
 import type { AdminAlert } from "@/features/admin/types";
 
+function teacherName(alert: AdminAlert): string {
+  return alert.teacher_fullname?.trim() || alert.teacher_username;
+}
+
 export default function AlertsPage() {
   const { notify } = useToast();
   const [items, setItems] = useState<AdminAlert[]>([]);
@@ -96,17 +100,17 @@ export default function AlertsPage() {
 
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
                     {a.teacher_profile_picture_url ? (
-                      <img src={a.teacher_profile_picture_url} alt={a.teacher_username} className="h-full w-full object-cover" />
+                      <img src={a.teacher_profile_picture_url} alt={teacherName(a)} className="h-full w-full object-cover" />
                     ) : (
                       <span className="text-sm font-bold uppercase text-muted-foreground">
-                        {a.teacher_username.charAt(0)}
+                        {teacherName(a).charAt(0)}
                       </span>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm tracking-tight">{a.teacher_username}</span>
+                      <span className="text-sm tracking-tight">{teacherName(a)}</span>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-wider font-bold ${a.severity === "CRITICAL"
                           ? "border-danger/20 bg-danger/5 text-danger"
                           : "border-warning/20 bg-warning/5 text-warning"
@@ -145,7 +149,7 @@ export default function AlertsPage() {
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         title={activeAlert ? `Alert #${activeAlert.id}` : "Alert details"}
-        description={activeAlert ? `${activeAlert.alert_type} • ${activeAlert.teacher_username}` : ""}
+        description={activeAlert ? `${activeAlert.alert_type} • ${teacherName(activeAlert)}` : ""}
       >
         {activeAlert ? (
           <div className="space-y-4">

@@ -71,7 +71,7 @@ export default function SectionsPage() {
                     <TD>{section.id}</TD>
                     <TD>{section.name}</TD>
                     <TD>{section.subject_name}</TD>
-                    <TD>{section.teacher_username}</TD>
+                    <TD>{teacherName(section)}</TD>
                     <TD>
                       <div className="flex gap-2">
                         <select
@@ -86,7 +86,7 @@ export default function SectionsPage() {
                         >
                           <option value="" disabled>Select teacher</option>
                           {teachers.map((teacher) => (
-                            <option key={teacher.id} value={teacher.id}>{teacher.username}</option>
+                            <option key={teacher.id} value={teacher.id}>{teacher.fullname?.trim() || teacher.username}</option>
                           ))}
                         </select>
                         <Button
@@ -124,3 +124,4 @@ export default function SectionsPage() {
     </div>
   );
 }
+  const teacherName = (section: AdminSection) => section.teacher_fullname?.trim() || section.teacher_username;

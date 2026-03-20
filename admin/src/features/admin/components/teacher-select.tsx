@@ -27,8 +27,10 @@ export function TeacherSelect({
     const containerRef = useRef<HTMLDivElement>(null);
 
     const selectedTeacher = teachers.find((t) => t.id === value);
+    const teacherName = (teacher: AdminTeacher) => teacher.fullname?.trim() || teacher.username;
 
     const filteredTeachers = teachers.filter((t) =>
+        (t.fullname ?? "").toLowerCase().includes(query.toLowerCase()) ||
         t.username.toLowerCase().includes(query.toLowerCase()) ||
         t.email.toLowerCase().includes(query.toLowerCase())
     );
@@ -61,16 +63,16 @@ export function TeacherSelect({
                                 {selectedTeacher.profile_picture_url ? (
                                     <img
                                         src={selectedTeacher.profile_picture_url}
-                                        alt={selectedTeacher.username}
+                                        alt={teacherName(selectedTeacher)}
                                         className="h-full w-full object-cover"
                                     />
                                 ) : (
                                     <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                                        {selectedTeacher.username.charAt(0)}
+                                        {teacherName(selectedTeacher).charAt(0)}
                                     </span>
                                 )}
                             </div>
-                            <span className="font-medium">{selectedTeacher.username}</span>
+                            <span className="font-medium">{teacherName(selectedTeacher)}</span>
                         </>
                     ) : (
                         <span className="text-muted-foreground">{placeholder}</span>
@@ -113,17 +115,17 @@ export function TeacherSelect({
                                         {teacher.profile_picture_url ? (
                                             <img
                                                 src={teacher.profile_picture_url}
-                                                alt={teacher.username}
+                                                alt={teacherName(teacher)}
                                                 className="h-full w-full object-cover"
                                             />
                                         ) : (
                                             <span className="text-xs font-bold uppercase text-muted-foreground">
-                                                {teacher.username.charAt(0)}
+                                                {teacherName(teacher).charAt(0)}
                                             </span>
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate font-semibold">{teacher.username}</p>
+                                        <p className="truncate font-semibold">{teacherName(teacher)}</p>
                                         <p className="truncate text-[10px] text-muted-foreground">{teacher.email}</p>
                                     </div>
                                     {value === teacher.id && (
