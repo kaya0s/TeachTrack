@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, Search, SortAsc, FileDown, FileText, FileSpreadsheet, ChevronDown, Filter } from "lucide-react";
+import { BarChart3, Search, SortAsc, FileDown, FileText, FileSpreadsheet, ChevronDown, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
@@ -15,8 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { Modal } from "@/components/ui/modal";
-import { getSessionDetail, getSessions, getTeachers } from "@/features/admin/api";
-import type { AdminSession, AdminSessionDetail, AdminTeacher } from "@/features/admin/types";
+import { getSessionDetail, getSessions, getTeachers, getColleges, getMajors } from "@/features/admin/api";
+import type { AdminSession, AdminSessionDetail, AdminTeacher, AdminCollege, AdminMajor } from "@/features/admin/types";
 import { TeacherSelect } from "@/features/admin/components/teacher-select";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -25,6 +25,10 @@ import { SessionDetailView } from "@/features/admin/components/session-detail-vi
 import { SearchBar } from "@/components/ui/search-bar";
 import { getCurrentActorUserId } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
+
+function teacherName(session: AdminSession): string {
+  return session.teacher_fullname?.trim() || session.teacher_username;
+}
 
 export default function SessionsPage() {
   const { notify } = useToast();
@@ -40,6 +44,10 @@ export default function SessionsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "ended">("all");
   const [teacherFilter, setTeacherFilter] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
+  const [colleges, setColleges] = useState<AdminCollege[]>([]);
+  const [majors, setMajors] = useState<AdminMajor[]>([]);
+  const [collegeFilter, setCollegeFilter] = useState<number | null>(null);
+  const [majorFilter, setMajorFilter] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
@@ -55,6 +63,9 @@ export default function SessionsPage() {
       setItems(allRes.items);
       setActiveItems(activeRes.items);
       setTeachers(teachersRes.items);
+
+      const collegesRes = await getColleges("?limit=100");
+      setColleges(collegesRes.items);
     } finally {
       setLoading(false);
     }
@@ -64,6 +75,15 @@ export default function SessionsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (collegeFilter) {
+      getMajors(collegeFilter).then(res => setMajors(res.items));
+    } else {
+      setMajors([]);
+      setMajorFilter(null);
+    }
+  }, [collegeFilter]);
+
   const filteredAndSortedItems = useMemo(() => {
     let result = [...items];
 
@@ -72,6 +92,7 @@ export default function SessionsPage() {
       const q = searchQuery.toLowerCase();
       result = result.filter(s =>
         s.teacher_username.toLowerCase().includes(q) ||
+        (s.teacher_fullname ?? "").toLowerCase().includes(q) ||
         s.subject_name.toLowerCase().includes(q) ||
         s.section_name.toLowerCase().includes(q) ||
         s.id.toString().includes(q)
@@ -86,6 +107,16 @@ export default function SessionsPage() {
     // Teacher Filter
     if (teacherFilter) {
       result = result.filter(s => s.teacher_id === teacherFilter);
+    }
+
+    // College Filter
+    if (collegeFilter) {
+      result = result.filter(s => s.college_id === collegeFilter);
+    }
+
+    // Major Filter
+    if (majorFilter) {
+      result = result.filter(s => s.major_id === majorFilter);
     }
 
     // Sort
@@ -147,7 +178,7 @@ export default function SessionsPage() {
     const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Start Time", "End Time", "Engagement"];
     const rows = filteredAndSortedItems.map(s => [
       s.id,
-      (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : s.teacher_username,
+      (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : teacherName(s),
       s.subject_name,
       s.section_name,
       s.students_present,
@@ -192,7 +223,7 @@ export default function SessionsPage() {
 
         const tableData = filteredAndSortedItems.map(s => [
           s.id,
-          (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : s.teacher_username,
+          (currentActorUserId !== null && s.teacher_id === currentActorUserId) ? "You" : teacherName(s),
           `${s.subject_name}\n(${s.section_name})`,
           s.students_present,
           `${new Date(s.start_time).toLocaleDateString()}\n${new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
@@ -257,14 +288,14 @@ export default function SessionsPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
                             {s.teacher_profile_picture_url ? (
-                              <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                              <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
                             ) : (
                               <span className="text-[8px] font-bold uppercase text-muted-foreground">
-                                {s.teacher_username.charAt(0)}
+                                {teacherName(s).charAt(0)}
                               </span>
                             )}
                           </div>
-                          <span>{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : s.teacher_username}</span>
+                          <span>{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
                         </div>
                       </TD>
                       <TD>{s.subject_name}</TD>
@@ -328,6 +359,54 @@ export default function SessionsPage() {
                   </div>
                 </div>
               </div>
+
+              <div className="group relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-card border border-border/60 shadow-sm hover:border-primary/40 transition-all duration-200">
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase font-black text-muted-foreground/50 tracking-wider leading-none mb-0.5">College</span>
+                  <div className="flex items-center">
+                    <select
+                      value={collegeFilter ?? "all"}
+                      onChange={(e) => setCollegeFilter(e.target.value === "all" ? null : Number(e.target.value))}
+                      className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer appearance-none"
+                    >
+                      <option value="all" className="bg-card">All Colleges</option>
+                      {colleges.map(c => (
+                        <option key={c.id} value={c.id} className="bg-card">{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {collegeFilter && (
+                  <button onClick={() => setCollegeFilter(null)} className="ml-1 text-muted-foreground hover:text-primary">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {collegeFilter && (
+                <div className="group relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-card border border-border/60 shadow-sm hover:border-primary/40 transition-all duration-200">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] uppercase font-black text-muted-foreground/50 tracking-wider leading-none mb-0.5">Major</span>
+                    <div className="flex items-center">
+                      <select
+                        value={majorFilter ?? "all"}
+                        onChange={(e) => setMajorFilter(e.target.value === "all" ? null : Number(e.target.value))}
+                        className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer appearance-none"
+                      >
+                        <option value="all" className="bg-card">All Majors</option>
+                        {majors.map(m => (
+                          <option key={m.id} value={m.id} className="bg-card">{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {majorFilter && (
+                    <button onClick={() => setMajorFilter(null)} className="ml-1 text-muted-foreground hover:text-primary">
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="group relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-card border border-border/60 shadow-sm hover:border-indigo-500/40 transition-all duration-200">
                 <SortAsc className="h-3.5 w-3.5 text-muted-foreground/70 group-hover:text-indigo-500 transition-colors" />
@@ -393,14 +472,14 @@ export default function SessionsPage() {
                           <div className="flex items-center gap-3">
                             <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                               {s.teacher_profile_picture_url ? (
-                                <img src={s.teacher_profile_picture_url} alt={s.teacher_username} className="h-full w-full object-cover" />
+                                <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
                               ) : (
                                 <span className="text-sm font-bold uppercase text-muted-foreground">
-                                  {s.teacher_username.charAt(0)}
+                                  {teacherName(s).charAt(0)}
                                 </span>
                               )}
                             </div>
-                            <span className="font-semibold text-sm">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : s.teacher_username}</span>
+                            <span className="font-semibold text-sm">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
                           </div>
                         </TD>
                         <TD>
