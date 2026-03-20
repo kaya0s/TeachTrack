@@ -13,8 +13,8 @@ export function BrandLogo({ compact = false, className }: BrandLogoProps) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-border bg-card p-1">
-        <Image src="/brand/logo.png" alt="TeachTrack Logo" fill className="object-contain dark:hidden" />
-        <Image src="/brand/logo_white.png" alt="TeachTrack Logo" fill className="hidden object-contain dark:block" />
+        <Image src="/brand/logo.png" alt="TeachTrack Logo" fill sizes="40px" className="object-contain dark:hidden" />
+        <Image src="/brand/logo_white.png" alt="TeachTrack Logo" fill sizes="40px" className="hidden object-contain dark:block" />
       </div>
       {!compact ? (
         <div>

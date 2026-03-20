@@ -168,126 +168,137 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <AuthGuard>
-      <div className="relative flex h-screen overflow-hidden bg-background">
-        <div className="relative z-10 h-screen shrink-0">
-          <AppSidebar onNavigateStart={startNavigationLoading} />
-        </div>
-        <div className="relative z-10 flex h-screen min-w-0 flex-1 flex-col">
-          <AppTopbar
-            unreadCount={unreadCount}
-            onOpenNotifications={() => setNotificationsOpen(true)}
-            onOpenLogs={() => setLogsOpen(true)}
-          />
-          <main className="relative min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
-            {/* Top Progress Bar for Navigation */}
-            {navLoading && (
-              <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
-                <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
-              </div>
-            )}
-            {children}
-          </main>
+      <div className="flex h-screen items-center justify-center bg-background p-5 md:hidden">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 text-center shadow-sm">
+          <p className="text-sm font-semibold text-foreground">Admin is unavailable on small screens.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Use a tablet or desktop device to access the admin console.
+          </p>
         </div>
       </div>
 
-      <Drawer
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-        title="Notifications"
-        description="Recent alert activity from live classrooms."
-        widthClassName="max-w-lg"
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {unreadCount} unread of {notifications.length} shown
-          </p>
-          <Button size="sm" variant="outline" onClick={markAllNotificationsRead} disabled={!unreadCount}>
-            Mark all read
-          </Button>
+      <div className="hidden md:block">
+        <div className="relative flex h-screen overflow-hidden bg-background">
+          <div className="relative z-10 h-screen shrink-0">
+            <AppSidebar onNavigateStart={startNavigationLoading} />
+          </div>
+          <div className="relative z-10 flex h-screen min-w-0 flex-1 flex-col">
+            <AppTopbar
+              unreadCount={unreadCount}
+              onOpenNotifications={() => setNotificationsOpen(true)}
+              onOpenLogs={() => setLogsOpen(true)}
+            />
+            <main className="relative min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
+              {/* Top Progress Bar for Navigation */}
+              {navLoading && (
+                <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
+                  <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
+                </div>
+              )}
+              {children}
+            </main>
+          </div>
         </div>
 
-        {pulseLoading && !notifications.length ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
+        <Drawer
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          title="Notifications"
+          description="Recent alert activity from live classrooms."
+          widthClassName="max-w-lg"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {unreadCount} unread of {notifications.length} shown
+            </p>
+            <Button size="sm" variant="outline" onClick={markAllNotificationsRead} disabled={!unreadCount}>
+              Mark all read
+            </Button>
           </div>
-        ) : notifications.length ? (
-          <div className="space-y-2">
-            {notifications.map((item) => (
-              <article key={item.id} className="rounded-lg border border-border bg-card p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-medium">{item.alert_type}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={item.severity === "CRITICAL" ? "danger" : "warning"}>{item.severity}</Badge>
-                    <Badge tone={item.is_read ? "default" : "warning"}>{item.is_read ? "Read" : "Unread"}</Badge>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">{item.message}</p>
-                <div className="mt-3 flex items-center justify-between">
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Date(item.triggered_at).toLocaleString()} | {item.teacher_username}
-                  </p>
-                  {!item.is_read ? (
-                    <Button size="sm" variant="outline" onClick={() => markOneNotificationRead(item.id)}>
-                      Mark read
-                    </Button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No notifications right now.</p>
-        )}
-      </Drawer>
 
-      <Drawer
-        open={logsOpen}
-        onClose={() => setLogsOpen(false)}
-        title="Server Logs"
-        description="Live backend logs from the admin server log buffer."
-        widthClassName="max-w-3xl"
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Polling every 5 seconds while this drawer is open.
-          </p>
-          <Button size="sm" variant="outline" onClick={() => loadServerLogs(false)} disabled={logsLoading}>
-            Refresh
-          </Button>
-        </div>
-        <div className="rounded-lg border border-border bg-black p-3 font-mono text-xs text-zinc-200">
-          {logsLoading && !logsLoadedOnce ? (
-            <p className="text-zinc-400">Connecting to log stream...</p>
-          ) : logsError && !visibleLogs.length ? (
-            <p className="text-red-300">Connection error: {logsError}</p>
-          ) : visibleLogs.length ? (
-            <ul className="space-y-1">
-              {visibleLogs.map((log, index) => (
-                <li key={`${log.timestamp}-${log.source}-${index}`} className="break-words">
-                  <span className="text-zinc-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{" "}
-                  <span
-                    className={
-                      log.level === "ERROR"
-                        ? "text-red-400"
-                        : log.level === "WARN"
-                          ? "text-amber-300"
-                          : "text-emerald-300"
-                    }
-                  >
-                    {log.level}
-                  </span>{" "}
-                  <span className="text-sky-300">{log.source}</span>{" "}
-                  <span className="text-zinc-400">request={log.request_id}</span> {log.message}
-                </li>
+          {pulseLoading && !notifications.length ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
               ))}
-            </ul>
+            </div>
+          ) : notifications.length ? (
+            <div className="space-y-2">
+              {notifications.map((item) => (
+                <article key={item.id} className="rounded-lg border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-medium">{item.alert_type}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={item.severity === "CRITICAL" ? "danger" : "warning"}>{item.severity}</Badge>
+                      <Badge tone={item.is_read ? "default" : "warning"}>{item.is_read ? "Read" : "Unread"}</Badge>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{item.message}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(item.triggered_at).toLocaleString()} | {(item.teacher_fullname?.trim() || item.teacher_username)}
+                    </p>
+                    {!item.is_read ? (
+                      <Button size="sm" variant="outline" onClick={() => markOneNotificationRead(item.id)}>
+                        Mark read
+                      </Button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : (
-            <p className="text-zinc-400">Connected. No server logs have been emitted yet.</p>
+            <p className="text-sm text-muted-foreground">No notifications right now.</p>
           )}
-        </div>
-      </Drawer>
+        </Drawer>
+
+        <Drawer
+          open={logsOpen}
+          onClose={() => setLogsOpen(false)}
+          title="Server Logs"
+          description="Live backend logs from the admin server log buffer."
+          widthClassName="max-w-3xl"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Polling every 5 seconds while this drawer is open.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => loadServerLogs(false)} disabled={logsLoading}>
+              Refresh
+            </Button>
+          </div>
+          <div className="rounded-lg border border-border bg-black p-3 font-mono text-xs text-zinc-200">
+            {logsLoading && !logsLoadedOnce ? (
+              <p className="text-zinc-400">Connecting to log stream...</p>
+            ) : logsError && !visibleLogs.length ? (
+              <p className="text-red-300">Connection error: {logsError}</p>
+            ) : visibleLogs.length ? (
+              <ul className="space-y-1">
+                {visibleLogs.map((log, index) => (
+                  <li key={`${log.timestamp}-${log.source}-${index}`} className="break-words">
+                    <span className="text-zinc-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{" "}
+                    <span
+                      className={
+                        log.level === "ERROR"
+                          ? "text-red-400"
+                          : log.level === "WARN"
+                            ? "text-amber-300"
+                            : "text-emerald-300"
+                      }
+                    >
+                      {log.level}
+                    </span>{" "}
+                    <span className="text-sky-300">{log.source}</span>{" "}
+                    <span className="text-zinc-400">request={log.request_id}</span> {log.message}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-zinc-400">Connected. No server logs have been emitted yet.</p>
+            )}
+          </div>
+        </Drawer>
+      </div>
     </AuthGuard>
   );
 }
