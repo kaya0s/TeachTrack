@@ -40,15 +40,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Drawer } from "@/components/ui/drawer";
 import { SessionDetailView } from "@/features/admin/components/session-detail-view";
-import { getDashboard, getSessionDetail } from "@/features/admin/api";
+import { getDashboard, getSessionDetail, getColleges, getMajors } from "@/features/admin/api";
 import type {
   AdminSession,
   AdminSessionDetail,
   DashboardResponse,
+  AdminCollege,
+  AdminMajor,
 } from "@/features/admin/types";
 import { cn } from "@/lib/utils";
 import { getCurrentActorUserId } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
+
+function teacherName(session: AdminSession): string {
+  return session.teacher_fullname?.trim() || session.teacher_username;
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -82,6 +88,12 @@ export default function DashboardPage() {
   >("all");
   const [minEngagement, setMinEngagement] = useState("");
   const [maxEngagement, setMaxEngagement] = useState("");
+
+  const [colleges, setColleges] = useState<AdminCollege[]>([]);
+  const [majors, setMajors] = useState<AdminMajor[]>([]);
+  const [selectedCollegeId, setSelectedCollegeId] = useState<string>("all");
+  const [selectedMajorId, setSelectedMajorId] = useState<string>("all");
+
 
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
 
@@ -123,6 +135,20 @@ export default function DashboardPage() {
 
     return () => window.clearInterval(timer);
   }, [loadDashboard]);
+
+  useEffect(() => {
+    getColleges().then((res) => setColleges(res.items));
+  }, []);
+
+  useEffect(() => {
+    if (selectedCollegeId !== "all") {
+      getMajors(Number(selectedCollegeId)).then((res) => setMajors(res.items));
+    } else {
+      setMajors([]);
+      setSelectedMajorId("all");
+    }
+  }, [selectedCollegeId]);
+
 
   const fetchSessionDetail = useCallback(
     async (sessionId: number, silent = false) => {
@@ -194,9 +220,13 @@ export default function DashboardPage() {
       if (engagementPreset === "low" && score >= 50) return false;
       if (min !== null && Number.isFinite(min) && score < min) return false;
       if (max !== null && Number.isFinite(max) && score > max) return false;
+
+      if (selectedCollegeId !== "all" && s.college_id !== Number(selectedCollegeId)) return false;
+      if (selectedMajorId !== "all" && s.major_id !== Number(selectedMajorId)) return false;
+
       return true;
     });
-  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement]);
+  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement, selectedCollegeId, selectedMajorId]);
 
   const teacherAnalytics = useMemo(() => {
     const q = analyticsQuery.trim().toLowerCase();
@@ -205,6 +235,7 @@ export default function DashboardPage() {
       {
         teacher_id: number;
         teacher_username: string;
+        teacher_fullname: string | null;
         profile_picture_url: string | null;
         sessions: number;
         students: number;
@@ -215,12 +246,13 @@ export default function DashboardPage() {
     for (const s of filteredAnalyticsSessions) {
       if (q) {
         const hay =
-          `${s.teacher_username} ${s.subject_name} ${s.section_name}`.toLowerCase();
+          `${teacherName(s)} ${s.subject_name} ${s.section_name}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
       const existing = agg.get(s.teacher_id) ?? {
         teacher_id: s.teacher_id,
         teacher_username: s.teacher_username,
+        teacher_fullname: s.teacher_fullname ?? null,
         profile_picture_url: s.teacher_profile_picture_url ?? null,
         sessions: 0,
         students: 0,
@@ -235,6 +267,7 @@ export default function DashboardPage() {
       agg.set(s.teacher_id, {
         ...existing,
         teacher_username: existing.teacher_username || s.teacher_username,
+        teacher_fullname: existing.teacher_fullname || s.teacher_fullname || null,
         profile_picture_url: existing.profile_picture_url ?? s.teacher_profile_picture_url ?? null,
         sessions: nextSessions,
         students: nextStudents,
@@ -268,7 +301,7 @@ export default function DashboardPage() {
     for (const s of filteredAnalyticsSessions) {
       if (q) {
         const hay =
-          `${s.teacher_username} ${s.subject_name} ${s.section_name}`.toLowerCase();
+          `${teacherName(s)} ${s.subject_name} ${s.section_name}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
       const existing = agg.get(s.section_id) ?? {
@@ -465,8 +498,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -495,6 +527,40 @@ export default function DashboardPage() {
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-10 w-full" />
             ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={
+            <>
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </>
+          }
+          description="Global classroom operations and health snapshot."
+        />
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <CircleAlert className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-semibold">Not Found</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md text-center">
+              {error || "Unable to load dashboard data. Please try refreshing the page."}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => loadDashboard(false, false)}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -664,12 +730,12 @@ export default function DashboardPage() {
                             {s.teacher_profile_picture_url ? (
                               <img
                                 src={s.teacher_profile_picture_url}
-                                alt={s.teacher_username}
+                                alt={teacherName(s)}
                                 className="h-full w-full object-cover"
                               />
                             ) : (
                               <span className="text-[10px] font-bold uppercase text-success/60">
-                                {s.teacher_username.charAt(0)}
+                                {teacherName(s).charAt(0)}
                               </span>
                             )}
                           </div>
@@ -677,7 +743,7 @@ export default function DashboardPage() {
                             {currentActorUserId !== null &&
                               s.teacher_id === currentActorUserId
                               ? "You"
-                              : s.teacher_username}
+                              : teacherName(s)}
                           </span>
                         </div>
                       </TD>
@@ -755,104 +821,172 @@ export default function DashboardPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        {/* Left: search + preset filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+        {/* Row 1: Search + View toggle + Sort */}
+        <div className="flex flex-col gap-2 px-4 pt-3 pb-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/40">
+          {/* Search */}
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={analyticsQuery}
               onChange={(e) => setAnalyticsQuery(e.target.value)}
-              placeholder="Search teacher / subject / section"
-              className="pl-9 pr-9"
+              placeholder="Search teacher / subject / section…"
+              className="pl-9 pr-9 h-9 text-sm"
             />
             {analyticsQuery.trim() && (
               <button
                 type="button"
                 onClick={() => setAnalyticsQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Clear search"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            {(["all", "high", "low"] as const).map((preset) => (
+
+          {/* View toggle + Sort */}
+          <div className="flex items-center gap-2">
+            {/* View pill toggle */}
+            <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5 gap-0.5">
               <Button
-                key={preset}
                 size="sm"
-                variant={engagementPreset === preset ? "default" : "outline"}
-                onClick={() => setEngagementPreset(preset)}
-                className="h-8 text-xs"
+                variant={analyticsView === "teachers" ? "default" : "ghost"}
+                onClick={() => setAnalyticsView("teachers")}
+                className="h-7 px-3 text-xs rounded-md"
               >
-                {preset === "all" ? "All" : preset === "high" ? "High (80%+)" : "Low (<50%)"}
+                <Users className="mr-1.5 h-3.5 w-3.5" />
+                Teachers
               </Button>
-            ))}
+              <Button
+                size="sm"
+                variant={analyticsView === "sections" ? "default" : "ghost"}
+                onClick={() => setAnalyticsView("sections")}
+                className="h-7 px-3 text-xs rounded-md"
+              >
+                <List className="mr-1.5 h-3.5 w-3.5" />
+                Sections
+              </Button>
+            </div>
+
+            {/* Sort */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5"
+              onClick={() =>
+                analyticsView === "teachers"
+                  ? setTeacherSort((prev) =>
+                      prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                    )
+                  : setSectionSort((prev) =>
+                      prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                    )
+              }
+            >
+              <ArrowDownUp className="h-3.5 w-3.5" />
+              {analyticsView === "teachers"
+                ? teacherSort === "avg_desc"
+                  ? "High → Low"
+                  : "Low → High"
+                : sectionSort === "avg_desc"
+                  ? "High → Low"
+                  : "Low → High"}
+            </Button>
           </div>
         </div>
 
-        {/* Right: range filter + view toggles + sort */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
-            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={minEngagement}
-              onChange={(e) => setMinEngagement(e.target.value)}
-              placeholder="Min %"
-              inputMode="numeric"
-              className="h-7 w-16 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
-            />
-            <span className="text-xs text-muted-foreground">–</span>
-            <Input
-              value={maxEngagement}
-              onChange={(e) => setMaxEngagement(e.target.value)}
-              placeholder="Max %"
-              inputMode="numeric"
-              className="h-7 w-16 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
-            />
+        {/* Row 2: Preset chips + College/Major dropdowns + Engagement range */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-muted/10">
+          {/* Engagement presets */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+              Engagement
+            </span>
+            {(["all", "high", "low"] as const).map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setEngagementPreset(preset)}
+                className={cn(
+                  "h-6 rounded-full px-2.5 text-[11px] font-semibold transition-all border",
+                  engagementPreset === preset
+                    ? preset === "high"
+                      ? "bg-success/15 border-success/40 text-success"
+                      : preset === "low"
+                        ? "bg-danger/15 border-danger/40 text-danger"
+                        : "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-transparent border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                )}
+              >
+                {preset === "all" ? "All" : preset === "high" ? "High ≥80%" : "Low <50%"}
+              </button>
+            ))}
           </div>
-          <Button
-            size="sm"
-            variant={analyticsView === "teachers" ? "default" : "outline"}
-            onClick={() => setAnalyticsView("teachers")}
-            className="h-8 text-xs"
-          >
-            <Users className="mr-1.5 h-3.5 w-3.5" />
-            Teachers
-          </Button>
-          <Button
-            size="sm"
-            variant={analyticsView === "sections" ? "default" : "outline"}
-            onClick={() => setAnalyticsView("sections")}
-            className="h-8 text-xs"
-          >
-            <List className="mr-1.5 h-3.5 w-3.5" />
-            Sections
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            onClick={() =>
-              analyticsView === "teachers"
-                ? setTeacherSort((prev) =>
-                  prev === "avg_desc" ? "avg_asc" : "avg_desc"
-                )
-                : setSectionSort((prev) =>
-                  prev === "avg_desc" ? "avg_asc" : "avg_desc"
-                )
-            }
-          >
-            <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
-            {analyticsView === "teachers"
-              ? teacherSort === "avg_desc"
-                ? "High → Low"
-                : "Low → High"
-              : sectionSort === "avg_desc"
-                ? "High → Low"
-                : "Low → High"}
-          </Button>
+
+          <div className="h-4 w-px bg-border/50 hidden sm:block" />
+
+          {/* College + Major dropdowns */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              College
+            </span>
+            <select
+              className="h-7 rounded-lg border border-border/60 bg-background px-2 text-[11px] font-medium outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
+              value={selectedCollegeId}
+              onChange={(e) => setSelectedCollegeId(e.target.value)}
+            >
+              <option value="all">All</option>
+              {colleges.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            {selectedCollegeId !== "all" && (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Major
+                </span>
+                <select
+                  className="h-7 rounded-lg border border-border/60 bg-background px-2 text-[11px] font-medium outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
+                  value={selectedMajorId}
+                  onChange={(e) => setSelectedMajorId(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {majors.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+
+          <div className="h-4 w-px bg-border/50 hidden sm:block" />
+
+          {/* Engagement range */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Range
+            </span>
+            <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-background px-2.5 py-1">
+              <Input
+                value={minEngagement}
+                onChange={(e) => setMinEngagement(e.target.value)}
+                placeholder="Min"
+                inputMode="numeric"
+                className="h-5 w-12 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
+              />
+              <span className="text-xs text-muted-foreground">–</span>
+              <Input
+                value={maxEngagement}
+                onChange={(e) => setMaxEngagement(e.target.value)}
+                placeholder="Max"
+                inputMode="numeric"
+                className="h-5 w-12 border-none bg-transparent p-0 text-xs font-bold focus-visible:ring-0"
+              />
+              <span className="text-[10px] text-muted-foreground font-medium">%</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -900,12 +1034,12 @@ export default function DashboardPage() {
                                 {row.profile_picture_url ? (
                                   <img
                                     src={row.profile_picture_url}
-                                    alt={row.teacher_username}
+                                    alt={row.teacher_fullname ?? row.teacher_username}
                                     className="h-full w-full object-cover"
                                   />
                                 ) : (
                                   <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                                    {row.teacher_username.charAt(0)}
+                                    {(row.teacher_fullname ?? row.teacher_username).charAt(0)}
                                   </span>
                                 )}
                               </div>
@@ -913,7 +1047,7 @@ export default function DashboardPage() {
                                 {currentActorUserId !== null &&
                                   row.teacher_id === currentActorUserId
                                   ? "You"
-                                  : row.teacher_username}
+                                  : (row.teacher_fullname ?? row.teacher_username)}
                               </span>
                             </div>
                             <div className="hidden sm:block h-1.5 w-24 rounded-full bg-muted/40 overflow-hidden">
@@ -1040,12 +1174,12 @@ export default function DashboardPage() {
                             {s.teacher_profile_picture_url ? (
                               <img
                                 src={s.teacher_profile_picture_url}
-                                alt={s.teacher_username}
+                                alt={teacherName(s)}
                                 className="h-full w-full object-cover"
                               />
                             ) : (
                               <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                                {s.teacher_username.charAt(0)}
+                                {teacherName(s).charAt(0)}
                               </span>
                             )}
                           </div>
@@ -1053,7 +1187,7 @@ export default function DashboardPage() {
                             {currentActorUserId !== null &&
                               s.teacher_id === currentActorUserId
                               ? "You"
-                              : s.teacher_username}
+                              : teacherName(s)}
                           </span>
                         </div>
                       </TD>
@@ -1170,20 +1304,19 @@ export default function DashboardPage() {
         widthClassName="max-w-4xl"
       >
         <div className="space-y-6">
-          <Card>
-            <CardContent className="p-6">
+          <div className="p-6">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
                 <div className="relative">
                   <div className="h-20 w-20 overflow-hidden rounded-xl border border-border bg-muted">
                     {activeTeacherRow?.profile_picture_url ? (
                       <img
                         src={activeTeacherRow.profile_picture_url}
-                        alt={activeTeacherRow.teacher_username}
+                        alt={activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username}
                         className="h-full w-full object-cover"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
-                        {(activeTeacherRow?.teacher_username ?? "?").charAt(0)}
+                        {(activeTeacherRow?.teacher_fullname ?? activeTeacherRow?.teacher_username ?? "?").charAt(0)}
                       </div>
                     )}
                   </div>
@@ -1198,7 +1331,7 @@ export default function DashboardPage() {
                       ? currentActorUserId !== null &&
                         activeTeacherRow.teacher_id === currentActorUserId
                         ? "You"
-                        : activeTeacherRow.teacher_username
+                        : (activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username)
                       : "Teacher"}
                   </h2>
                   <div className="flex flex-wrap gap-2">
@@ -1227,8 +1360,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Card>
@@ -1283,100 +1415,75 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Engagement Distribution</CardTitle>
-                <CardDescription>
-                  Breakdown of performance across all sessions
-                </CardDescription>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background p-4 text-center">
+              <p className="text-2xl font-semibold">{activeTeacherStats.buckets.high}</p>
+              <p className="mt-1 text-xs text-muted-foreground">High (80%+)</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-success"
+                  style={{
+                    width: `${(activeTeacherStats.buckets.high /
+                      Math.max(
+                        1,
+                        activeTeacherStats.buckets.high +
+                        activeTeacherStats.buckets.mid +
+                        activeTeacherStats.buckets.low
+                      )) * 100}%`,
+                  }}
+                />
               </div>
-              <PieChart
-                values={[
-                  activeTeacherStats.buckets.high,
-                  activeTeacherStats.buckets.mid,
-                  activeTeacherStats.buckets.low,
-                ]}
-                colors={[
-                  "hsl(var(--success))",
-                  "hsl(var(--warning))",
-                  "hsl(var(--danger))",
-                ]}
-                size={80}
-                strokeWidth={12}
-              />
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-border bg-background p-4 text-center">
-                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.high}</p>
-                <p className="mt-1 text-xs text-muted-foreground">High (80%+)</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-success"
-                    style={{
-                      width: `${(activeTeacherStats.buckets.high /
-                        Math.max(
-                          1,
-                          activeTeacherStats.buckets.high +
-                            activeTeacherStats.buckets.mid +
-                            activeTeacherStats.buckets.low
-                        )) * 100}%`,
-                    }}
-                  />
-                </div>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-4 text-center">
+              <p className="text-2xl font-semibold">{activeTeacherStats.buckets.mid}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Medium (50-79%)</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-warning"
+                  style={{
+                    width: `${(activeTeacherStats.buckets.mid /
+                      Math.max(
+                        1,
+                        activeTeacherStats.buckets.high +
+                        activeTeacherStats.buckets.mid +
+                        activeTeacherStats.buckets.low
+                      )) * 100}%`,
+                  }}
+                />
               </div>
-              <div className="rounded-xl border border-border bg-background p-4 text-center">
-                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.mid}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Medium (50-79%)</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-warning"
-                    style={{
-                      width: `${(activeTeacherStats.buckets.mid /
-                        Math.max(
-                          1,
-                          activeTeacherStats.buckets.high +
-                            activeTeacherStats.buckets.mid +
-                            activeTeacherStats.buckets.low
-                        )) * 100}%`,
-                    }}
-                  />
-                </div>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-4 text-center">
+              <p className="text-2xl font-semibold">{activeTeacherStats.buckets.low}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Low (&lt;50%)</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-danger"
+                  style={{
+                    width: `${(activeTeacherStats.buckets.low /
+                      Math.max(
+                        1,
+                        activeTeacherStats.buckets.high +
+                        activeTeacherStats.buckets.mid +
+                        activeTeacherStats.buckets.low
+                      )) * 100}%`,
+                  }}
+                />
               </div>
-              <div className="rounded-xl border border-border bg-background p-4 text-center">
-                <p className="text-2xl font-semibold">{activeTeacherStats.buckets.low}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Low (&lt;50%)</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-danger"
-                    style={{
-                      width: `${(activeTeacherStats.buckets.low /
-                        Math.max(
-                          1,
-                          activeTeacherStats.buckets.high +
-                            activeTeacherStats.buckets.mid +
-                            activeTeacherStats.buckets.low
-                        )) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Top Performing Classes</CardTitle>
-                <CardDescription>
-                  Classes with most sessions and highest engagement
-                </CardDescription>
+          <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Top Performing Classes</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Classes with most sessions and highest engagement
+                  </p>
+                </div>
+                <Badge tone="default" className="text-xs">
+                  {activeTeacherStats.topSections.length}
+                </Badge>
               </div>
-              <Badge tone="default" className="text-xs">
-                {activeTeacherStats.topSections.length}
-              </Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
               {activeTeacherStats.topSections.length ? (
                 activeTeacherStats.topSections.map((row, index) => (
                   <div
@@ -1406,22 +1513,20 @@ export default function DashboardPage() {
                   <p className="text-sm">No sessions match your current filters.</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Recent Sessions</CardTitle>
-                <CardDescription>
-                  Latest teaching activities and performance
-                </CardDescription>
+          <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Recent Sessions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Latest teaching activities and performance
+                  </p>
+                </div>
+                <Badge tone="default" className="text-xs">
+                  {activeTeacherSessions.slice(0, 6).length}
+                </Badge>
               </div>
-              <Badge tone="default" className="text-xs">
-                {activeTeacherSessions.slice(0, 6).length}
-              </Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
               {activeTeacherSessions.slice(0, 6).length ? (
                 activeTeacherSessions.slice(0, 6).map((s) => (
                   <button
@@ -1476,8 +1581,7 @@ export default function DashboardPage() {
                   <p className="text-sm">No sessions match your current filters.</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
         </div>
       </Drawer>
     </div>
