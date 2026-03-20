@@ -153,7 +153,6 @@ export type SessionLogPoint = {
   timestamp: string;
   on_task: number;
   sleeping: number;
-  writing: number;
   using_phone: number;
   disengaged_posture: number;
   not_visible: number;
@@ -166,7 +165,6 @@ export type SessionMetricPoint = {
   on_task_avg: number;
   phone_avg: number;
   sleeping_avg: number;
-  writing_avg: number;
   disengaged_posture_avg: number;
   not_visible_avg: number;
   engagement_score: number;
