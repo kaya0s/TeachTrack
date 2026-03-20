@@ -9,14 +9,22 @@ export function cn(...inputs: ClassValue[]) {
 export async function httpRequest(url: string, options: RequestInit = {}) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
   const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
-  
+  const authEndpoints = [
+    "/login/access-token",
+    "/login/google",
+    "/forgot-password",
+    "/verify-reset-code",
+    "/reset-password",
+  ];
+  const isAuthEndpoint = authEndpoints.some((path) => fullUrl.includes(path));
+
   const token = getToken();
   const headers = new Headers(options.headers || {});
-  
+
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  
+
   // Normalize body and set Content-Type when appropriate
   let body: any = options.body;
   if (body && !headers.has("Content-Type")) {
@@ -29,16 +37,16 @@ export async function httpRequest(url: string, options: RequestInit = {}) {
       headers.set("Content-Type", "application/json");
     }
   }
-  
+
   const response = await fetch(fullUrl, {
     ...options,
     headers,
     body,
   });
-  
+
   if (!response.ok) {
-    // If unauthorized or forbidden, clear token and redirect to login
-    if (response.status === 401 || response.status === 403) {
+    // If unauthorized or forbidden, clear token and redirect to login (except auth endpoints)
+    if ((response.status === 401 || response.status === 403) && !isAuthEndpoint) {
       clearToken();
       if (typeof window !== "undefined") {
         const loginUrl = "/login";
@@ -58,8 +66,11 @@ export async function httpRequest(url: string, options: RequestInit = {}) {
     } catch {
       errorMessage = response.statusText || errorMessage;
     }
+    if ((response.status === 401 || response.status === 403) && isAuthEndpoint) {
+      errorMessage = errorMessage === `HTTP ${response.status}` ? "Invalid username or password." : errorMessage;
+    }
     throw new Error(errorMessage);
   }
-  
+
   return response.json();
 }
