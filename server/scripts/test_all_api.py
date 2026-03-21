@@ -190,7 +190,6 @@ def main() -> None:
             json={
                 "on_task": 1,
                 "sleeping": 4,
-                "writing": 0,
                 "using_phone": 0,
                 "disengaged_posture": 0,
                 "not_visible": 0,
@@ -198,16 +197,13 @@ def main() -> None:
         )
         expect_status(r, 200, "log behavior")
 
-        # metrics/events/history/rollup
+        # metrics/history/rollup
         r = client.get(f"{ctx.base_url}/api/v1/sessions/{session_id}/metrics", headers=auth_headers)
         expect_status(r, 200, "get session metrics")
         metrics = r.json()
 
         r = client.get(f"{ctx.base_url}/api/v1/sessions/{session_id}/metrics/rollup", headers=auth_headers)
         expect_status(r, 200, "get session rollup")
-
-        r = client.get(f"{ctx.base_url}/api/v1/sessions/{session_id}/events", headers=auth_headers)
-        expect_status(r, 200, "get session events")
 
         r = client.get(f"{ctx.base_url}/api/v1/sessions/{session_id}/history", headers=auth_headers)
         expect_status(r, 200, "get session history")

@@ -13,5 +13,8 @@ ultralytics==8.3.70
 opencv-python==4.10.0.84
 python-dotenv==1.0.1
 google-auth==2.38.0
+google-api-python-client==2.161.0
+google-auth-httplib2==0.2.0
 fastapi-mail==1.4.1
 alembic==1.14.1
+google-auth-oauthlib==1.2.1

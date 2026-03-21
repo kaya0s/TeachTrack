@@ -9,7 +9,6 @@ import cv2
 import requests
 from ultralytics import YOLO
 
-
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "weights" / "Track_1.0.pt"
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
 
@@ -26,9 +25,18 @@ def normalize_api_url(raw_url: str | None) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run real-time classroom behavior detection and send logs to API.")
-    parser.add_argument("--session-id", type=int, default=1, help="Active class session ID (default: 1)")
-    parser.add_argument("--model", type=str, default=str(DEFAULT_MODEL_PATH), help="Path to YOLO model weights")
+    parser = argparse.ArgumentParser(
+        description="Run real-time classroom behavior detection and send logs to API."
+    )
+    parser.add_argument(
+        "--session-id", type=int, default=1, help="Active class session ID (default: 1)"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=str(DEFAULT_MODEL_PATH),
+        help="Path to YOLO model weights",
+    )
     parser.add_argument(
         "--api-url",
         type=str,
@@ -38,10 +46,24 @@ def parse_args() -> argparse.Namespace:
         or DEFAULT_API_BASE,
         help="API base URL, e.g. http://127.0.0.1:8000/api/v1",
     )
-    parser.add_argument("--confidence", type=float, default=0.5, help="Detection confidence threshold (default: 0.5)")
-    parser.add_argument("--interval", type=float, default=3.0, help="Seconds between API log sends (default: 3)")
-    parser.add_argument("--camera", type=int, default=0, help="Webcam index for OpenCV (default: 0)")
-    parser.add_argument("--no-window", action="store_true", help="Disable OpenCV preview window")
+    parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.5,
+        help="Detection confidence threshold (default: 0.5)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=3.0,
+        help="Seconds between API log sends (default: 3)",
+    )
+    parser.add_argument(
+        "--camera", type=int, default=0, help="Webcam index for OpenCV (default: 0)"
+    )
+    parser.add_argument(
+        "--no-window", action="store_true", help="Disable OpenCV preview window"
+    )
     return parser.parse_args()
 
 
@@ -102,7 +124,6 @@ def run_detection(
                 counts = {
                     "on_task": 0,
                     "sleeping": 0,
-                    "writing": 0,
                     "using_phone": 0,
                     "disengaged_posture": 0,
                     "not_visible": 0,
