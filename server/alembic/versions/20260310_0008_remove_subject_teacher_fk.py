@@ -8,7 +8,13 @@ Create Date: 2026-03-10 00:10:00
 from alembic import op
 import sqlalchemy as sa
 
-from migration_helpers import initial_baseline_schema_present
+
+def initial_baseline_schema_present(connection: sa.engine.Connection) -> bool:
+    insp = sa.inspect(connection)
+    if not insp.has_table("colleges"):
+        return False
+    col_names = {c["name"] for c in insp.get_columns("colleges")}
+    return "acronym" in col_names
 
 
 revision = "20260310_0008"
