@@ -26,7 +26,7 @@ The system is built using modern technologies focused on high performance and sc
 
 ## Core Features
 
-- **Real-time Detection**: Automatic classification of student behaviors (On-task, Writing, Sleeping, Phone Usage, etc.).
+- **Real-time Detection**: Automatic classification of student behaviors (On-task, Sleeping, Phone Usage, etc.).
 - **Engagement Scoring**: Proprietary weighted algorithms for calculating individual and class-wide engagement percentages.
 - **Administrative Hub**: Granular control over the academic hierarchy, teacher assignments, and system-wide audit logging.
 - **Session Summaries**: Visual analytics and historical rollups of engagement trends over time.
