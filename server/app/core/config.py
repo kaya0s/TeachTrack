@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,8 +42,34 @@ class Settings(BaseSettings):
     SERVER_CAMERA_ENABLED: bool = True
     SERVER_CAMERA_PREVIEW: bool = False
     SERVER_CAMERA_INDEX: int = 0
+    ALERT_COOLDOWN_MINUTES: int = 5
+    
+    # Engagement calculation weights (PARTIAL)
+    W_ON_TASK: float = 1.0
+    W_PHONE: float = 1.2
+    W_SLEEPING: float = 1.5
+    W_DISENGAGED_POSTURE: float = 1.0
+
+    GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE: str = ""
+    GOOGLE_DRIVE_FOLDER_ID: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _parse_debug(cls, value):
+        # Some IDEs/shells set DEBUG to non-boolean strings (e.g. "release").
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "y", "on", "debug"}:
+                return True
+            if normalized in {"0", "false", "no", "n", "off", "release", "prod", "production"}:
+                return False
+        return bool(value)
 
 
 settings = Settings()

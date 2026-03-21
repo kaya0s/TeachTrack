@@ -3,13 +3,16 @@ import uuid
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
-from app.core.config import settings
+
+from app.services.admin import settings_service
+from app.core.request_context import set_request, reset_request
 
 logger = logging.getLogger("app.request")
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        request_token = set_request(request)
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
 
@@ -25,9 +28,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 extra={"request_id": request_id},
             )
             raise
+        finally:
+            reset_request(request_token)
 
         duration_ms = (time.perf_counter() - start) * 1000
-        if settings.ENABLE_ADMIN_LOG_STREAM:
+        if settings_service.is_admin_log_stream_enabled():
             logger.info(
                 f"{request.method} {request.url.path} -> {status_code} ({duration_ms:.2f}ms)",
                 extra={"request_id": request_id},

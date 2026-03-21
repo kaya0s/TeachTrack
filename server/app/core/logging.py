@@ -41,6 +41,7 @@ def configure_logging(level: str = "INFO", enable_admin_log_stream: bool = True)
         root.removeHandler(handler)
 
     handler = logging.StreamHandler(sys.stdout)
+    handler.addFilter(RequestIdFilter())
     formatter = logging.Formatter(
         fmt="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%SZ",
