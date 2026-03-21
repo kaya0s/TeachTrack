@@ -116,7 +116,7 @@ export default function CollegesPage() {
       notify({
         tone: "danger",
         title: "Load failed",
-        description: getErrorMessage(err),
+        description: getErrorMessage(err, "Failed to load college details"),
       });
       setDetailsOpen(false);
     } finally {
@@ -135,7 +135,7 @@ export default function CollegesPage() {
       setCreateOpen(false);
       await load();
     } catch (err) {
-      setFormError(getErrorMessage(err));
+      setFormError(getErrorMessage(err, "Failed to create college"));
     } finally {
       setSubmitting(false);
     }
@@ -155,7 +155,7 @@ export default function CollegesPage() {
       setEditOpen(false);
       await load();
     } catch (err) {
-      setFormError(getErrorMessage(err));
+      setFormError(getErrorMessage(err, "Failed to update college"));
     } finally {
       setSubmitting(false);
     }
@@ -173,7 +173,7 @@ export default function CollegesPage() {
       notify({
         tone: "danger",
         title: "Delete failed",
-        description: getErrorMessage(err),
+        description: getErrorMessage(err, "Failed to delete college"),
       });
     } finally {
       setSubmitting(false);
