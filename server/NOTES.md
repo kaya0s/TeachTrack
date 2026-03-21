@@ -71,7 +71,6 @@ Relationships:
 - `timestamp` `DATETIME(timezone=True)` default `now`
 - `on_task` `INTEGER` default `0`
 - `sleeping` `INTEGER` default `0`
-- `writing` `INTEGER` default `0`
 - `using_phone` `INTEGER` default `0`
 - `disengaged_posture` `INTEGER` default `0`
 - `not_visible` `INTEGER` default `0`
@@ -102,7 +101,6 @@ Relationships:
 - `on_task_avg` `DECIMAL(5,2)` not null, default `0`
 - `phone_avg` `DECIMAL(5,2)` not null, default `0`
 - `sleeping_avg` `DECIMAL(5,2)` not null, default `0`
-- `writing_avg` `DECIMAL(5,2)` not null, default `0`
 - `disengaged_posture_avg` `DECIMAL(5,2)` not null, default `0`
 - `not_visible_avg` `DECIMAL(5,2)` not null, default `0`
 - `engagement_score` `DECIMAL(5,2)` not null, default `0`
@@ -111,18 +109,7 @@ Relationships:
 Relationships:
 - N:1 to `class_sessions`
 
-## 8) `engagement_events`
-- `id` `BIGINT` PK
-- `session_id` `INTEGER` FK -> `class_sessions.id`
-- `event_time` `DATETIME(timezone=True)` default `now`
-- `event_type` `VARCHAR(50)` not null
-- `severity` `VARCHAR(20)` not null
-- `notes` `VARCHAR(255)` nullable
-
-Relationships:
-- N:1 to `class_sessions`
-
-## 9) `session_history`
+## 8) `session_history`
 - `id` `BIGINT` PK
 - `session_id` `INTEGER` FK -> `class_sessions.id`
 - `changed_at` `DATETIME(timezone=True)` default `now`
@@ -135,7 +122,7 @@ Relationships:
 Relationships:
 - N:1 to `class_sessions`
 
-## 10) `alerts_history`
+## 9) `alerts_history`
 - `id` `BIGINT` PK
 - `alert_id` `INTEGER` FK -> `alerts.id`
 - `changed_at` `DATETIME(timezone=True)` default `now`

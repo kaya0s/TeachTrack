@@ -22,4 +22,10 @@ test_system_flow.py
 ml_engine/weights/
 trained_weights/
 runs/
+.ultralytics/
 
+#configuration files
+config/
+
+#notes
+NOTES.md
