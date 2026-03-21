@@ -2,15 +2,16 @@ from app.models.user import User
 from app.models.classroom import Subject, ClassSection
 from app.models.notification import Notification
 from app.models.audit import AuditLog
+from app.models.settings import SystemSettings
 from app.models.session import (
     ClassSession,
     BehaviorLog,
     Alert,
     SessionMetrics,
-    EngagementEvent,
     SessionHistory,
     AlertHistory,
 )
+from app.models.backup import BackupRun
 
 __all__ = [
     "User",
@@ -22,7 +23,8 @@ __all__ = [
     "BehaviorLog",
     "Alert",
     "SessionMetrics",
-    "EngagementEvent",
     "SessionHistory",
     "AlertHistory",
+    "SystemSettings",
+    "BackupRun",
 ]

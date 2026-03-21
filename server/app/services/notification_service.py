@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -6,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.notification import Notification
+from app.utils.datetime import utc_now
 
 
 def create_notification(
@@ -62,7 +62,7 @@ def mark_notification_read(db: Session, *, user_id: int, notification_id: int) -
         raise HTTPException(status_code=404, detail="Notification not found")
     if not row.is_read:
         row.is_read = True
-        row.read_at = datetime.now()
+        row.read_at = utc_now()
         db.add(row)
         db.commit()
         db.refresh(row)

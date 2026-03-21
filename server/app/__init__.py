@@ -1,0 +1,2 @@
+"""TeachTrack server application package."""
+

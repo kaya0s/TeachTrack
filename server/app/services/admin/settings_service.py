@@ -1,0 +1,232 @@
+from __future__ import annotations
+
+from copy import deepcopy
+from typing import Any
+
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
+
+from app.core.config import settings as env_settings
+from app.core.logging import configure_logging
+from app.db.database import SessionLocal
+from app.models.settings import SystemSettings
+from app.models.user import User
+from app.core import security
+from app.services import audit_service
+
+
+_DEFAULT_SETTINGS: dict[str, Any] = {
+    "detection": {
+        "detect_interval_seconds": env_settings.DETECT_INTERVAL_SECONDS,
+        "detector_heartbeat_timeout_seconds": env_settings.DETECTOR_HEARTBEAT_TIMEOUT_SECONDS,
+        "server_camera_enabled": env_settings.SERVER_CAMERA_ENABLED,
+        "server_camera_preview": env_settings.SERVER_CAMERA_PREVIEW,
+        "server_camera_index": env_settings.SERVER_CAMERA_INDEX,
+        "alert_cooldown_minutes": getattr(env_settings, "ALERT_COOLDOWN_MINUTES", 5),
+    },
+    "engagement_weights": {
+        "on_task": env_settings.W_ON_TASK,
+        "phone": env_settings.W_PHONE,
+        "sleeping": env_settings.W_SLEEPING,
+        "disengaged_posture": env_settings.W_DISENGAGED_POSTURE,
+    },
+    "admin_ops": {
+        "enable_admin_log_stream": env_settings.ENABLE_ADMIN_LOG_STREAM,
+    },
+    "security": {
+        "access_token_expire_minutes": env_settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    },
+}
+
+
+_ALLOWED_KEYS = {
+    "detection": set(_DEFAULT_SETTINGS["detection"].keys()),
+    "engagement_weights": set(_DEFAULT_SETTINGS["engagement_weights"].keys()),
+    "admin_ops": set(_DEFAULT_SETTINGS["admin_ops"].keys()),
+    "security": set(_DEFAULT_SETTINGS["security"].keys()),
+}
+
+_cached_effective: dict[str, Any] | None = None
+_last_applied_log_stream: bool | None = None
+
+
+def _integration_status() -> dict[str, bool]:
+    cloudinary_configured = bool(
+        env_settings.CLOUDINARY_CLOUD_NAME
+        and env_settings.CLOUDINARY_API_KEY
+        and env_settings.CLOUDINARY_API_SECRET
+    )
+    mail_configured = bool(
+        env_settings.MAIL_SERVER
+        and env_settings.MAIL_FROM
+        and env_settings.MAIL_USERNAME
+        and env_settings.MAIL_PASSWORD
+    )
+    return {
+        "cloudinary_configured": cloudinary_configured,
+        "mail_configured": mail_configured,
+    }
+
+
+def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in (overrides or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _sanitize_overrides(payload: dict[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for section, allowed_keys in _ALLOWED_KEYS.items():
+        if section not in payload or not isinstance(payload[section], dict):
+            continue
+        sanitized[section] = {k: payload[section][k] for k in allowed_keys if k in payload[section]}
+    return sanitized
+
+
+def _validate_effective(effective: dict[str, Any]) -> None:
+    detection = effective["detection"]
+    if not (1 <= int(detection["detect_interval_seconds"]) <= 60):
+        raise ValueError("detect_interval_seconds must be between 1 and 60.")
+    if not (5 <= int(detection["detector_heartbeat_timeout_seconds"]) <= 300):
+        raise ValueError("detector_heartbeat_timeout_seconds must be between 5 and 300.")
+    if not (0 <= int(detection["server_camera_index"]) <= 10):
+        raise ValueError("server_camera_index must be between 0 and 10.")
+    if not (1 <= int(detection["alert_cooldown_minutes"]) <= 120):
+        raise ValueError("alert_cooldown_minutes must be between 1 and 120.")
+
+    weights = effective["engagement_weights"]
+    for key in ("on_task", "phone", "sleeping", "disengaged_posture"):
+        value = float(weights[key])
+        if value < 0 or value > 5:
+            raise ValueError(f"engagement weight '{key}' must be between 0 and 5.")
+
+    admin_ops = effective["admin_ops"]
+    if not isinstance(admin_ops["enable_admin_log_stream"], bool):
+        raise ValueError("enable_admin_log_stream must be true or false.")
+
+    security = effective["security"]
+    if not (5 <= int(security["access_token_expire_minutes"]) <= 43200):
+        raise ValueError("access_token_expire_minutes must be between 5 and 43200.")
+
+
+def _apply_log_stream_setting(enabled: bool) -> None:
+    global _last_applied_log_stream
+    if _last_applied_log_stream is None or _last_applied_log_stream != enabled:
+        configure_logging(env_settings.LOG_LEVEL, enable_admin_log_stream=enabled)
+        _last_applied_log_stream = enabled
+
+
+def _get_row(db: Session) -> SystemSettings | None:
+    return db.query(SystemSettings).order_by(SystemSettings.id.asc()).first()
+
+
+def get_effective_settings(db: Session) -> dict[str, Any]:
+    row = _get_row(db)
+    overrides = row.config if row and row.config else {}
+    effective = _deep_merge(_DEFAULT_SETTINGS, overrides)
+    effective["integrations"] = _integration_status()
+    _cache_effective(effective)
+    _apply_log_stream_setting(effective["admin_ops"]["enable_admin_log_stream"])
+    return effective
+
+
+def update_settings(db: Session, payload: dict[str, Any], actor_user_id: int | None, actor_username: str | None) -> dict[str, Any]:
+    reset = bool(payload.get("reset"))
+    confirm_password = payload.pop("confirm_password", None)
+    if not confirm_password:
+        raise HTTPException(status_code=400, detail="confirm_password is required to update settings.")
+    if actor_user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid actor for settings update.")
+    actor = db.query(User).filter(User.id == actor_user_id).first()
+    if not actor or not security.verify_password(confirm_password, actor.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
+    row = _get_row(db)
+    existing_overrides = row.config if row and row.config else {}
+    if reset:
+        overrides: dict[str, Any] = {}
+    else:
+        overrides = _deep_merge(existing_overrides, _sanitize_overrides(payload))
+
+    effective = _deep_merge(_DEFAULT_SETTINGS, overrides)
+    try:
+        _validate_effective(effective)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if row is None:
+        row = SystemSettings(config=overrides, updated_by=actor_user_id)
+        db.add(row)
+    else:
+        row.config = overrides
+        row.updated_by = actor_user_id
+        db.add(row)
+
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        action="SETTINGS_UPDATE",
+        entity_type="SystemSettings",
+        entity_id=row.id if row.id else "system",
+        details={"reset": reset, "overrides": overrides},
+    )
+    db.commit()
+    db.refresh(row)
+
+    effective["integrations"] = _integration_status()
+    _cache_effective(effective)
+    _apply_log_stream_setting(effective["admin_ops"]["enable_admin_log_stream"])
+    return effective
+
+
+def _cache_effective(effective: dict[str, Any]) -> None:
+    global _cached_effective
+    _cached_effective = deepcopy(effective)
+
+
+def get_cached_effective_settings() -> dict[str, Any]:
+    global _cached_effective
+    if _cached_effective is None:
+        db = SessionLocal()
+        try:
+            _cached_effective = get_effective_settings(db)
+        except Exception:
+            _cached_effective = deepcopy(_DEFAULT_SETTINGS)
+            _cached_effective["integrations"] = _integration_status()
+            _apply_log_stream_setting(_cached_effective["admin_ops"]["enable_admin_log_stream"])
+        finally:
+            db.close()
+    return deepcopy(_cached_effective)
+
+
+def get_engagement_weights(db: Session | None = None) -> dict[str, float]:
+    if db is None:
+        return get_cached_effective_settings()["engagement_weights"]
+    return get_effective_settings(db)["engagement_weights"]
+
+
+def get_detection_settings(db: Session | None = None) -> dict[str, Any]:
+    if db is None:
+        return get_cached_effective_settings()["detection"]
+    return get_effective_settings(db)["detection"]
+
+
+def get_admin_ops_settings(db: Session | None = None) -> dict[str, Any]:
+    if db is None:
+        return get_cached_effective_settings()["admin_ops"]
+    return get_effective_settings(db)["admin_ops"]
+
+
+def get_security_settings(db: Session | None = None) -> dict[str, Any]:
+    if db is None:
+        return get_cached_effective_settings()["security"]
+    return get_effective_settings(db)["security"]
+
+
+def is_admin_log_stream_enabled() -> bool:
+    return bool(get_cached_effective_settings()["admin_ops"]["enable_admin_log_stream"])

@@ -6,16 +6,24 @@ from sqlalchemy.orm import Session
 from app.api.v1 import deps
 from app.db.database import get_db
 from app.schemas.classroom import (
+    College as CollegeSchema,
     Section as SectionSchema,
-    SectionCreate,
     Subject as SubjectSchema,
     SubjectCoverUploadResponse,
-    SubjectCreate,
     SubjectUpdate,
 )
 from app.services import classroom_service
+from app.constants import MAX_PAGE_SIZE
 
 router = APIRouter()
+
+
+@router.get("/colleges", response_model=List[CollegeSchema])
+def read_colleges(
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    return classroom_service.read_colleges(db)
 
 
 @router.get("/subjects", response_model=List[SubjectSchema])
@@ -23,19 +31,9 @@ def read_subjects(
     db: Session = Depends(get_db),
     current_user=Depends(deps.get_current_active_user),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = MAX_PAGE_SIZE,
 ) -> Any:
     return classroom_service.read_subjects(db, current_user.id, skip, limit)
-
-
-@router.post("/subjects", response_model=SubjectSchema)
-def create_subject(
-    *,
-    db: Session = Depends(get_db),
-    subject_in: SubjectCreate,
-    current_user=Depends(deps.get_current_active_user),
-) -> Any:
-    return classroom_service.create_subject(db, subject_in, current_user.id)
 
 
 @router.get("/subjects/{subject_id}", response_model=SubjectSchema)
@@ -84,16 +82,6 @@ def read_sections(
     db: Session = Depends(get_db),
     current_user=Depends(deps.get_current_active_user),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = MAX_PAGE_SIZE,
 ) -> Any:
     return classroom_service.read_sections(db, current_user.id, skip, limit)
-
-
-@router.post("/sections", response_model=SectionSchema)
-def create_section(
-    *,
-    db: Session = Depends(get_db),
-    section_in: SectionCreate,
-    current_user=Depends(deps.get_current_active_user),
-) -> Any:
-    return classroom_service.create_section(db, section_in, current_user.id)

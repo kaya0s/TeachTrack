@@ -1,10 +1,13 @@
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.classroom import Subject, ClassSection, Section, Major, College
+from app.models.classroom import College, Subject, ClassSection, Major
 
 
 class ClassroomRepository:
+    @staticmethod
+    def list_colleges(db: Session) -> list[College]:
+        return db.query(College).order_by(College.name.asc()).all()
+
     @staticmethod
     def list_subjects(db: Session, teacher_id: int, skip: int, limit: int) -> list[Subject]:
         section_subquery = (
@@ -15,14 +18,9 @@ class ClassroomRepository:
         return (
             db.query(Subject)
             .options(joinedload(Subject.sections).joinedload(ClassSection.teacher))
-            .options(joinedload(Subject.sections).joinedload(ClassSection.section).joinedload(Section.major).joinedload(Major.college))
-            .options(joinedload(Subject.teacher))
-            .filter(
-                or_(
-                    Subject.teacher_id == teacher_id,
-                    Subject.id.in_(section_subquery),
-                )
-            )
+            .options(joinedload(Subject.sections).joinedload(ClassSection.major).joinedload(Major.college))
+            .options(joinedload(Subject.college))
+            .filter(Subject.id.in_(section_subquery))
             .offset(skip)
             .limit(limit)
             .all()
@@ -30,30 +28,20 @@ class ClassroomRepository:
 
     @staticmethod
     def get_subject(db: Session, subject_id: int, teacher_id: int, with_sections: bool = True) -> Subject | None:
-        # Allow fetching a subject if the teacher owns it at the subject level
-        # OR is assigned to at least one section within it.
+        # Subject is visible to a teacher only when they are assigned to
+        # at least one section under that subject.
         section_subquery = (
             db.query(ClassSection.subject_id)
             .filter(ClassSection.teacher_id == teacher_id)
             .subquery()
         )
-        query = db.query(Subject).options(joinedload(Subject.teacher))
+        query = db.query(Subject)
         if with_sections:
             query = query.options(joinedload(Subject.sections).joinedload(ClassSection.teacher))
         return query.filter(
             Subject.id == subject_id,
-            or_(
-                Subject.teacher_id == teacher_id,
-                Subject.id.in_(section_subquery),
-            ),
+            Subject.id.in_(section_subquery),
         ).first()
-
-    @staticmethod
-    def create_subject(db: Session, subject: Subject) -> Subject:
-        db.add(subject)
-        db.commit()
-        db.refresh(subject)
-        return subject
 
     @staticmethod
     def save_subject(db: Session, subject: Subject) -> Subject:
@@ -74,26 +62,12 @@ class ClassroomRepository:
 
     @staticmethod
     def list_sections(db: Session, teacher_id: int, skip: int, limit: int) -> list[ClassSection]:
-        # Return sections where the teacher is assigned directly to the section
-        # OR where the teacher owns the parent subject.
+        # Return sections only where the teacher is assigned directly.
         return (
             db.query(ClassSection)
             .options(joinedload(ClassSection.teacher))
-            .join(Subject, ClassSection.subject_id == Subject.id)
-            .filter(
-                or_(
-                    ClassSection.teacher_id == teacher_id,
-                    Subject.teacher_id == teacher_id,
-                )
-            )
+            .filter(ClassSection.teacher_id == teacher_id)
             .offset(skip)
             .limit(limit)
             .all()
         )
-
-    @staticmethod
-    def create_section(db: Session, section: ClassSection) -> ClassSection:
-        db.add(section)
-        db.commit()
-        db.refresh(section)
-        return section

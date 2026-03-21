@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
@@ -11,7 +11,6 @@ class AlertSeverityEnum(str, Enum):
 class BehaviorLogBase(BaseModel):
     on_task: int = 0
     sleeping: int = 0
-    writing: int = 0
     using_phone: int = 0
     disengaged_posture: int = 0
     not_visible: int = 0
@@ -81,7 +80,6 @@ class SessionMetricRow(BaseModel):
     on_task_avg: float
     phone_avg: float
     sleeping_avg: float
-    writing_avg: float
     disengaged_posture_avg: float
     not_visible_avg: float
     engagement_score: float
@@ -100,17 +98,6 @@ class SessionSummary(BaseModel):
     end_time: Optional[datetime] = None
     is_active: bool
     average_engagement: float
-
-    class Config:
-        from_attributes = True
-
-class EngagementEvent(BaseModel):
-    id: int
-    session_id: int
-    event_time: datetime
-    event_type: str
-    severity: str
-    notes: Optional[str] = None
 
     class Config:
         from_attributes = True

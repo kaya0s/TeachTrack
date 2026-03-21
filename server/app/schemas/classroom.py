@@ -3,6 +3,16 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 
+# --- College ---
+class College(BaseModel):
+    id: int
+    name: str
+    acronym: Optional[str] = None
+    logo_path: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- Section ---
 class SectionBase(BaseModel):
     name: str
@@ -13,7 +23,7 @@ class SectionCreate(SectionBase):
 class Section(SectionBase):
     id: int
     subject_id: Optional[int]
-    teacher_id: int
+    teacher_id: Optional[int] = None
     teacher_username: Optional[str] = None
     college_name: Optional[str] = None
     major_name: Optional[str] = None
@@ -40,8 +50,11 @@ class SubjectUpdate(BaseModel):
 
 class Subject(SubjectBase):
     id: int
-    teacher_id: int
+    teacher_id: Optional[int] = None
     teacher_username: Optional[str] = None
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
+    college_logo_path: Optional[str] = None
     created_at: Optional[datetime]
     sections: List[Section] = Field(default_factory=list)
 

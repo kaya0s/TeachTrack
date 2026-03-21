@@ -1,10 +1,4 @@
-from app.api.v1.routers import admin_router, auth_router, users_router, classrooms_router, sessions_router, notifications_router
+"""Router package.
 
-__all__ = [
-    "admin_router",
-    "auth_router",
-    "users_router",
-    "classrooms_router",
-    "sessions_router",
-    "notifications_router",
-]
+Avoid importing router modules here; import them explicitly where needed.
+"""

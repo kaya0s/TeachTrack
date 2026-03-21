@@ -1,25 +1,34 @@
+import os
 from pathlib import Path
 import logging
 import threading
 import time
-from typing import Callable
+from typing import Any, Callable
 
 import cv2
 import numpy as np
+
+# Ultralytics (YOLO) writes a settings file on import. In restricted environments this can fail
+# if the default user config dir is not writeable, so we redirect it to a local project folder.
+if "YOLO_CONFIG_DIR" not in os.environ:
+    try:
+        yolo_config_dir = Path(__file__).resolve().parents[2] / ".ultralytics"
+        yolo_config_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["YOLO_CONFIG_DIR"] = str(yolo_config_dir)
+    except Exception:
+        # If we can't create the directory, fall back to Ultralytics defaults.
+        pass
+
 from ultralytics import YOLO
 
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.schemas.session import BehaviorLogCreate
+from app.services.admin import settings_service
 
 logger = logging.getLogger(__name__)
 
 MODEL_PATH = settings.MODEL_PATH
-DETECT_INTERVAL_SECONDS = settings.DETECT_INTERVAL_SECONDS
-DETECTOR_HEARTBEAT_TIMEOUT_SECONDS = settings.DETECTOR_HEARTBEAT_TIMEOUT_SECONDS
-SERVER_CAMERA_ENABLED = settings.SERVER_CAMERA_ENABLED
-SERVER_CAMERA_PREVIEW = settings.SERVER_CAMERA_PREVIEW
-SERVER_CAMERA_INDEX = settings.SERVER_CAMERA_INDEX
 
 _model = None
 _model_lock = threading.Lock()
@@ -38,7 +47,6 @@ def _empty_behavior_counts() -> dict[str, int]:
     return {
         "on_task": 0,
         "sleeping": 0,
-        "writing": 0,
         "using_phone": 0,
         "disengaged_posture": 0,
         "not_visible": 0,
@@ -55,6 +63,10 @@ def _normalize_behavior_label(name: str) -> str:
         "bowed_down": "disengaged_posture",
     }
     return alias_map.get(normalized, normalized)
+
+
+def _runtime_detection_settings() -> dict[str, Any]:
+    return settings_service.get_detection_settings()
 
 
 def _get_model() -> YOLO:
@@ -145,7 +157,8 @@ def detect_counts_from_image_bytes(raw: bytes) -> dict[str, int]:
 
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_log_fn: Callable) -> None:
-    if not SERVER_CAMERA_ENABLED:
+    detection_settings = _runtime_detection_settings()
+    if not detection_settings["server_camera_enabled"]:
         logger.warning(f"Detector not started for session {session_id}: SERVER_CAMERA_ENABLED=false")
         return
 
@@ -155,9 +168,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
         logger.error(f"Detector failed to load model for session {session_id}: {exc}")
         return
 
-    cap = cv2.VideoCapture(SERVER_CAMERA_INDEX)
+    cap = cv2.VideoCapture(detection_settings["server_camera_index"])
     if not cap.isOpened():
-        logger.error(f"Detector failed to open webcam index {SERVER_CAMERA_INDEX} for session {session_id}")
+        logger.error(
+            f"Detector failed to open webcam index {detection_settings['server_camera_index']} for session {session_id}"
+        )
         return
 
     last_send_time = 0.0
@@ -167,7 +182,8 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 entry = _detectors.get(session_id)
                 last_heartbeat = entry.get("last_heartbeat") if entry else None
 
-            if last_heartbeat is None or (time.time() - last_heartbeat) > DETECTOR_HEARTBEAT_TIMEOUT_SECONDS:
+            detection_settings = _runtime_detection_settings()
+            if last_heartbeat is None or (time.time() - last_heartbeat) > detection_settings["detector_heartbeat_timeout_seconds"]:
                 logger.info(f"Detector heartbeat expired for session {session_id}. Stopping.")
                 break
 
@@ -177,11 +193,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 continue
 
             current_time = time.time()
-            if current_time - last_send_time < DETECT_INTERVAL_SECONDS:
+            if current_time - last_send_time < detection_settings["detect_interval_seconds"]:
                 continue
 
             results = model(frame, verbose=False)
-            if SERVER_CAMERA_PREVIEW:
+            if detection_settings["server_camera_preview"]:
                 try:
                     annotated = results[0].plot()
                     cv2.imshow("TeachTrack Detector", annotated)
@@ -212,7 +228,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             last_send_time = current_time
     finally:
         cap.release()
-        if SERVER_CAMERA_PREVIEW:
+        if detection_settings["server_camera_preview"]:
             try:
                 cv2.destroyAllWindows()
             except Exception:
@@ -220,7 +236,8 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
 
 
 def start_webcam_detector(session_id: int, process_log_fn: Callable) -> str:
-    if not SERVER_CAMERA_ENABLED:
+    detection_settings = _runtime_detection_settings()
+    if not detection_settings["server_camera_enabled"]:
         raise ValueError("Server camera disabled by SERVER_CAMERA_ENABLED")
 
     with _detectors_lock:

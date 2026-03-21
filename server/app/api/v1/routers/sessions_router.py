@@ -9,7 +9,6 @@ from app.schemas.session import (
     Alert as AlertSchema,
     AlertHistory as AlertHistorySchema,
     BehaviorLogCreate,
-    EngagementEvent as EngagementEventSchema,
     ModelSelectionRequest,
     ModelSelectionResponse,
     Session as SessionSchema,
@@ -20,6 +19,7 @@ from app.schemas.session import (
     SessionSummary as SessionSummarySchema,
 )
 from app.services import alert_service, detector_service, engagement_service, session_lifecycle_service
+from app.constants import MAX_PAGE_SIZE
 
 router = APIRouter()
 models_router = APIRouter()
@@ -183,20 +183,10 @@ def get_session_metrics_rollup(
     return engagement_service.get_session_metrics_rollup(db, session_id, current_user.id, minutes)
 
 
-@router.get("/{session_id}/events", response_model=List[EngagementEventSchema])
-def get_session_events(
-    session_id: int,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user=Depends(deps.get_current_active_user),
-) -> Any:
-    return engagement_service.get_session_events(db, session_id, current_user.id, limit)
-
-
 @router.get("/{session_id}/history", response_model=List[SessionHistorySchema])
 def get_session_history(
     session_id: int,
-    limit: int = 100,
+    limit: int = MAX_PAGE_SIZE,
     db: Session = Depends(get_db),
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
@@ -215,7 +205,7 @@ def mark_alert_read(
 @router.get("/alerts/{alert_id}/history", response_model=List[AlertHistorySchema])
 def get_alert_history(
     alert_id: int,
-    limit: int = 100,
+    limit: int = MAX_PAGE_SIZE,
     db: Session = Depends(get_db),
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:

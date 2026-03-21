@@ -40,7 +40,6 @@ class SessionRepository:
         rows = db.query(
             BehaviorLog.session_id,
             func.sum(BehaviorLog.on_task),
-            func.sum(BehaviorLog.writing),
             func.sum(BehaviorLog.using_phone),
             func.sum(BehaviorLog.sleeping),
             func.sum(BehaviorLog.disengaged_posture),

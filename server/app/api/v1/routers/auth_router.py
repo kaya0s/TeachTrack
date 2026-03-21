@@ -13,6 +13,7 @@ from app.schemas.user import (
     VerifyCode,
 )
 from app.services import auth_service
+from app.constants import RATE_LIMIT_REQUESTS_PER_MINUTE
 
 router = APIRouter()
 

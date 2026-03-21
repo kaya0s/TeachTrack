@@ -9,14 +9,10 @@ from app.models.session import ClassSession, SessionHistory
 from app.repositories.session_repository import SessionRepository
 from app.schemas.session import SessionCreate
 from app.services import audit_service
+from app.services.admin import settings_service
+from app.utils.datetime import utc_now
 
 logger = logging.getLogger(__name__)
-
-W_ON_TASK = 1.0
-W_WRITING = 0.8
-W_PHONE = 1.2
-W_SLEEPING = 1.5
-W_DISENGAGED_POSTURE = 1.0
 
 
 def _to_float(value: Any) -> float:
@@ -33,7 +29,7 @@ def start_session(db: Session, session_in: SessionCreate, current_user) -> Class
         **session_in.dict(),
         teacher_id=current_user.id,
         is_active=True,
-        start_time=datetime.now(),
+        start_time=utc_now(),
     )
     db.add(session)
     db.commit()
@@ -67,7 +63,7 @@ def stop_session(db: Session, session_id: int, current_user, stop_detector_fn) -
 
     prev_end_time = session.end_time
     session.is_active = False
-    session.end_time = datetime.now()
+    session.end_time = utc_now()
     stop_detector_fn(session_id)
     _record_session_history(db, session, current_user.id, "END")
     audit_service.write_audit_log(
@@ -111,22 +107,21 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
 
     summaries = []
     for session in sessions:
-        stats = stats_map.get(session.id, (session.id, 0, 0, 0, 0, 0, 0))
+        stats = stats_map.get(session.id, (session.id, 0, 0, 0, 0, 0))
 
         avg_eng = 0.0
-        log_count = stats[6] or 0
+        log_count = stats[5] or 0
+        weights = settings_service.get_engagement_weights(db)
         if log_count > 0 and session.students_present > 0:
             on_task_sum = _to_float(stats[1])
-            writing_sum = _to_float(stats[2])
-            phone_sum = _to_float(stats[3])
-            sleeping_sum = _to_float(stats[4])
-            disengaged_sum = _to_float(stats[5])
+            phone_sum = _to_float(stats[2])
+            sleeping_sum = _to_float(stats[3])
+            disengaged_sum = _to_float(stats[4])
             raw_total = (
-                (W_ON_TASK * on_task_sum)
-                + (W_WRITING * writing_sum)
-                - (W_PHONE * phone_sum)
-                - (W_SLEEPING * sleeping_sum)
-                - (W_DISENGAGED_POSTURE * disengaged_sum)
+                (weights["on_task"] * on_task_sum)
+                - (weights["phone"] * phone_sum)
+                - (weights["sleeping"] * sleeping_sum)
+                - (weights["disengaged_posture"] * disengaged_sum)
             )
             avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
 

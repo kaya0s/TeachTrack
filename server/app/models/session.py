@@ -45,7 +45,6 @@ class BehaviorLog(Base):
     # Counts
     on_task = Column(Integer, default=0)
     sleeping = Column(Integer, default=0)
-    writing = Column(Integer, default=0)
     using_phone = Column(Integer, default=0)
     disengaged_posture = Column(Integer, default=0)
     not_visible = Column(Integer, default=0)
@@ -81,24 +80,11 @@ class SessionMetrics(Base):
     on_task_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     phone_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     sleeping_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
-    writing_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     disengaged_posture_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     not_visible_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
 
     engagement_score = Column(DECIMAL(5, 2), nullable=False, default=0)
     computed_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    session = relationship("ClassSession")
-
-class EngagementEvent(Base):
-    __tablename__ = "engagement_events"
-
-    id = Column(BigInteger, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"))
-    event_time = Column(DateTime(timezone=True), server_default=func.now())
-    event_type = Column(String(50), nullable=False)
-    severity = Column(String(20), nullable=False)
-    notes = Column(String(255), nullable=True)
 
     session = relationship("ClassSession")
 

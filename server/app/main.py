@@ -1,8 +1,11 @@
 import logging
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.api_core")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.routers import admin_router, auth_router, users_router, classrooms_router, sessions_router, notifications_router
+from app.api.v1.routers.admin import router as admin_router
+from app.api.v1.routers import auth_router, users_router, classrooms_router, sessions_router, notifications_router
 from app.core.config import settings
 from app.core.exceptions import unhandled_exception_handler
 from app.core.logging import RequestIdFilter, configure_logging
@@ -38,7 +41,7 @@ app.include_router(classrooms_router.router, prefix=f"{settings.API_V1_STR}/clas
 app.include_router(sessions_router.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
 app.include_router(sessions_router.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
 app.include_router(notifications_router.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
-app.include_router(admin_router.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
+app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 
 
 @app.get("/healthz")
@@ -48,4 +51,4 @@ def healthz():
 
 @app.get("/")
 def read_root():
-    return {"message": "TeachTrack API is running."}
+    return {"message": "TeachTrack API is running. Visit http://localhost:8000/docs for API documentation."}

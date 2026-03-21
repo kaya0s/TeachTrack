@@ -1,5 +1,5 @@
 
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, event
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, event
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -21,13 +21,18 @@ class User(Base):
     reset_code = Column(String(128), nullable=True)
     reset_code_expires = Column(Integer, nullable=True) # Unix timestamp
     profile_picture_url = Column(String(512), nullable=True)
+    college_id = Column(Integer, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    subjects = relationship("Subject", back_populates="teacher")
     sections = relationship("ClassSection", back_populates="teacher")
     sessions = relationship("ClassSession", back_populates="teacher")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    college = relationship("College", back_populates="teachers")
+
+    @property
+    def college_name(self) -> str | None:
+        return self.college.name if self.college else None
 
 
 def _compose_fullname(firstname: str | None, lastname: str | None) -> str | None:
