@@ -7,13 +7,31 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.classroom import ClassSection, Subject
+from app.models.classroom import Subject
 from app.repositories.classroom_repository import ClassroomRepository
-from app.schemas.classroom import SectionCreate, SubjectCreate, SubjectCoverUploadResponse, SubjectUpdate
+from app.schemas.classroom import SubjectCoverUploadResponse, SubjectUpdate
 from app.services import audit_service
+from app.utils.file import is_valid_image_extension, sanitize_filename
+from app.constants import MAX_FILE_SIZE_MB, MAX_PAGE_SIZE
+from app.validators.session import validate_subject_name
+
+
+def read_colleges(db: Session):
+    colleges = ClassroomRepository.list_colleges(db)
+    return [
+        {
+            "id": college.id,
+            "name": college.name,
+            "acronym": college.acronym,
+            "logo_path": college.logo_path,
+        }
+        for college in colleges
+    ]
 
 
 def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
+    skip = max(0, skip)
+    limit = max(1, min(limit, MAX_PAGE_SIZE))
     subjects = ClassroomRepository.list_subjects(db, teacher_id, skip, limit)
     formatted_subjects = []
     for subject in subjects:
@@ -26,14 +44,14 @@ def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
             college_name = None
             major_name = None
             
-            if section.section and section.section.major:
-                major_name = section.section.major.name
-                if section.section.major.college:
-                    college_name = section.section.major.college.name
+            if section.major:
+                major_name = section.major.name
+                if section.major.college:
+                    college_name = section.major.college.name
             
             formatted_section = {
                 "id": section.id,
-                "name": section.section.name if section.section else section.name,
+                "name": section.name,
                 "subject_id": section.subject_id,
                 "teacher_id": section.teacher_id,
                 "teacher_username": section.teacher.username if section.teacher else None,
@@ -47,8 +65,11 @@ def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
         formatted_subject = {
             "id": subject.id,
             "name": subject.name,
-            "teacher_id": subject.teacher_id,
-            "teacher_username": subject.teacher.username if subject.teacher else None,
+            "teacher_id": None,
+            "teacher_username": None,
+            "college_id": subject.college_id,
+            "college_name": subject.college.name if subject.college else None,
+            "college_logo_path": subject.college.logo_path if subject.college else None,
             "code": subject.code,
             "description": subject.description,
             "cover_image_url": subject.cover_image_url,
@@ -58,22 +79,6 @@ def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
         formatted_subjects.append(formatted_subject)
     
     return formatted_subjects
-
-
-def create_subject(db: Session, subject_in: SubjectCreate, teacher_id: int) -> Subject:
-    subject = Subject(**subject_in.dict(), teacher_id=teacher_id)
-    subject = ClassroomRepository.create_subject(db, subject)
-    audit_service.write_audit_log(
-        db,
-        actor_user_id=teacher_id,
-        actor_username=None,
-        action="TEACHER_SUBJECT_CREATE",
-        entity_type="Subject",
-        entity_id=subject.id,
-        details={"name": subject.name, "code": subject.code},
-    )
-    db.commit()
-    return subject
 
 
 def read_subject(db: Session, subject_id: int, teacher_id: int) -> Subject:
@@ -97,6 +102,10 @@ def update_subject(db: Session, subject_id: int, subject_in: SubjectUpdate, teac
     }
 
     update_data = subject_in.dict(exclude_unset=True)
+    if "name" in update_data:
+        valid, error = validate_subject_name(str(update_data.get("name") or ""))
+        if not valid:
+            raise HTTPException(status_code=400, detail=error or "Invalid subject name")
     for field, value in update_data.items():
         setattr(subject, field, value)
 
@@ -125,8 +134,10 @@ def update_subject(db: Session, subject_id: int, subject_in: SubjectUpdate, teac
 async def upload_subject_cover_image(db: Session, file: UploadFile, current_user) -> SubjectCoverUploadResponse:
     teacher_id = getattr(current_user, "id", None)
     teacher_username = getattr(current_user, "username", None)
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are allowed.")
+    
+    # Validate file extension using utility
+    if file.filename and not is_valid_image_extension(file.filename):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file type.")
 
     cloud_name = settings.CLOUDINARY_CLOUD_NAME
     api_key = settings.CLOUDINARY_API_KEY
@@ -138,8 +149,12 @@ async def upload_subject_cover_image(db: Session, file: UploadFile, current_user
         )
 
     file_bytes = await file.read()
-    if len(file_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image size exceeds 10 MB limit.")
+    file_size_mb = len(file_bytes) / (1024 * 1024)
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Image size exceeds {MAX_FILE_SIZE_MB} MB limit."
+        )
 
     timestamp = int(time.time())
     folder = f"teachtrack/teachers/{teacher_id}/subjects"
@@ -158,7 +173,7 @@ async def upload_subject_cover_image(db: Session, file: UploadFile, current_user
                 "public_id": public_id,
                 "signature": signature,
             },
-            files={"file": (file.filename or "subject-cover.jpg", file_bytes, file.content_type)},
+            files={"file": (sanitize_filename(file.filename or "subject-cover.jpg"), file_bytes, file.content_type)},
         )
 
     if response.status_code >= 400:
@@ -201,24 +216,6 @@ def read_sections_by_subject(db: Session, subject_id: int, teacher_id: int):
 
 
 def read_sections(db: Session, teacher_id: int, skip: int, limit: int):
+    skip = max(0, skip)
+    limit = max(1, min(limit, MAX_PAGE_SIZE))
     return ClassroomRepository.list_sections(db, teacher_id, skip, limit)
-
-
-def create_section(db: Session, section_in: SectionCreate, teacher_id: int) -> ClassSection:
-    subject = ClassroomRepository.get_subject(db, section_in.subject_id, teacher_id, with_sections=False)
-    if not subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
-
-    section = ClassSection(**section_in.dict(), teacher_id=teacher_id)
-    section = ClassroomRepository.create_section(db, section)
-    audit_service.write_audit_log(
-        db,
-        actor_user_id=teacher_id,
-        actor_username=None,
-        action="TEACHER_SECTION_CREATE",
-        entity_type="ClassSection",
-        entity_id=section.id,
-        details={"subject_id": section.subject_id, "name": section.name},
-    )
-    db.commit()
-    return section

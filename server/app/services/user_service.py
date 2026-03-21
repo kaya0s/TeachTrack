@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import PasswordChange, UserUpdate
 from app.services import audit_service
+from app.constants import MAX_PROFILE_PICTURE_SIZE_MB, MIN_PASSWORD_LENGTH
+from app.utils.file import is_valid_image_extension, sanitize_filename
 
 
 def update_user_me(db: Session, data: UserUpdate, current_user):
@@ -73,6 +75,8 @@ def update_user_me(db: Session, data: UserUpdate, current_user):
 async def upload_profile_picture(db: Session, file: UploadFile, current_user) -> str:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are allowed.")
+    if file.filename and not is_valid_image_extension(file.filename):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file type.")
 
     cloud_name = settings.CLOUDINARY_CLOUD_NAME
     api_key = settings.CLOUDINARY_API_KEY
@@ -84,8 +88,12 @@ async def upload_profile_picture(db: Session, file: UploadFile, current_user) ->
         )
 
     file_bytes = await file.read()
-    if len(file_bytes) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image size exceeds 5 MB limit.")
+    file_size_mb = len(file_bytes) / (1024 * 1024)
+    if file_size_mb > MAX_PROFILE_PICTURE_SIZE_MB:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image size exceeds {MAX_PROFILE_PICTURE_SIZE_MB} MB limit.",
+        )
 
     timestamp = int(time.time())
     folder = f"teachtrack/users/{current_user.id}/profile"
@@ -104,7 +112,7 @@ async def upload_profile_picture(db: Session, file: UploadFile, current_user) ->
                 "public_id": public_id,
                 "signature": signature,
             },
-            files={"file": (file.filename or "profile.jpg", file_bytes, file.content_type)},
+            files={"file": (sanitize_filename(file.filename or "profile.jpg"), file_bytes, file.content_type)},
         )
 
     if response.status_code >= 400:
@@ -143,8 +151,11 @@ async def upload_profile_picture(db: Session, file: UploadFile, current_user) ->
 
 
 def change_password_me(db: Session, data: PasswordChange, current_user):
-    if len(data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="New password must be at least 8 characters long.")
+    if len(data.new_password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters long.",
+        )
     if not security.verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect.")
 

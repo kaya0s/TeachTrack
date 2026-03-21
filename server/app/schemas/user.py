@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
+from app.constants import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
+
 # Shared properties
 class UserBase(BaseModel):
     firstname: Optional[str] = None
@@ -21,7 +23,7 @@ class UserCreate(UserBase):
     lastname: str = Field(min_length=1, max_length=100)
     age: int = Field(ge=1, le=120)
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
 
 class UserUpdate(BaseModel):
     firstname: Optional[str] = Field(default=None, min_length=1, max_length=100)
@@ -33,7 +35,7 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
 
 # Properties to return via API
 class User(UserBase):
@@ -63,7 +65,7 @@ class VerifyCode(BaseModel):
 class ResetPassword(BaseModel):
     email: EmailStr
     code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
 
 class GoogleLogin(BaseModel):
     id_token: str
