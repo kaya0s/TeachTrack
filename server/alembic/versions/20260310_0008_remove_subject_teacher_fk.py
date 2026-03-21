@@ -8,6 +8,8 @@ Create Date: 2026-03-10 00:10:00
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260310_0008"
 down_revision = "20260310_0007"
@@ -39,6 +41,15 @@ def _drop_subject_teacher_index_if_exists() -> None:
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table("subjects"):
+        return
+    subj_cols = {c["name"] for c in insp.get_columns("subjects")}
+    if "teacher_id" not in subj_cols:
+        return
     _drop_subject_teacher_fk_if_exists()
     _drop_subject_teacher_index_if_exists()
     with op.batch_alter_table("subjects") as batch_op:

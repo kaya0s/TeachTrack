@@ -7,6 +7,8 @@ Create Date: 2026-03-01 02:15:00
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260301_0003"
 down_revision = "20260228_0002"
@@ -15,6 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     # Add profile_picture_url to users table
     op.add_column("users", sa.Column("profile_picture_url", sa.String(length=512), nullable=True))
 

@@ -8,6 +8,8 @@ Create Date: 2026-03-10 00:00:01
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260310_0007"
 down_revision = "20260307_0006"
@@ -16,6 +18,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     op.add_column("users", sa.Column("college_id", sa.Integer(), nullable=True))
     op.create_index("ix_users_college_id", "users", ["college_id"], unique=False)
     op.create_foreign_key(

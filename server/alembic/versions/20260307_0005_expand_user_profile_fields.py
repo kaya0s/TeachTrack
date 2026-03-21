@@ -7,6 +7,8 @@ Create Date: 2026-03-07 00:00:00
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260307_0005"
 down_revision = "20260303_0004"
@@ -15,6 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     op.add_column("users", sa.Column("firstname", sa.String(length=100), nullable=True))
     op.add_column("users", sa.Column("lastname", sa.String(length=100), nullable=True))
     op.add_column("users", sa.Column("fullname", sa.String(length=201), nullable=True))

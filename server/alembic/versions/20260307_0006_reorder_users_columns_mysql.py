@@ -6,6 +6,8 @@ Create Date: 2026-03-07 00:00:01
 """
 from alembic import op
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260307_0006"
 down_revision = "20260307_0005"
@@ -19,6 +21,8 @@ def _is_mysql() -> bool:
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     # Column order changes are cosmetic; only run on MySQL where AFTER/FIRST is supported.
     if not _is_mysql():
         return

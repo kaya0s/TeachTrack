@@ -7,6 +7,8 @@ Create Date: 2026-03-03 00:00:00
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260303_0004"
 down_revision = "20260301_0003"
@@ -15,6 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     op.create_table(
         "audit_logs",
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),

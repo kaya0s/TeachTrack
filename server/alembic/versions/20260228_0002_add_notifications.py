@@ -7,6 +7,8 @@ Create Date: 2026-02-28 00:00:00
 from alembic import op
 import sqlalchemy as sa
 
+from migration_helpers import initial_baseline_schema_present
+
 
 revision = "20260228_0002"
 down_revision = "20260221_0001"
@@ -15,6 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if initial_baseline_schema_present(op.get_bind()):
+        return
     op.create_table(
         "notifications",
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
