@@ -3,6 +3,21 @@ DateTime _parseNotificationDateTime(String raw) {
   return parsed.isUtc ? parsed.toLocal() : parsed;
 }
 
+int _toInt(dynamic value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+bool _toBool(dynamic value, {bool fallback = false}) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final raw = value?.toString().toLowerCase().trim();
+  if (raw == 'true' || raw == '1') return true;
+  if (raw == 'false' || raw == '0') return false;
+  return fallback;
+}
+
 class TeacherNotificationModel {
   final int id;
   final String title;
@@ -25,15 +40,22 @@ class TeacherNotificationModel {
   });
 
   factory TeacherNotificationModel.fromJson(Map<String, dynamic> json) {
+    final metadata = json['metadata_json'];
+    final createdAtRaw = json['created_at'];
+    final readAtRaw = json['read_at'];
     return TeacherNotificationModel(
-      id: json['id'],
-      title: json['title'],
-      body: json['body'],
-      type: json['type'] ?? 'GENERAL',
-      metadataJson: json['metadata_json'],
-      isRead: json['is_read'] ?? false,
-      createdAt: _parseNotificationDateTime(json['created_at']),
-      readAt: json['read_at'] != null ? _parseNotificationDateTime(json['read_at']) : null,
+      id: _toInt(json['id']),
+      title: (json['title'] ?? '').toString(),
+      body: (json['body'] ?? '').toString(),
+      type: (json['type'] ?? 'GENERAL').toString(),
+      metadataJson: metadata?.toString(),
+      isRead: _toBool(json['is_read']),
+      createdAt: createdAtRaw != null
+          ? _parseNotificationDateTime(createdAtRaw.toString())
+          : DateTime.now(),
+      readAt: readAtRaw != null
+          ? _parseNotificationDateTime(readAtRaw.toString())
+          : null,
     );
   }
 }
@@ -49,13 +71,23 @@ class TeacherNotificationsResponseModel {
     required this.items,
   });
 
-  factory TeacherNotificationsResponseModel.fromJson(Map<String, dynamic> json) {
+  factory TeacherNotificationsResponseModel.fromJson(
+      Map<String, dynamic> json) {
+    final rawItems = (json['items'] as List? ?? []);
+    final items = <TeacherNotificationModel>[];
+    for (final raw in rawItems) {
+      if (raw is! Map<String, dynamic>) continue;
+      try {
+        items.add(TeacherNotificationModel.fromJson(raw));
+      } catch (_) {
+        // Skip malformed rows so one bad notification doesn't hide the whole feed.
+      }
+    }
+
     return TeacherNotificationsResponseModel(
-      total: json['total'] ?? 0,
-      unread: json['unread'] ?? 0,
-      items: (json['items'] as List? ?? [])
-          .map((item) => TeacherNotificationModel.fromJson(item as Map<String, dynamic>))
-          .toList(),
+      total: _toInt(json['total']),
+      unread: _toInt(json['unread']),
+      items: items,
     );
   }
 }

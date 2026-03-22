@@ -29,7 +29,8 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final data = await _repository.getNotifications(unreadOnly: _showUnreadOnly);
+      final data =
+          await _repository.getNotifications(unreadOnly: _showUnreadOnly);
       _items = data.items;
       _unreadCount = data.unread;
       _error = null;
@@ -97,5 +98,3 @@ class NotificationProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-
-

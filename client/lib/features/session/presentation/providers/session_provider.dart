@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
+import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/session/data/repositories/session_repository.dart';
 import 'dart:async';
 import 'package:teachtrack/core/services/foreground_session_service.dart';
@@ -240,5 +240,3 @@ class SessionProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-
-

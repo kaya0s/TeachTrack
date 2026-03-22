@@ -1,5 +1,6 @@
 import 'package:teachtrack/core/network/api_client.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
+import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
+import 'package:teachtrack/features/session/domain/models/session_models.dart';
 
 class SessionRepository {
   final ApiClient _apiClient;
@@ -19,18 +20,28 @@ class SessionRepository {
         'students_present': studentsPresent,
       },
     );
-    return SessionModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid session response');
+    }
+    return SessionModel.fromJson(data);
   }
 
   Future<SessionModel> stopSession(int sessionId) async {
     final response = await _apiClient.post('/sessions/$sessionId/stop');
-    return SessionModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid session response');
+    }
+    return SessionModel.fromJson(data);
   }
 
   Future<SessionModel?> getActiveSession() async {
     try {
       final response = await _apiClient.get('/sessions/active');
-      return SessionModel.fromJson(response.data);
+      final data = response.data;
+      if (data == null || data is! Map<String, dynamic>) return null;
+      return SessionModel.fromJson(data);
     } catch (e) {
       return null;
     }
@@ -38,7 +49,11 @@ class SessionRepository {
 
   Future<SessionMetricsModel> getSessionMetrics(int sessionId) async {
     final response = await _apiClient.get('/sessions/$sessionId/metrics');
-    return SessionMetricsModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid metrics response');
+    }
+    return SessionMetricsModel.fromJson(data);
   }
 
   Future<List<SessionSummaryModel>> getSessionHistory(
@@ -50,8 +65,11 @@ class SessionRepository {
         'limit': limit,
       },
     );
-    return (response.data as List)
-        .map((e) => SessionSummaryModel.fromJson(e))
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(SessionSummaryModel.fromJson)
         .toList();
   }
 
@@ -69,7 +87,11 @@ class SessionRepository {
 
   Future<MlModelSelectionModel> getAvailableModels() async {
     final response = await _apiClient.get('/models');
-    return MlModelSelectionModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid models response');
+    }
+    return MlModelSelectionModel.fromJson(data);
   }
 
   Future<MlModelSelectionModel> selectModel(String fileName) async {
@@ -77,7 +99,11 @@ class SessionRepository {
       '/models/select',
       data: {'file_name': fileName},
     );
-    return MlModelSelectionModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid model selection response');
+    }
+    return MlModelSelectionModel.fromJson(data);
   }
 }
 
