@@ -1,27 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:teachtrack/features/auth/presentation/providers/auth_provider.dart';
-import 'package:teachtrack/core/theme/theme_provider.dart';
-import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
-import 'package:teachtrack/features/classroom/presentation/screens/subject_details_screen.dart';
-import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
-import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
 import 'package:teachtrack/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:teachtrack/features/notifications/presentation/screens/notifications_screen.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
-import 'package:teachtrack/core/config/env_config.dart';
+import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
+import 'package:teachtrack/core/providers/navigation_provider.dart';
+import 'package:teachtrack/core/theme/theme_provider.dart';
 
-part 'dashboard_classes_tab.dart';
-part 'dashboard_active_sessions_tab.dart';
-part 'dashboard_settings_tab.dart';
-
+// Tab screens
+import 'home_tab.dart';
+import 'classes_tab.dart';
+import 'active_sessions_tab.dart';
+import 'notifications_tab.dart';
+import 'account_tab.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -31,177 +22,472 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _currentIndex = 1; // Default to Active Sessions
+  // Index mapping: 0=Home, 1=Classes, 2=ActiveSessions, 3=Notifications, 4=Account
+  bool _didInitialSessionCheck = false;
 
-  late final List<Widget> _pages;
+
+  static const List<Widget> _pages = [
+    HomeTab(),
+    ClassesTab(),
+    ActiveSessionsTab(),
+    NotificationsTab(),
+    AccountTab(),
+  ];
+
+  static const List<String> _pageTitles = [
+    'Home',
+    'Classes',
+    'Active Sessions',
+    'Notifications',
+    'Account',
+  ];
 
   @override
-  void initState() {
-    super.initState();
-    _pages = [
-      const _ClassesTab(),
-      const _ActiveSessionsTab(),
-      const _MachineLearningSettingsTab(),
-    ];
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInitialSessionCheck) {
+      final session = Provider.of<SessionProvider>(context);
+      if (!session.isLoading) {
+        _didInitialSessionCheck = true;
+        if (session.activeSession != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.read<NavigationProvider>().setIndex(2);
+            }
+          });
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final notifications = context.watch<NotificationProvider>();
-    final user = auth.user;
-    final username = user?.username.trim() ?? '';
-    final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
-    final hasProfileImage = auth.profileImagePath != null &&
-        File(auth.profileImagePath!).existsSync();
+    final nav = context.watch<NavigationProvider>();
+    // final session = context.watch<SessionProvider>(); // We check in didChangeDependencies
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                'assets/images/ml_bg.png',
-                height: 28,
-                width: 28,
-                fit: BoxFit.cover,
+                'assets/images/logo.png', // Assuming logo.png is the brand logo
+                height: 32,
+                width: 32,
+                errorBuilder: (context, error, stackTrace) => const Icon(Icons.school_rounded, color: Color(0xFF10B981), size: 32),
               ),
             ),
-            const SizedBox(width: 10),
-            const Text("TeachTrack"),
+            const SizedBox(width: 12),
+            const Text(
+              "TeachTrack",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                letterSpacing: -0.5,
+              ),
+            ),
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 2),
-            child: IconButton(
-              tooltip: "Notifications",
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationsScreen(),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              final isDark = themeProvider.isDarkMode;
+              return IconButton(
+                onPressed: () => themeProvider.toggleTheme(!isDark),
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, anim) => RotationTransition(
+                    turns: anim,
+                    child: FadeTransition(opacity: anim, child: child),
                   ),
-                );
-              },
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.notifications_none_rounded),
-                  if (notifications.unreadCount > 0)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.error,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 14),
-                        child: Text(
-                          notifications.unreadCount > 9 ? '9+' : '${notifications.unreadCount}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onError,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                  child: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    key: ValueKey(isDark),
+                  ),
+                ),
+                tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: IndexedStack(
+        index: nav.currentIndex,
+        children: _pages,
+      ),
+      // No floatingActionButton here — we use a custom bottom bar
+      bottomNavigationBar: _CustomBottomNav(
+        currentIndex: nav.currentIndex,
+        onTap: (index) => nav.setIndex(index),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Custom Bottom Nav
+// ---------------------------------------------------------------------------
+
+class _CustomBottomNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _CustomBottomNav({required this.currentIndex, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = theme.cardColor;
+    final activeColor = theme.colorScheme.primary;
+    final inactiveColor = theme.colorScheme.onSurface.withOpacity(0.38);
+
+    final session = context.watch<SessionProvider>();
+    final hasActiveSession = session.activeSession != null;
+
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: SizedBox(
+        height: 95,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomCenter,
+          children: [
+            // Pill nav bar
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              top: 15, // lowered slightly to make room for FAB label if needed
+              child: Container(
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.dividerColor.withValues(alpha: 0.08),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _NavItem(
+                        index: 0,
+                        currentIndex: currentIndex,
+                        icon: Icons.home_outlined,
+                        activeIcon: Icons.home_rounded,
+                        label: 'Home',
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                        onTap: onTap,
                       ),
                     ),
-                ],
+                    Expanded(
+                      child: _NavItem(
+                        index: 1,
+                        currentIndex: currentIndex,
+                        icon: Icons.class_outlined,
+                        activeIcon: Icons.class_rounded,
+                        label: 'Classes',
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                        onTap: onTap,
+                      ),
+                    ),
+
+                    // Center gap for floating button
+                    const SizedBox(width: 80),
+
+                    Expanded(
+                      child: _NavItem(
+                        index: 3,
+                        currentIndex: currentIndex,
+                        icon: Icons.notifications_none_rounded,
+                        activeIcon: Icons.notifications_rounded,
+                        label: 'Notifications',
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                        onTap: onTap,
+                      ),
+                    ),
+                    Expanded(
+                      child: _NavItem(
+                        index: 4,
+                        currentIndex: currentIndex,
+                        icon: Icons.account_circle_outlined,
+                        activeIcon: Icons.account_circle_rounded,
+                        label: 'Account',
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                        onTap: onTap,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              tooltip: "Profile",
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ProfileScreen(),
-                  ),
-                );
-              },
-              icon: CircleAvatar(
-                radius: 16,
-                backgroundColor:
-                    Theme.of(context).colorScheme.primary.withOpacity(0.14),
-                backgroundImage: (user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty)
-                    ? NetworkImage(user.profilePictureUrl!)
-                    : (hasProfileImage
-                        ? FileImage(File(auth.profileImagePath!))
-                        : null) as ImageProvider?,
-                child: (user?.profilePictureUrl != null && user!.profilePictureUrl!.isNotEmpty) || hasProfileImage
-                    ? null
-                    : Text(
-                        initial,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
+
+            // Floating center button — overlaps the pill
+            Positioned(
+              bottom: 2,
+              child: GestureDetector(
+                onTap: () => onTap(2),
+                child: _FloatingCenterButton(
+                  isActive: currentIndex == 2,
+                  hasLiveSession: hasActiveSession,
+                ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Individual nav item
+// ---------------------------------------------------------------------------
+
+class _NavItem extends StatelessWidget {
+  final int index;
+  final int currentIndex;
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final Color activeColor;
+  final Color inactiveColor;
+  final ValueChanged<int> onTap;
+
+  const _NavItem({
+    required this.index,
+    required this.currentIndex,
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = currentIndex == index;
+    return InkWell(
+      onTap: () => onTap(index),
+      borderRadius: BorderRadius.circular(28),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Icon(
+              isSelected ? activeIcon : icon,
+              key: ValueKey(isSelected),
+              color: isSelected ? activeColor : inactiveColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 3),
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+              color: isSelected ? activeColor : inactiveColor,
+            ),
+            child: Text(label),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Floating center circle button
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Floating center circle button — green thin-border style
+// ---------------------------------------------------------------------------
+
+class _FloatingCenterButton extends StatefulWidget {
+  final bool isActive;
+  final bool hasLiveSession;
+
+  const _FloatingCenterButton({
+    required this.isActive,
+    required this.hasLiveSession,
+  });
+
+  @override
+  State<_FloatingCenterButton> createState() => _FloatingCenterButtonState();
+}
+
+class _FloatingCenterButtonState extends State<_FloatingCenterButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  // Modern Green palette
+  static const _primaryGreen = Color(0xFF10B981); // Emerald 500
+  static const _borderGreen = Color(0xFF059669); // Emerald 600
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1800),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    if (widget.hasLiveSession) _pulseController.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_FloatingCenterButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hasLiveSession && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (!widget.hasLiveSession && _pulseController.isAnimating) {
+      _pulseController..stop()..reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final showGreen = widget.isActive || widget.hasLiveSession;
+    final baseColor = showGreen ? _primaryGreen : (isDark ? const Color(0xFF333333) : const Color(0xFFE5E7EB));
+    final iconColor = showGreen ? Colors.white : (isDark ? Colors.white70 : Colors.black54);
+    final shadow = showGreen ? _primaryGreen.withOpacity(0.4) : Colors.black.withOpacity(0.05);
+
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) => Transform.scale(
+        scale: widget.hasLiveSession ? _pulseAnimation.value : 1.0,
+        child: child,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              // Outer Ring
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                  boxShadow: [
+                    BoxShadow(color: shadow, blurRadius: 12, offset: const Offset(0, 6)),
+                  ],
+                  border: Border.all(
+                    color: showGreen ? _borderGreen : theme.dividerColor.withOpacity(0.1),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              // Main Button
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: widget.isActive ? 54 : 50,
+                height: widget.isActive ? 54 : 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: showGreen 
+                    ? const LinearGradient(colors: [_primaryGreen, _borderGreen], begin: Alignment.topLeft, end: Alignment.bottomRight)
+                    : null,
+                  color: showGreen ? null : baseColor,
+                ),
+                child: Icon(
+                  Icons.sensors_rounded,
+                  color: iconColor,
+                  size: 26,
+                ),
+              ),
+              // Live Badge
+              if (widget.hasLiveSession)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: isDark ? const Color(0xFF1A1A1A) : Colors.white, width: 2),
+                    ),
+                    child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.hasLiveSession ? 'Monitoring...' : 'Monitor Behavior',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+              color: showGreen ? (isDark ? _primaryGreen : _borderGreen) : theme.hintColor,
             ),
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
-              type: BottomNavigationBarType.fixed,
-              showSelectedLabels: true,
-              showUnselectedLabels: true,
-              selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.color
-                  ?.withOpacity(0.6),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.class_outlined),
-                  activeIcon: Icon(Icons.class_),
-                  label: 'Classes',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.play_circle_outline),
-                  activeIcon: Icon(Icons.play_circle_fill),
-                  label: 'Active Sessions',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.tune_outlined),
-                  activeIcon: Icon(Icons.tune),
-                  label: 'Settings',
-                ),
-              ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AppBar widgets
+// ---------------------------------------------------------------------------
+
+
+
+class _ProfileIconButton extends StatelessWidget {
+  final AuthProvider auth;
+  const _ProfileIconButton({required this.auth});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = auth.user;
+    final initial = user?.firstname?.isNotEmpty == true
+        ? user!.firstname![0].toUpperCase()
+        : '?';
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: IconButton(
+        tooltip: "Profile",
+        onPressed: () {},
+        icon: CircleAvatar(
+          radius: 16,
+          backgroundColor:
+              Theme.of(context).colorScheme.primary.withOpacity(0.14),
+          child: Text(
+            initial,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
             ),
           ),
         ),
@@ -209,4 +495,3 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
-
