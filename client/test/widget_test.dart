@@ -20,9 +20,11 @@ void main() {
     await di.init();
   });
 
-  testWidgets('App smoke test - verifies login screen shows', (WidgetTester tester) async {
+  testWidgets('App smoke test - verifies login screen shows',
+      (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(TeachTrackApp(navigatorKey: GlobalKey<NavigatorState>()));
+    await tester
+        .pumpWidget(TeachTrackApp(navigatorKey: GlobalKey<NavigatorState>()));
     await tester.pump(const Duration(milliseconds: 1400));
 
     // Verify that our login screen text is present.

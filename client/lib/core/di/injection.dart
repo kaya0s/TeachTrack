@@ -5,6 +5,7 @@ import 'package:teachtrack/features/auth/data/repositories/auth_repository.dart'
 import 'package:teachtrack/features/classroom/data/repositories/classroom_repository.dart';
 import 'package:teachtrack/features/notifications/data/repositories/notification_repository.dart';
 import 'package:teachtrack/features/session/data/repositories/session_repository.dart';
+import 'package:teachtrack/app/bootstrap.dart' show appNavigatorKey;
 
 final sl = GetIt.instance; // sl: Service Locator
 
@@ -17,6 +18,8 @@ Future<void> init() async {
 
   // Core
   sl.registerLazySingleton(() => const FlutterSecureStorage());
-  sl.registerLazySingleton(() => ApiClient(sl()));
+  // Pass the global navigatorKey so AuthInterceptor can auto-redirect on 401
+  sl.registerLazySingleton<ApiClient>(
+    () => ApiClient(sl(), navigatorKey: appNavigatorKey),
+  );
 }
-

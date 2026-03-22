@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
+import 'package:teachtrack/features/session/domain/models/session_models.dart';
 
 const String kForegroundSessionStartMsKey = 'sessionStartMs';
 const String kForegroundSessionEngagementKey = 'engagementPercent';
@@ -69,7 +69,8 @@ class ForegroundSessionService {
       });
     }
 
-    final notificationText = _buildNotificationText(session.startTime, engagement);
+    final notificationText =
+        _buildNotificationText(session.startTime, engagement);
     final notificationRoute = _buildNotificationRoute(session.id);
     const notificationButtons = [
       NotificationButton(id: kForegroundStopActionId, text: 'Stop Session'),
@@ -105,7 +106,8 @@ class ForegroundSessionService {
     return '/monitoring?sessionId=$sessionId';
   }
 
-  static String _buildNotificationText(DateTime startTime, int engagementPercent) {
+  static String _buildNotificationText(
+      DateTime startTime, int engagementPercent) {
     final elapsed = DateTime.now().difference(startTime);
     final formattedElapsed = _formatElapsed(elapsed);
     return 'Elapsed $formattedElapsed • Engagement $engagementPercent%';
@@ -140,23 +142,27 @@ class SessionTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    final startMs = await FlutterForegroundTask.getData<int>(key: kForegroundSessionStartMsKey);
+    final startMs = await FlutterForegroundTask.getData<int>(
+        key: kForegroundSessionStartMsKey);
     if (startMs != null) {
       _startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
     } else {
       _startTime = timestamp;
     }
-    final engagement = await FlutterForegroundTask.getData<int>(key: kForegroundSessionEngagementKey);
+    final engagement = await FlutterForegroundTask.getData<int>(
+        key: kForegroundSessionEngagementKey);
     if (engagement != null) {
       _engagementPercent = engagement;
     }
-    _sessionId = await FlutterForegroundTask.getData<int>(key: kForegroundSessionIdKey);
+    _sessionId =
+        await FlutterForegroundTask.getData<int>(key: kForegroundSessionIdKey);
     await _updateNotification();
   }
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp) async {
-    final engagement = await FlutterForegroundTask.getData<int>(key: kForegroundSessionEngagementKey);
+    final engagement = await FlutterForegroundTask.getData<int>(
+        key: kForegroundSessionEngagementKey);
     if (engagement != null) {
       _engagementPercent = engagement;
     }
@@ -203,9 +209,11 @@ class SessionTaskHandler extends TaskHandler {
     final startTime = _startTime ?? DateTime.now();
     final elapsed = DateTime.now().difference(startTime);
     final formattedElapsed = ForegroundSessionService._formatElapsed(elapsed);
-    final notificationText = 'Elapsed $formattedElapsed • Engagement $_engagementPercent%';
-    final notificationRoute =
-        _sessionId == null ? '/' : ForegroundSessionService._buildNotificationRoute(_sessionId!);
+    final notificationText =
+        'Elapsed $formattedElapsed • Engagement $_engagementPercent%';
+    final notificationRoute = _sessionId == null
+        ? '/'
+        : ForegroundSessionService._buildNotificationRoute(_sessionId!);
     await FlutterForegroundTask.updateService(
       notificationTitle: 'Session in progress',
       notificationText: notificationText,
@@ -216,5 +224,3 @@ class SessionTaskHandler extends TaskHandler {
     );
   }
 }
-
-

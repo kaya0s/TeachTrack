@@ -6,7 +6,8 @@
     <application
         android:label="Teach Track"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:forceDarkAllowed="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

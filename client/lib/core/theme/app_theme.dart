@@ -3,19 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // shadcn/ui neutral palette
-  static const Color _lightBackground = Color(0xFFE2E3E6);
+  static const Color _lightBackground = Color(0xFFF9FAFB);
   static const Color _lightSurface = Color(0xFFFFFFFF);
-  static const Color _lightSurfaceAlt = Color(0xFFF5F5F5);
+  static const Color _lightSurfaceAlt = Color(0xFFF3F4F6);
   static const Color _lightText = Color(0xFF0E0F12);
   static const Color _lightMuted = Color(0xFF737373);
   static const Color _lightBorder = Color(0xFFE5E5E5);
 
-  static const Color _darkBackground = Color(0xFF0E0F12);
-  static const Color _darkSurface = Color(0xFF1A1D23);
-  static const Color _darkSurfaceAlt = Color(0xFF232831);
-  static const Color _darkText = Color(0xFFE2E3E6);
-  static const Color _darkMuted = Color(0xFFADB3BE);
-  static const Color _darkBorder = Color(0xFF343A45);
+  static const Color _darkBackground = Color(0xFF09090B);
+  static const Color _darkSurface = Color(0xFF18181B);
+  static const Color _darkSurfaceAlt = Color(0xFF27272A);
+  static const Color _darkText = Color(0xFFFAFAFA);
+  static const Color _darkMuted = Color(0xFFA1A1AA);
+  static const Color _darkBorder = Color(0xFF27272A);
 
   static const Color _error = Color(0xFFEF4444);
 
@@ -46,6 +46,9 @@ class AppTheme {
         onError: Colors.white,
         surface: surface,
         onSurface: text,
+        surfaceContainerHighest: isDark ? _darkSurfaceAlt : _lightSurfaceAlt,
+        surfaceVariant: isDark ? _darkSurfaceAlt : _lightSurfaceAlt,
+        outline: border,
       ),
       scaffoldBackgroundColor: background,
       appBarTheme: AppBarTheme(

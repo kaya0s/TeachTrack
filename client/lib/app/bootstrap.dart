@@ -12,57 +12,81 @@ import 'package:teachtrack/features/auth/presentation/providers/auth_provider.da
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
 import 'package:teachtrack/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
+import 'package:teachtrack/core/providers/navigation_provider.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> bootstrap() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterForegroundTask.initCommunicationPort();
-  await ForegroundSessionService.initialize();
-
   try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint("Firebase initialization failed: $e");
-  }
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterForegroundTask.initCommunicationPort();
 
-  try {
-    await dotenv.load(fileName: ".env");
-  } catch (e) {
-    debugPrint("Failed to load .env: $e");
-  }
+    try {
+      await ForegroundSessionService.initialize();
+    } catch (e) {
+      debugPrint("ForegroundSessionService initialization failed: $e");
+    }
 
-  try {
-    await di.init();
-  } catch (e) {
-    debugPrint("Dependency injection failed: $e");
-  }
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint("Firebase initialization failed: $e");
+    }
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider(di.sl(), di.sl())..checkAuth(),
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      debugPrint("Failed to load .env: $e");
+    }
+
+    try {
+      await di.init();
+    } catch (e) {
+      debugPrint("Dependency injection failed: $e");
+    }
+
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => AuthProvider(di.sl(), di.sl())..checkAuth(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => ClassroomProvider(di.sl()),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => SessionProvider(di.sl())..checkActiveSession(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => NotificationProvider(di.sl())
+              ..load(silent: true)
+              ..startBackgroundPolling(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => NavigationProvider(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => ThemeProvider(storage: di.sl()),
+          ),
+        ],
+        child: ForegroundTaskListener(
+          navigatorKey: appNavigatorKey,
+          child: TeachTrackApp(navigatorKey: appNavigatorKey),
         ),
-        ChangeNotifierProvider(
-          create: (_) => ClassroomProvider(di.sl()),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => SessionProvider(di.sl())..checkActiveSession(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => NotificationProvider(di.sl())
-            ..load(silent: true)
-            ..startBackgroundPolling(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider(),
-        ),
-      ],
-      child: ForegroundTaskListener(
-        navigatorKey: appNavigatorKey,
-        child: TeachTrackApp(navigatorKey: appNavigatorKey),
       ),
-    ),
-  );
+    );
+  } catch (e, stack) {
+    debugPrint("Critical bootstrap error: $e");
+    debugPrint(stack.toString());
+    // Still try to run the app, maybe it can recover or show an error screen
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text("App failed to start: $e"),
+          ),
+        ),
+      ),
+    );
+  }
 }

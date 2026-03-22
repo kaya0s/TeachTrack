@@ -40,13 +40,15 @@ class _ForegroundTaskListenerState extends State<ForegroundTaskListener> {
       session.stopServerDetector();
       session.stopSession();
       ForegroundSessionService.stop();
-      widget.navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+      widget.navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil('/', (route) => false);
       return;
     }
     if (action == 'open_session') {
       final sessionId = data['sessionId'];
       if (sessionId is int) {
-        widget.navigatorKey.currentState?.pushNamed('/monitoring?sessionId=$sessionId');
+        widget.navigatorKey.currentState
+            ?.pushNamed('/monitoring?sessionId=$sessionId');
       }
     }
   }
@@ -54,4 +56,3 @@ class _ForegroundTaskListenerState extends State<ForegroundTaskListener> {
   @override
   Widget build(BuildContext context) => widget.child;
 }
-

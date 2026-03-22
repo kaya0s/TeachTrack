@@ -24,6 +24,8 @@ dependencies:
   fluttertoast: ^9.0.0
   flutter_foreground_task: ^9.2.0
   image_picker: ^1.1.2
+  pdf: ^3.10.8
+  printing: ^5.12.0
 
 dev_dependencies:
   flutter_test:
@@ -34,9 +36,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/ml_bg.png"
+  image_path: "assets/images/logo.png"
   adaptive_icon_background: "#1A237E"
-  adaptive_icon_foreground: "assets/images/ml_bg.png"
+  adaptive_icon_foreground: "assets/images/logo.png"
   min_sdk_android: 21
 
 flutter:

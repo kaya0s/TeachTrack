@@ -12,7 +12,8 @@ class SplashGate extends StatefulWidget {
   State<SplashGate> createState() => _SplashGateState();
 }
 
-class _SplashGateState extends State<SplashGate> with SingleTickerProviderStateMixin {
+class _SplashGateState extends State<SplashGate>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _fade;
@@ -83,7 +84,7 @@ class _SplashGateState extends State<SplashGate> with SingleTickerProviderStateM
                       ClipRRect(
                         borderRadius: BorderRadius.circular(18),
                         child: Image.asset(
-                          'assets/images/ml_bg.png',
+                          'assets/images/logo.png',
                           height: 96,
                           width: 96,
                           fit: BoxFit.cover,
@@ -92,10 +93,11 @@ class _SplashGateState extends State<SplashGate> with SingleTickerProviderStateM
                       const SizedBox(height: 16),
                       Text(
                         "TeachTrack",
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.6,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.6,
+                                ),
                       ),
                     ],
                   ),
@@ -105,9 +107,10 @@ class _SplashGateState extends State<SplashGate> with SingleTickerProviderStateM
           );
         }
 
-        return auth.isAuthenticated ? const DashboardScreen() : const LoginScreen();
+        return auth.isAuthenticated
+            ? const DashboardScreen()
+            : const LoginScreen();
       },
     );
   }
 }
-

@@ -53,10 +53,6 @@
     text-wrap: balance;
   }
 
-  .vertical-rl {
-    writing-mode: vertical-rl;
-  }
-
   .japanese-grid {
     background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
     background-size: 40px 40px;
