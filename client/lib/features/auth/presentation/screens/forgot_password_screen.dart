@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -50,7 +49,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
 
     setState(() => _isLoading = true);
-    final success = await context.read<AuthProvider>().verifyResetCode(email, code);
+    final success =
+        await context.read<AuthProvider>().verifyResetCode(email, code);
     setState(() => _isLoading = false);
 
     if (success) {
@@ -77,14 +77,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
 
     setState(() => _isLoading = true);
-    final success = await context.read<AuthProvider>().resetPassword(email, code, password);
+    final success =
+        await context.read<AuthProvider>().resetPassword(email, code, password);
     setState(() => _isLoading = false);
 
     if (success) {
       _showSuccess("Password reset successful. You can now login.");
       Navigator.pop(context);
     } else {
-      _showError(context.read<AuthProvider>().error ?? "Failed to reset password");
+      _showError(
+          context.read<AuthProvider>().error ?? "Failed to reset password");
     }
   }
 
@@ -123,8 +125,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ? "Verify Code"
                         : "Reset Password",
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -134,7 +136,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ? "Enter the 6-digit code sent to ${_emailController.text}"
                         : "Create a new secure password for your account",
                 style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                  color: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.color
+                      ?.withOpacity(0.6),
                   fontSize: 16,
                 ),
               ),
@@ -161,7 +167,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   keyboardType: TextInputType.number,
                   maxLength: 6,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 24,
+                      letterSpacing: 8,
+                      fontWeight: FontWeight.bold),
                   decoration: const InputDecoration(
                     labelText: "Verification Code",
                     counterText: "",
@@ -190,9 +199,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                 ),
@@ -220,4 +232,3 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
-

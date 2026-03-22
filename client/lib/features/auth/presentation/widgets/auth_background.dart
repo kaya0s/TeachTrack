@@ -54,7 +54,8 @@ class AuthBackground extends StatelessWidget {
             elevation: 0,
             leading: showBackButton
                 ? IconButton(
-                    icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
+                    icon: Icon(Icons.arrow_back,
+                        color: isDark ? Colors.white : Colors.black87),
                     onPressed: () => Navigator.pop(context),
                   )
                 : null,
@@ -63,8 +64,12 @@ class AuthBackground extends StatelessWidget {
                 builder: (context, themeProvider, child) {
                   return IconButton(
                     icon: Icon(
-                      themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                      color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
+                      themeProvider.isDarkMode
+                          ? Icons.light_mode
+                          : Icons.dark_mode,
+                      color: themeProvider.isDarkMode
+                          ? Colors.white
+                          : Colors.black87,
                     ),
                     onPressed: () {
                       themeProvider.toggleTheme(!themeProvider.isDarkMode);
@@ -81,4 +86,3 @@ class AuthBackground extends StatelessWidget {
     );
   }
 }
-

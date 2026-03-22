@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:teachtrack/core/auth/session_token_store.dart';
 
 import 'package:teachtrack/features/auth/domain/models/user_model.dart';
 import 'package:teachtrack/features/auth/data/repositories/auth_repository.dart';
@@ -10,6 +11,10 @@ import 'package:teachtrack/core/network/api_client.dart';
 enum AuthStatus { authenticated, unauthenticated, authenticating, initial }
 
 class AuthProvider extends ChangeNotifier {
+  static const String _tokenKey = 'access_token';
+  static const String _rememberMeKey = 'remember_me';
+  static const String _rememberedEmailKey = 'remembered_email';
+
   final AuthRepository _authRepository;
   final FlutterSecureStorage _storage;
 
@@ -17,6 +22,8 @@ class AuthProvider extends ChangeNotifier {
   AuthStatus _status = AuthStatus.initial;
   String? _error;
   String? _profileImagePath;
+  bool _rememberMe = true;
+  String? _rememberedEmail;
 
   AuthProvider(this._authRepository, this._storage);
 
@@ -25,6 +32,9 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   String? get profileImagePath => _profileImagePath;
+  bool get rememberMe => _rememberMe;
+  String? get rememberedEmail => _rememberedEmail;
+  bool get isLoading => _status == AuthStatus.authenticating;
 
   String _profileImageStorageKey(int userId) => 'profile_image_path_$userId';
 
@@ -39,14 +49,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> checkAuth() async {
-    final token = await _storage.read(key: 'access_token');
+    await _loadRememberMePrefs();
+    final token =
+        SessionTokenStore.token ?? await _storage.read(key: _tokenKey);
     if (token != null) {
       try {
         _user = await _authRepository.getMe();
         await _loadProfileImagePath();
         _status = AuthStatus.authenticated;
       } catch (e) {
-        await _storage.delete(key: 'access_token');
+        await _storage.delete(key: _tokenKey);
+        SessionTokenStore.clear();
         _status = AuthStatus.unauthenticated;
       }
     } else {
@@ -55,14 +68,41 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login(String username, String password) async {
+  Future<void> _loadRememberMePrefs() async {
+    final rememberRaw = await _storage.read(key: _rememberMeKey);
+    _rememberMe = rememberRaw == null ? true : rememberRaw == 'true';
+    final remembered = await _storage.read(key: _rememberedEmailKey);
+    _rememberedEmail =
+        remembered?.trim().isNotEmpty == true ? remembered : null;
+  }
+
+  Future<void> _persistRememberMePrefs(String email, bool remember) async {
+    await _storage.write(key: _rememberMeKey, value: remember.toString());
+    if (remember) {
+      await _storage.write(key: _rememberedEmailKey, value: email);
+      _rememberedEmail = email;
+    } else {
+      await _storage.delete(key: _rememberedEmailKey);
+      _rememberedEmail = null;
+    }
+  }
+
+  Future<void> _persistToken(String token, {bool remember = true}) async {
+    await _storage.write(key: _tokenKey, value: token);
+    SessionTokenStore.setToken(token);
+  }
+
+  Future<bool> login(String email, String password, {bool? rememberMe}) async {
     _status = AuthStatus.authenticating;
     _error = null;
     notifyListeners();
 
     try {
-      final tokenData = await _authRepository.login(username, password);
-      await _storage.write(key: 'access_token', value: tokenData.accessToken);
+      final shouldRemember = rememberMe ?? _rememberMe;
+      _rememberMe = shouldRemember;
+      final tokenData = await _authRepository.login(email, password);
+      await _persistRememberMePrefs(email, shouldRemember);
+      await _persistToken(tokenData.accessToken, remember: shouldRemember);
       _user = await _authRepository.getMe();
       await _loadProfileImagePath();
       _status = AuthStatus.authenticated;
@@ -81,35 +121,19 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String username, String email, String password) async {
-    _status = AuthStatus.authenticating;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _authRepository.register(
-        username: username,
-        email: email,
-        password: password,
-      );
-      // After registration, we could auto-login or redirect to login.
-      // For simplicity, let's login directly if registration is successful.
-      return await login(username, password);
-    } on ApiException catch (e) {
-      _error = e.message;
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _error = "Registration failed";
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return false;
+  Future<void> setRememberMe(bool value) async {
+    _rememberMe = value;
+    await _storage.write(key: _rememberMeKey, value: value.toString());
+    if (!value) {
+      await _storage.delete(key: _rememberedEmailKey);
+      _rememberedEmail = null;
     }
+    notifyListeners();
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: _tokenKey);
+    SessionTokenStore.clear();
     _user = null;
     _profileImagePath = null;
     _status = AuthStatus.unauthenticated;
@@ -121,11 +145,12 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    final googleSignIn = GoogleSignIn(
+      serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID'],
+      scopes: ['email'],
+    );
+
     try {
-      final googleSignIn = GoogleSignIn(
-        serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID'],
-        scopes: ['email'],
-      );
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         _status = AuthStatus.unauthenticated;
@@ -144,14 +169,29 @@ class AuthProvider extends ChangeNotifier {
       }
 
       final tokenData = await _authRepository.loginWithGoogle(idToken);
-      await _storage.write(key: 'access_token', value: tokenData.accessToken);
+      if (tokenData.accessToken.trim().isEmpty) {
+        throw ApiException("Google Sign-In failed: empty access token");
+      }
+      await _persistToken(tokenData.accessToken, remember: _rememberMe);
       _user = await _authRepository.getMe();
+      await _persistRememberMePrefs(_user?.email ?? googleUser.email, _rememberMe);
       await _loadProfileImagePath();
       _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      try { await googleSignIn.signOut(); } catch (_) {}
+      await _storage.delete(key: _tokenKey);
+      SessionTokenStore.clear();
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false;
     } catch (e) {
       _error = "Google Sign-In failed: $e";
+      try { await googleSignIn.signOut(); } catch (_) {}
+      await _storage.delete(key: _tokenKey);
+      SessionTokenStore.clear();
       _status = AuthStatus.unauthenticated;
       notifyListeners();
       return false;
@@ -189,27 +229,33 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> updateAccount({
-    required String username,
+    required String firstname,
+    required String lastname,
     required String email,
   }) async {
     if (_user == null) return false;
+    _status = AuthStatus.authenticating;
     _error = null;
     notifyListeners();
 
     try {
       _user = await _authRepository.updateMe(
-        username: username.trim(),
+        firstname: firstname.trim(),
+        lastname: lastname.trim(),
         email: email.trim(),
       );
       await _loadProfileImagePath();
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
       _error = e.message;
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return false;
     } catch (e) {
       _error = "Failed to update account";
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return false;
     }
@@ -219,6 +265,7 @@ class AuthProvider extends ChangeNotifier {
     required String currentPassword,
     required String newPassword,
   }) async {
+    _status = AuthStatus.authenticating;
     _error = null;
     notifyListeners();
 
@@ -227,14 +274,17 @@ class AuthProvider extends ChangeNotifier {
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
       _error = e.message;
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return false;
     } catch (e) {
       _error = "Failed to change password";
+      _status = AuthStatus.authenticated;
       notifyListeners();
       return false;
     }
@@ -243,11 +293,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> setProfileImagePath(String path) async {
     if (_user == null) return;
     _profileImagePath = path;
-    // We keep local storage for offline/immediate recovery, but primary is now server
-    await _storage.write(
-      key: _profileImageStorageKey(_user!.id),
-      value: path,
-    );
+    await _storage.write(key: _profileImageStorageKey(_user!.id), value: path);
     notifyListeners();
   }
 
@@ -258,11 +304,14 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final url = await _authRepository.uploadProfilePicture(filePath);
-      // Update local user model with the new URL
       _user = UserModel(
         id: _user!.id,
+        firstname: _user!.firstname,
+        lastname: _user!.lastname,
+        fullname: _user!.fullname,
+        age: _user!.age,
         email: _user!.email,
-        username: _user!.username,
+        role: _user!.role,
         isActive: _user!.isActive,
         profilePictureUrl: url,
       );
@@ -281,18 +330,11 @@ class AuthProvider extends ChangeNotifier {
     if (_user == null) return;
     _profileImagePath = null;
     await _storage.delete(key: _profileImageStorageKey(_user!.id));
-    
-    // Also clear on server if needed, but user usually just overwrites.
-    // To clear on server, we might need a dedicated PATCH /me with profile_picture_url: null
     try {
-      _user = await _authRepository.updateMe(username: _user!.username); // This might not clear it unless we allow null in updateMe
-      // For now, localized clear is enough, or we can add a dedicated clear method.
+      _user = await _authRepository.updateMe();
     } catch (e) {
       debugPrint("Server clear failed: $e");
     }
-    
     notifyListeners();
   }
 }
-
-

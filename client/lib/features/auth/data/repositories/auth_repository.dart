@@ -7,10 +7,10 @@ class AuthRepository {
 
   AuthRepository(this._apiClient);
 
-  Future<TokenModel> login(String username, String password) async {
+  Future<TokenModel> login(String email, String password) async {
     // FastAPI's OAuth2PasswordRequestForm expects data as form-data (application/x-www-form-urlencoded)
     final formData = FormData.fromMap({
-      'username': username,
+      'username': email,
       'password': password,
     });
 
@@ -18,44 +18,41 @@ class AuthRepository {
       '/login/access-token',
       data: formData,
     );
-    return TokenModel.fromJson(response.data);
-  }
-
-  Future<UserModel> register({
-    required String username,
-    required String email,
-    required String password,
-  }) async {
-    final response = await _apiClient.post(
-      '/register',
-      data: {
-        'username': username,
-        'email': email,
-        'password': password,
-        'is_active': true,
-      },
-    );
-    return UserModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid login response');
+    }
+    return TokenModel.fromJson(data);
   }
 
   Future<UserModel> getMe() async {
     final response = await _apiClient.get('/users/me');
-    return UserModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid user response');
+    }
+    return UserModel.fromJson(data);
   }
 
   Future<UserModel> updateMe({
-    String? username,
+    String? firstname,
+    String? lastname,
     String? email,
   }) async {
     final payload = <String, dynamic>{};
-    if (username != null) payload['username'] = username;
+    if (firstname != null) payload['firstname'] = firstname;
+    if (lastname != null) payload['lastname'] = lastname;
     if (email != null) payload['email'] = email;
 
     final response = await _apiClient.patch(
       '/users/me',
       data: payload,
     );
-    return UserModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid user response');
+    }
+    return UserModel.fromJson(data);
   }
 
   Future<String> uploadProfilePicture(String filePath) async {
@@ -67,7 +64,12 @@ class AuthRepository {
       '/users/me/profile-picture',
       data: formData,
     );
-    return response.data['profile_picture_url'];
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      final url = data['profile_picture_url'];
+      if (url is String) return url;
+    }
+    throw Exception('Invalid profile picture response');
   }
 
   Future<void> changePassword({
@@ -88,7 +90,11 @@ class AuthRepository {
       '/login/google',
       data: {'id_token': idToken},
     );
-    return TokenModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid login response');
+    }
+    return TokenModel.fromJson(data);
   }
 
   Future<void> forgotPassword(String email) async {
