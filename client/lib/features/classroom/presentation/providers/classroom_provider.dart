@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
+import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/classroom/data/repositories/classroom_repository.dart';
 
 class ClassroomProvider extends ChangeNotifier {
@@ -9,11 +9,13 @@ class ClassroomProvider extends ChangeNotifier {
 
   List<SubjectModel> _subjects = [];
   List<SectionModel> _sections = [];
+  List<CollegeModel> _colleges = [];
   bool _isLoading = false;
   String? _error;
 
   List<SubjectModel> get subjects => _subjects;
   List<SectionModel> get sections => _sections;
+  List<CollegeModel> get colleges => _colleges;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -23,6 +25,12 @@ class ClassroomProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      try {
+        _colleges = await _repository.getColleges();
+      } catch (e) {
+        debugPrint("Error fetching colleges: $e");
+      }
+
       _subjects = await _repository.getSubjects();
       try {
         _sections = await _repository.getSections();
@@ -38,67 +46,4 @@ class ClassroomProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  Future<bool> addSubject({
-    required String name,
-    String? code,
-    String? description,
-    String? coverImagePath,
-  }) async {
-    try {
-      String? uploadedCoverImageUrl;
-      if (coverImagePath != null && coverImagePath.isNotEmpty) {
-        uploadedCoverImageUrl =
-            await _repository.uploadSubjectCoverImage(coverImagePath);
-      }
-
-      final subject = await _repository.createSubject(
-        name: name,
-        code: code,
-        description: description,
-        coverImageUrl: uploadedCoverImageUrl,
-      );
-      _subjects.add(subject);
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> addSection(int subjectId, String name) async {
-    try {
-      final section = await _repository.createSection(subjectId, name);
-      // Find subject and add section to it
-      final subjectIndex = _subjects.indexWhere((s) => s.id == subjectId);
-      if (subjectIndex != -1) {
-        final subject = _subjects[subjectIndex];
-        _subjects[subjectIndex] = SubjectModel(
-          id: subject.id,
-          name: subject.name,
-          teacherId: subject.teacherId,
-          teacherUsername: subject.teacherUsername,
-          code: subject.code,
-          description: subject.description,
-          coverImageUrl: subject.coverImageUrl,
-          sections: [...subject.sections, section],
-        );
-      } else {
-        // Subject list might not be loaded yet in this provider instance.
-        // Refetch to keep UI (e.g., SubjectDetailsScreen) in sync.
-        await fetchClassroomData();
-      }
-      _sections.add(section);
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
 }
-
-

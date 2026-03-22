@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:teachtrack/core/network/api_client.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_session_models.dart';
+import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 
 class ClassroomRepository {
   final ApiClient _apiClient;
@@ -9,14 +9,32 @@ class ClassroomRepository {
 
   Future<List<SubjectModel>> getSubjects() async {
     final response = await _apiClient.get('/classroom/subjects');
-    final List<dynamic> data = response.data;
-    return data.map((json) => SubjectModel.fromJson(json)).toList();
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(SubjectModel.fromJson)
+        .toList();
+  }
+
+  Future<List<CollegeModel>> getColleges() async {
+    final response = await _apiClient.get('/classroom/colleges');
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(CollegeModel.fromJson)
+        .toList();
   }
 
   Future<List<SectionModel>> getSections() async {
     final response = await _apiClient.get('/classroom/sections');
-    final List<dynamic> data = response.data;
-    return data.map((json) => SectionModel.fromJson(json)).toList();
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(SectionModel.fromJson)
+        .toList();
   }
 
   Future<String> uploadSubjectCoverImage(String filePath) async {
@@ -51,7 +69,11 @@ class ClassroomRepository {
         'cover_image_url': coverImageUrl,
       },
     );
-    return SubjectModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid create subject response');
+    }
+    return SubjectModel.fromJson(data);
   }
 
   Future<SectionModel> createSection(int subjectId, String name) async {
@@ -62,7 +84,11 @@ class ClassroomRepository {
         'name': name,
       },
     );
-    return SectionModel.fromJson(response.data);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid create section response');
+    }
+    return SectionModel.fromJson(data);
   }
 }
 
