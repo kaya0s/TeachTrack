@@ -137,10 +137,6 @@ def run_detection(
 
                     class_name = str(model.names[cls_id])
                     normalized = class_name.lower().replace(" ", "_")
-                    if normalized in {"attentive", "raising_hand"}:
-                        normalized = "on_task"
-                    elif normalized in {"bow_down", "bown_down"}:
-                        normalized = "disengaged_posture"
 
                     if normalized in counts:
                         counts[normalized] += 1
