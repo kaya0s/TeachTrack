@@ -208,8 +208,18 @@ export type ModelOption = {
 };
 
 export type ModelSelectionResponse = {
-  current_model_file: string;
   models: ModelOption[];
+};
+
+export type AdminDetectionBox = {
+  box: [number, number, number, number];
+  label: string;
+  confidence: number;
+  normalized_label: string;
+};
+
+export type AdminTestDetectionResponse = {
+  detections: AdminDetectionBox[];
 };
 
 export type ServerLogEntry = {
@@ -245,6 +255,7 @@ export type AdminSettings = {
     server_camera_enabled: boolean;
     server_camera_preview: boolean;
     server_camera_index: number;
+    detection_confidence_threshold: number;
     alert_cooldown_minutes: number;
   };
   engagement_weights: {

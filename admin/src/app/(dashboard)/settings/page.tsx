@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Settings } from "lucide-react";
+import { ChevronDown, Image as ImageIcon, Loader2, Play, RotateCcw, Settings, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,8 @@ import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { getSettings, updateSettings } from "@/features/admin/api";
-import type { AdminSettings, AdminSettingsUpdate } from "@/features/admin/types";
+import { getSettings, testDetection, updateSettings } from "@/features/admin/api";
+import type { AdminDetectionBox, AdminSettings, AdminSettingsUpdate } from "@/features/admin/types";
 
 type ValidationResult = {
   errors: Record<string, string>;
@@ -46,6 +46,9 @@ const validateSettings = (settings: AdminSettings | null): ValidationResult => {
   }
   if (detection.alert_cooldown_minutes < 1 || detection.alert_cooldown_minutes > 120) {
     errors["detection.alert_cooldown_minutes"] = "Must be between 1 and 120 minutes.";
+  }
+  if (detection.detection_confidence_threshold < 0 || detection.detection_confidence_threshold > 1) {
+    errors["detection.detection_confidence_threshold"] = "Threshold must be between 0 and 1.";
   }
 
   const weights = settings.engagement_weights;
@@ -113,6 +116,232 @@ function SettingsSection({
       </summary>
       <div className="border-t border-border/60 px-4 py-4">{children}</div>
     </details>
+  );
+}
+
+function DetectionThresholdPreview({
+  threshold,
+  onThresholdChange,
+  onReset,
+}: {
+  threshold: number;
+  onThresholdChange: (val: number) => void;
+  onReset: () => void;
+}) {
+  const { notify } = useToast();
+  const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [detections, setDetections] = useState<AdminDetectionBox[]>([]);
+  const [loading, setLoading] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const DETECTION_COLORS: Record<string, string> = {
+    on_task: "#22c55e",
+    using_phone: "#ef4444",
+    disengaged_posture: "#f97316",
+    sleeping: "#a855f7",
+    not_visible: "#64748b",
+  };
+
+  const getDetectionKey = (det: AdminDetectionBox): string =>
+    (det.normalized_label || det.label || "").toLowerCase().replace(/\s+/g, "_");
+
+  const formatBehaviorLabel = (value: string): string => value.replace(/_/g, " ");
+
+  const getDetectionColor = (det: AdminDetectionBox): string =>
+    DETECTION_COLORS[getDetectionKey(det)] || "#3b82f6";
+
+  const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImage(file);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(file));
+      setDetections([]);
+    }
+  };
+
+  const runDetection = async () => {
+    if (!image) return;
+    setLoading(true);
+    try {
+      const res = await testDetection(image);
+      setDetections(res.detections);
+      notify({ tone: "success", title: "Detection complete" });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Detection failed",
+        description: err instanceof Error ? err.message : "Could not run detection.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3">
+        <div className="mx-auto flex w-full max-w-md items-center justify-between gap-2">
+          <label className="text-sm font-semibold text-foreground/90">
+            Current Threshold: <span className="text-primary">{(threshold * 100).toFixed(0)}%</span>
+          </label>
+          <Button variant="ghost" size="sm" className="h-7 text-xs px-2 hover:bg-primary/10" onClick={onReset}>
+            <RotateCcw className="mr-1 h-3 w-3" /> Reset to 50%
+          </Button>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={threshold}
+          onChange={(e) => onThresholdChange(parseFloat(e.target.value))}
+          className="mx-auto h-2 w-full max-w-md cursor-pointer appearance-none rounded-lg bg-border accent-primary"
+        />
+        <div className="mx-auto flex w-full max-w-md justify-between text-[10px] text-muted-foreground uppercase font-medium tracking-tight">
+          <span>More Detections</span>
+          <span>Optimal Range (0.5-0.7)</span>
+          <span>Stricter Results</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="font-semibold text-foreground/80">Box Legend:</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
+            <span className="h-2 w-2 rounded-full bg-[#22c55e]" />
+            On Task
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
+            <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
+            Using Phone
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
+            <span className="h-2 w-2 rounded-full bg-[#f97316]" />
+            Disengaged Posture
+          </span>
+        </div>
+      </div>
+
+      <div className="relative isolate overflow-hidden rounded-xl border border-border/60 bg-slate-950/20 shadow-inner">
+        {!previewUrl ? (
+          <div className="flex min-h-[320px] flex-col items-center justify-center p-8 text-center bg-slate-900/10">
+            <div className="rounded-full bg-primary/10 p-4 ring-8 ring-primary/5">
+              <ImageIcon className="h-8 w-8 text-primary" />
+            </div>
+            <h4 className="mt-6 font-medium">Detection Preview Area</h4>
+            <p className="mt-2 max-w-[240px] text-xs text-muted-foreground leading-relaxed">
+              Upload a classroom scenario image to calibrate the AI sensitivity in real-time.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-6 border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all font-semibold"
+              onClick={() => document.getElementById("test-image-input")?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" /> Select Test Image
+            </Button>
+          </div>
+        ) : (
+          <div className="relative">
+            <img ref={imageRef} src={previewUrl} alt="Preview" className="block w-full" />
+
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {detections.map((det, i) => {
+                const isAbove = det.confidence >= threshold;
+                if (!imageRef.current) return null;
+                const detectionColor = getDetectionColor(det);
+                const labelText = formatBehaviorLabel(getDetectionKey(det));
+                
+                const naturalW = imageRef.current.naturalWidth || 1;
+                const naturalH = imageRef.current.naturalHeight || 1;
+                
+                const [x1, y1, x2, y2] = det.box;
+                const left = (x1 / naturalW) * 100;
+                const top = (y1 / naturalH) * 100;
+                const width = ((x2 - x1) / naturalW) * 100;
+                const height = ((y2 - y1) / naturalH) * 100;
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      left: `${left}%`,
+                      top: `${top}%`,
+                      width: `${width}%`,
+                      height: `${height}%`,
+                      borderWidth: "2px",
+                      opacity: isAbove ? 1 : 0.2,
+                      scale: isAbove ? "1" : "0.98",
+                      borderColor: isAbove ? detectionColor : "rgba(148,163,184,0.45)",
+                      boxShadow: isAbove ? `0 0 12px ${detectionColor}99` : "none",
+                    }}
+                    className={cn(
+                      "absolute border-solid transition-all duration-300 ease-out",
+                      isAbove ? "z-10" : "dashed grayscale"
+                    )}
+                  >
+                    {isAbove && (
+                      <div
+                        style={{ backgroundColor: detectionColor }}
+                        className="absolute -top-[21px] left-0 whitespace-nowrap rounded-t-sm px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm ring-1 ring-white/10 uppercase"
+                      >
+                        {labelText} {(det.confidence * 100).toFixed(0)}%
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px]">
+                <div className="flex flex-col items-center gap-3 text-white">
+                  <div className="p-3 rounded-full bg-primary/20 border border-primary/30 shadow-2xl">
+                     <Loader2 className="h-6 w-6 animate-spin text-primary-foreground" />
+                  </div>
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/90">Processing Neural Nets</span>
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-border/60 bg-card/80 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  className="border-white/20 bg-slate-900/70 text-white hover:bg-slate-900 hover:text-white"
+                  onClick={() => document.getElementById("test-image-input")?.click()}
+                >
+                  <Upload className="mr-1.5 h-3.5 w-3.5" /> Change Image
+                </Button>
+                <Button
+                size="sm"
+                disabled={loading}
+                onClick={runDetection}
+                className="h-9 rounded-full border px-3 text-sm font-medium flex items-center gap-1.5"
+              >
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                {loading ? "Analyzing" : "Run Test Detection"}
+              </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center">
+        <input
+          id="test-image-input"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onImageChange}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -370,11 +599,30 @@ export default function SettingsPage() {
 
           <div className="space-y-3">
         <SettingsSection
-          title="Detection & Alerts"
-          description="Timing, camera, and alert throttling controls."
+          title="Detection Intelligence"
+          description="AI calibration, timing, and camera controls."
           defaultOpen
         >
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-8">
+            <div className="rounded-2xl border border-border/40 bg-slate-500/5 p-6 shadow-sm">
+              <div className="mb-6">
+                <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-primary">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px]">1</span>
+                  Confidence Threshold Calibration
+                </h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Detections below this threshold are discarded. Higher values reduce false positives but may miss subtle behaviors.
+                </p>
+              </div>
+              
+              <DetectionThresholdPreview 
+                threshold={settings.detection.detection_confidence_threshold}
+                onThresholdChange={(val: number) => updateDetection("detection_confidence_threshold", val)}
+                onReset={() => updateDetection("detection_confidence_threshold", 0.5)}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium">Detect interval (seconds)</label>
               <Input
@@ -457,10 +705,11 @@ export default function SettingsPage() {
               />
             </label>
           </div>
-        </SettingsSection>
+        </div>
+      </SettingsSection>
 
-        <SettingsSection
-          title="Engagement Weights"
+      <SettingsSection
+        title="Engagement Weights"
           description="Tune how each behavior impacts engagement scoring."
         >
           <div className="grid gap-4 md:grid-cols-2">

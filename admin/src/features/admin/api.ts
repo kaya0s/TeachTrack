@@ -325,6 +325,15 @@ export async function updateSettings(payload: any) {
   });
 }
 
+export async function testDetection(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return httpRequest("/admin/settings/test-detection", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 // Backup endpoints
 export async function getBackups(params = ""): Promise<AdminBackupRun[]> {
   return httpRequest(`/admin/backups${params}`);

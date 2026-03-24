@@ -385,7 +385,19 @@ class AdminSettingsDetection(BaseModel):
     server_camera_enabled: bool
     server_camera_preview: bool
     server_camera_index: int
+    detection_confidence_threshold: float
     alert_cooldown_minutes: int
+
+
+class AdminDetectionBox(BaseModel):
+    box: list[float]  # [x1, y1, x2, y2]
+    label: str
+    confidence: float
+    normalized_label: str
+
+
+class AdminTestDetectionResponse(BaseModel):
+    detections: list[AdminDetectionBox]
 
 
 class AdminSettingsEngagementWeights(BaseModel):

@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
@@ -14,8 +14,9 @@ from app.schemas.admin import (
     AdminServerLogsResponse,
     PaginatedAuditLogsResponse,
     PaginatedAlertsResponse,
+    AdminTestDetectionResponse,
 )
-from app.services import admin_service
+from app.services import admin_service, detector_service
 from app.constants import DEFAULT_PAGE_SIZE
 
 router = APIRouter()
@@ -49,6 +50,21 @@ def update_admin_settings(
         actor_user_id=current_user.id,
         actor_username=current_user.username,
     )
+
+
+@router.post("/settings/test-detection", response_model=AdminTestDetectionResponse)
+async def test_detection(
+    file: UploadFile = File(...),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    try:
+        raw = await file.read()
+        detections = detector_service.test_detection(raw)
+        return {"detections": detections}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Detection failed: {str(exc)}")
 
 
 @router.get("/server-logs", response_model=AdminServerLogsResponse)
