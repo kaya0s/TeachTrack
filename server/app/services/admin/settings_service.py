@@ -22,6 +22,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         "server_camera_enabled": env_settings.SERVER_CAMERA_ENABLED,
         "server_camera_preview": env_settings.SERVER_CAMERA_PREVIEW,
         "server_camera_index": env_settings.SERVER_CAMERA_INDEX,
+        "detection_confidence_threshold": env_settings.DETECTION_CONFIDENCE_THRESHOLD,
         "alert_cooldown_minutes": getattr(env_settings, "ALERT_COOLDOWN_MINUTES", 5),
     },
     "engagement_weights": {
@@ -95,6 +96,8 @@ def _validate_effective(effective: dict[str, Any]) -> None:
         raise ValueError("detector_heartbeat_timeout_seconds must be between 5 and 300.")
     if not (0 <= int(detection["server_camera_index"]) <= 10):
         raise ValueError("server_camera_index must be between 0 and 10.")
+    if not (0.0 <= float(detection["detection_confidence_threshold"]) <= 1.0):
+        raise ValueError("detection_confidence_threshold must be between 0.0 and 1.0.")
     if not (1 <= int(detection["alert_cooldown_minutes"]) <= 120):
         raise ValueError("alert_cooldown_minutes must be between 1 and 120.")
 

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     SERVER_CAMERA_ENABLED: bool = True
     SERVER_CAMERA_PREVIEW: bool = False
     SERVER_CAMERA_INDEX: int = 0
+    DETECTION_CONFIDENCE_THRESHOLD: float = 0.5
     ALERT_COOLDOWN_MINUTES: int = 5
     
     # Engagement calculation weights (PARTIAL)
