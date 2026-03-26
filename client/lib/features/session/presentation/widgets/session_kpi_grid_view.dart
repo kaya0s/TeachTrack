@@ -14,11 +14,11 @@ class SessionKpiGridView extends StatelessWidget {
         : latest.onTask +
             latest.usingPhone +
             latest.sleeping +
-            latest.disengagedPosture;
+            latest.offTask;
     final notVisible = latest?.notVisible ?? 0;
     final highRisk = latest == null
         ? 0
-        : latest.sleeping + latest.usingPhone + latest.disengagedPosture;
+        : latest.sleeping + latest.usingPhone + latest.offTask;
 
     return Wrap(
       spacing: 12,

@@ -12,7 +12,7 @@ class BehaviorLogBase(BaseModel):
     on_task: int = 0
     sleeping: int = 0
     using_phone: int = 0
-    disengaged_posture: int = 0
+    off_task: int = 0
     not_visible: int = 0
 
 class BehaviorLogCreate(BehaviorLogBase):
@@ -78,9 +78,9 @@ class SessionMetricRow(BaseModel):
     window_end: datetime
     total_detected: int
     on_task_avg: float
-    phone_avg: float
+    using_phone_avg: float
     sleeping_avg: float
-    disengaged_posture_avg: float
+    off_task_avg: float
     not_visible_avg: float
     engagement_score: float
     computed_at: datetime

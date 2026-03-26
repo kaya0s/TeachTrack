@@ -64,7 +64,7 @@ class BehaviorType(str, Enum):
     ON_TASK = "on_task"
     USING_PHONE = "using_phone"
     SLEEPING = "sleeping"
-    DISENGAGED_POSTURE = "disengaged_posture"
+    OFF_TASK = "off_task"
 
 
 class AuditAction(str, Enum):

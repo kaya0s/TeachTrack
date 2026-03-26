@@ -46,7 +46,7 @@ class BehaviorLog(Base):
     on_task = Column(Integer, default=0)
     sleeping = Column(Integer, default=0)
     using_phone = Column(Integer, default=0)
-    disengaged_posture = Column(Integer, default=0)
+    off_task = Column(Integer, default=0)
     not_visible = Column(Integer, default=0)
     
     total_detected = Column(Integer, default=0)
@@ -78,9 +78,9 @@ class SessionMetrics(Base):
 
     total_detected = Column(Integer, nullable=False, default=0)
     on_task_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
-    phone_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
+    using_phone_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     sleeping_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
-    disengaged_posture_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
+    off_task_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
     not_visible_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
 
     engagement_score = Column(DECIMAL(5, 2), nullable=False, default=0)

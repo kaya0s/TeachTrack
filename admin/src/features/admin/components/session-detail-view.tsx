@@ -10,7 +10,7 @@ type BehaviorLogChartRow = {
     on_task: number;
     sleeping: number;
     using_phone: number;
-    disengaged_posture: number;
+    off_task: number;
     not_visible: number;
 };
 
@@ -41,7 +41,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
             on_task: log.on_task,
             sleeping: log.sleeping,
             using_phone: log.using_phone,
-            disengaged_posture: log.disengaged_posture,
+            off_task: log.off_task,
             not_visible: log.not_visible,
         }));
     }, [detail]);
@@ -53,7 +53,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                 acc.on_task += log.on_task;
                 acc.sleeping += log.sleeping;
                 acc.using_phone += log.using_phone;
-                acc.disengaged_posture += log.disengaged_posture;
+                acc.off_task += log.off_task;
                 acc.not_visible += log.not_visible;
                 return acc;
             },
@@ -61,7 +61,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                 on_task: 0,
                 sleeping: 0,
                 using_phone: 0,
-                disengaged_posture: 0,
+                off_task: 0,
                 not_visible: 0,
             }
         );
@@ -70,7 +70,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
             on_task: totals.on_task,
             sleeping: totals.sleeping,
             using_phone: totals.using_phone,
-            disengaged_posture: totals.disengaged_posture,
+            off_task: totals.off_task,
             not_visible: totals.not_visible,
         };
     }, [detail]);
@@ -82,7 +82,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
             { label: "On task", value: pieSource.on_task, color: "hsl(var(--success))" },
             { label: "Sleeping", value: pieSource.sleeping, color: "hsl(var(--danger))" },
             { label: "Using phone", value: pieSource.using_phone, color: "hsl(var(--warning))" },
-            { label: "Disengaged", value: pieSource.disengaged_posture, color: "hsl(var(--primary))" },
+            { label: "Off task", value: pieSource.off_task, color: "hsl(var(--primary))" },
             { label: "Not visible", value: pieSource.not_visible, color: "#94a3b8" },
         ];
     }, [pieSource]);
@@ -141,8 +141,8 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                     lines={[
                         { key: "on_task", label: "On task", colorClass: "bg-success", stroke: "hsl(var(--success))" },
                         { key: "sleeping", label: "Sleeping", colorClass: "bg-danger", stroke: "hsl(var(--danger))" },
-                        { key: "using_phone", label: "Phone", colorClass: "bg-warning", stroke: "hsl(var(--warning))" },
-                        { key: "disengaged_posture", label: "Disengaged", colorClass: "bg-primary", stroke: "hsl(var(--primary))" },
+                        { key: "using_phone", label: "Using Phone", colorClass: "bg-warning", stroke: "hsl(var(--warning))" },
+                        { key: "off_task", label: "Off Task", colorClass: "bg-primary", stroke: "hsl(var(--primary))" },
                     ]}
                     heightClassName="h-72"
                 />
@@ -156,7 +156,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                     {detail.logs.length ? (
                         <Table>
                             <THead>
-                                <TR><TH>Time</TH><TH>Task</TH><TH>Sleep</TH><TH>Phone</TH><TH>Posture</TH><TH>Invisible</TH><TH>Total</TH></TR>
+                                <TR><TH>Time</TH><TH>Task</TH><TH>Sleep</TH><TH>Phone</TH><TH>Off Task</TH><TH>Invisible</TH><TH>Total</TH></TR>
                             </THead>
                             <TBody>
                                 {[...detail.logs].reverse().slice(0, 12).map((log, idx) => (
@@ -165,7 +165,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                                         <TD>{log.on_task}</TD>
                                         <TD>{log.sleeping}</TD>
                                         <TD>{log.using_phone}</TD>
-                                        <TD>{log.disengaged_posture}</TD>
+                                        <TD>{log.off_task}</TD>
                                         <TD className="text-muted-foreground">{log.not_visible}</TD>
                                         <TD className="font-semibold">{log.total_detected}</TD>
                                     </TR>

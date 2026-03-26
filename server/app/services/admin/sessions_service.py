@@ -57,14 +57,14 @@ def _teacher_name_fields(user: User | None) -> tuple[str, str | None]:
 def _avg_engagement_from_stats(stats_row: tuple, students_present: int, weights: dict[str, float]) -> float:
     if not stats_row or students_present <= 0:
         return 0.0
-    on_task_sum, phone_sum, sleeping_sum, disengaged_sum, log_count = stats_row
+    on_task_sum, using_phone_sum, sleeping_sum, off_task_sum, log_count = stats_row
     if (log_count or 0) <= 0:
         return 0.0
     raw_total = (
         (weights["on_task"] * _to_float(on_task_sum))
-        - (weights["phone"] * _to_float(phone_sum))
+        - (weights["using_phone"] * _to_float(using_phone_sum))
         - (weights["sleeping"] * _to_float(sleeping_sum))
-        - (weights["disengaged_posture"] * _to_float(disengaged_sum))
+        - (weights["off_task"] * _to_float(off_task_sum))
     )
     return round(max(0.0, min(100.0, (raw_total / (students_present * log_count)) * 100)), 2)
 
@@ -125,7 +125,7 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
                 func.sum(BehaviorLog.on_task),
                 func.sum(BehaviorLog.using_phone),
                 func.sum(BehaviorLog.sleeping),
-                func.sum(BehaviorLog.disengaged_posture),
+                func.sum(BehaviorLog.off_task),
                 func.count(BehaviorLog.id),
             )
             .filter(BehaviorLog.session_id.in_(session_ids))
@@ -252,7 +252,7 @@ def list_sessions(
                 func.sum(BehaviorLog.on_task),
                 func.sum(BehaviorLog.using_phone),
                 func.sum(BehaviorLog.sleeping),
-                func.sum(BehaviorLog.disengaged_posture),
+                func.sum(BehaviorLog.off_task),
                 func.count(BehaviorLog.id),
             )
             .filter(BehaviorLog.session_id.in_(session_ids))
@@ -358,7 +358,7 @@ def get_session_detail(
             func.sum(BehaviorLog.on_task),
             func.sum(BehaviorLog.using_phone),
             func.sum(BehaviorLog.sleeping),
-            func.sum(BehaviorLog.disengaged_posture),
+            func.sum(BehaviorLog.off_task),
             func.count(BehaviorLog.id),
         )
         .filter(BehaviorLog.session_id == session_id)
@@ -399,7 +399,7 @@ def get_session_detail(
             "on_task": row.on_task,
             "sleeping": row.sleeping,
             "using_phone": row.using_phone,
-            "disengaged_posture": row.disengaged_posture,
+            "off_task": row.off_task,
             "not_visible": row.not_visible,
             "total_detected": row.total_detected,
         }
@@ -431,9 +431,9 @@ def get_session_detail(
             "window_start": row.window_start,
             "window_end": row.window_end,
             "on_task_avg": float(row.on_task_avg),
-            "phone_avg": float(row.phone_avg),
+            "using_phone_avg": float(row.using_phone_avg),
             "sleeping_avg": float(row.sleeping_avg),
-            "disengaged_posture_avg": float(row.disengaged_posture_avg),
+            "off_task_avg": float(row.off_task_avg),
             "not_visible_avg": float(row.not_visible_avg),
             "engagement_score": float(row.engagement_score),
         }

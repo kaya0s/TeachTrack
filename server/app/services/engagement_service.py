@@ -20,7 +20,7 @@ def _weighted_engagement_percent(
     on_task: int,
     using_phone: int,
     sleeping: int,
-    disengaged_posture: int,
+    off_task: int,
     students_present: int,
     weights: dict[str, float],
 ) -> float:
@@ -28,9 +28,9 @@ def _weighted_engagement_percent(
         return 0.0
     raw_score = (
         (weights["on_task"] * on_task)
-        - (weights["phone"] * using_phone)
+        - (weights["using_phone"] * using_phone)
         - (weights["sleeping"] * sleeping)
-        - (weights["disengaged_posture"] * disengaged_posture)
+        - (weights["off_task"] * off_task)
     )
     percent = (raw_score / students_present) * 100
     return max(0.0, min(100.0, percent))
@@ -47,7 +47,7 @@ def process_behavior_log(
         log_in.on_task
         + log_in.using_phone
         + log_in.sleeping
-        + log_in.disengaged_posture
+        + log_in.off_task
     )
     not_visible = max(0, session.students_present - observed)
     total = observed
@@ -57,7 +57,7 @@ def process_behavior_log(
         on_task=log_in.on_task,
         sleeping=log_in.sleeping,
         using_phone=log_in.using_phone,
-        disengaged_posture=log_in.disengaged_posture,
+        off_task=log_in.off_task,
         not_visible=not_visible,
         total_detected=total,
     )
@@ -81,7 +81,7 @@ def process_behavior_log(
         on_task=log_in.on_task,
         using_phone=log_in.using_phone,
         sleeping=log_in.sleeping,
-        disengaged_posture=log_in.disengaged_posture,
+        off_task=log_in.off_task,
         students_present=session.students_present,
         weights=weights,
     )
@@ -106,7 +106,7 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
         func.sum(BehaviorLog.on_task),
         func.sum(BehaviorLog.using_phone),
         func.sum(BehaviorLog.sleeping),
-        func.sum(BehaviorLog.disengaged_posture),
+        func.sum(BehaviorLog.off_task),
         func.count(BehaviorLog.id),
     ).filter(BehaviorLog.session_id == session_id).first()
 
@@ -115,14 +115,14 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
     weights = settings_service.get_engagement_weights(db)
     if log_count > 0 and session.students_present > 0:
         on_task_sum = _to_float(stats[0])
-        phone_sum = _to_float(stats[1])
+        using_phone_sum = _to_float(stats[1])
         sleeping_sum = _to_float(stats[2])
-        disengaged_sum = _to_float(stats[3])
+        off_task_sum = _to_float(stats[3])
         raw_total = (
             (weights["on_task"] * on_task_sum)
-            - (weights["phone"] * phone_sum)
+            - (weights["using_phone"] * using_phone_sum)
             - (weights["sleeping"] * sleeping_sum)
-            - (weights["disengaged_posture"] * disengaged_sum)
+            - (weights["off_task"] * off_task_sum)
         )
         avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
 
@@ -170,7 +170,7 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
         func.sum(BehaviorLog.on_task),
         func.sum(BehaviorLog.using_phone),
         func.sum(BehaviorLog.sleeping),
-        func.sum(BehaviorLog.disengaged_posture),
+        func.sum(BehaviorLog.off_task),
         func.sum(BehaviorLog.not_visible),
         func.sum(BehaviorLog.total_detected),
     ).filter(
@@ -184,9 +184,9 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
         return
 
     on_task_sum = _to_float(stats[1])
-    phone_sum = _to_float(stats[2])
+    using_phone_sum = _to_float(stats[2])
     sleeping_sum = _to_float(stats[3])
-    disengaged_sum = _to_float(stats[4])
+    off_task_sum = _to_float(stats[4])
     not_visible_sum = _to_float(stats[5])
     total_detected = int(stats[6] or 0)
 
@@ -195,9 +195,9 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     if session.students_present > 0:
         raw_total = (
             (weights["on_task"] * on_task_sum)
-            - (weights["phone"] * phone_sum)
+            - (weights["using_phone"] * using_phone_sum)
             - (weights["sleeping"] * sleeping_sum)
-            - (weights["disengaged_posture"] * disengaged_sum)
+            - (weights["off_task"] * off_task_sum)
         )
         engagement_score = max(
             0.0,
@@ -220,8 +220,8 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
 
     metrics.total_detected = total_detected
     metrics.on_task_avg = round(on_task_sum / log_count, 2)
-    metrics.phone_avg = round(phone_sum / log_count, 2)
+    metrics.using_phone_avg = round(using_phone_sum / log_count, 2)
     metrics.sleeping_avg = round(sleeping_sum / log_count, 2)
-    metrics.disengaged_posture_avg = round(disengaged_sum / log_count, 2)
+    metrics.off_task_avg = round(off_task_sum / log_count, 2)
     metrics.not_visible_avg = round(not_visible_sum / log_count, 2)
     metrics.engagement_score = round(engagement_score, 2)

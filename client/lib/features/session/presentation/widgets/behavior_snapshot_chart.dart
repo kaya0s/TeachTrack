@@ -25,9 +25,9 @@ class BehaviorSnapshotChart extends StatelessWidget {
 
     final sections = [
       _pieSection("On Task", latestLog!.onTask.toDouble(), const Color(0xFF2E7D32)),
-      _pieSection("Phone", latestLog!.usingPhone.toDouble(), const Color(0xFFF57C00)),
+      _pieSection("Using Phone", latestLog!.usingPhone.toDouble(), const Color(0xFFF57C00)),
       _pieSection("Sleeping", latestLog!.sleeping.toDouble(), const Color(0xFFD32F2F)),
-      _pieSection("Disengaged", latestLog!.disengagedPosture.toDouble(), const Color(0xFF6A1B9A)),
+      _pieSection("Off Task", latestLog!.offTask.toDouble(), const Color(0xFF6A1B9A)),
       _pieSection("Not Visible", latestLog!.notVisible.toDouble(), Colors.grey),
     ].where((e) => e.value > 0).toList();
 

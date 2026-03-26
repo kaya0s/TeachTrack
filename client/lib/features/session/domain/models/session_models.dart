@@ -42,7 +42,7 @@ class BehaviorLogModel {
   final int onTask;
   final int sleeping;
   final int usingPhone;
-  final int disengagedPosture;
+  final int offTask;
   final int notVisible;
   final int totalDetected;
 
@@ -52,7 +52,7 @@ class BehaviorLogModel {
     required this.onTask,
     required this.sleeping,
     required this.usingPhone,
-    required this.disengagedPosture,
+    required this.offTask,
     required this.notVisible,
     required this.totalDetected,
   });
@@ -67,7 +67,7 @@ class BehaviorLogModel {
       onTask: (json['on_task'] as num?)?.toInt() ?? 0,
       sleeping: (json['sleeping'] as num?)?.toInt() ?? 0,
       usingPhone: (json['using_phone'] as num?)?.toInt() ?? 0,
-      disengagedPosture: (json['disengaged_posture'] as num?)?.toInt() ?? 0,
+      offTask: (json['off_task'] as num?)?.toInt() ?? 0,
       notVisible: (json['not_visible'] as num?)?.toInt() ?? 0,
       totalDetected: (json['total_detected'] as num?)?.toInt() ?? 0,
     );

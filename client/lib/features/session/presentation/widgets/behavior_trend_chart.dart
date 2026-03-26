@@ -23,26 +23,26 @@ class BehaviorTrendChart extends StatelessWidget {
     final logs = [...metrics.recentLogs]..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     const onTaskColor = Color(0xFF2E7D32);
-    const disengagedColor = Color(0xFF6A1B9A);
+    const offTaskColor = Color(0xFF6A1B9A);
     const sleepingColor = Color(0xFFD32F2F);
     const phoneColor = Color(0xFFF57C00);
 
     final onTaskSpots = <FlSpot>[];
-    final disengagedSpots = <FlSpot>[];
+    final offTaskSpots = <FlSpot>[];
     final sleepingSpots = <FlSpot>[];
     final phoneSpots = <FlSpot>[];
 
     for (final log in logs) {
       final x = log.timestamp.millisecondsSinceEpoch.toDouble();
       onTaskSpots.add(FlSpot(x, log.onTask.toDouble()));
-      disengagedSpots.add(FlSpot(x, log.disengagedPosture.toDouble()));
+      offTaskSpots.add(FlSpot(x, log.offTask.toDouble()));
       sleepingSpots.add(FlSpot(x, log.sleeping.toDouble()));
       phoneSpots.add(FlSpot(x, log.usingPhone.toDouble()));
     }
 
     final maxY = [
       ...logs.map((l) => l.onTask),
-      ...logs.map((l) => l.disengagedPosture),
+      ...logs.map((l) => l.offTask),
       ...logs.map((l) => l.sleeping),
       ...logs.map((l) => l.usingPhone),
     ].fold<int>(0, (maxVal, v) => v > maxVal ? v : maxVal);
@@ -60,7 +60,7 @@ class BehaviorTrendChart extends StatelessWidget {
           children: [
             const Text("Intensity Over Time", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 16),
-            _buildLegend(context, onTaskColor, disengagedColor, sleepingColor, phoneColor),
+            _buildLegend(context, onTaskColor, offTaskColor, sleepingColor, phoneColor),
             const SizedBox(height: 16),
             SizedBox(
               height: 220,
@@ -108,7 +108,7 @@ class BehaviorTrendChart extends StatelessWidget {
                   ),
                   lineBarsData: [
                     _lineBar(onTaskSpots, onTaskColor),
-                    _lineBar(disengagedSpots, disengagedColor),
+                    _lineBar(offTaskSpots, offTaskColor),
                     _lineBar(sleepingSpots, sleepingColor),
                     _lineBar(phoneSpots, phoneColor),
                   ],
@@ -132,15 +132,15 @@ class BehaviorTrendChart extends StatelessWidget {
     );
   }
 
-  Widget _buildLegend(BuildContext context, Color onTask, Color disengaged, Color sleeping, Color phone) {
+  Widget _buildLegend(BuildContext context, Color onTask, Color offTask, Color sleeping, Color phone) {
     return Wrap(
       spacing: 10,
       runSpacing: 8,
       children: [
         _legendItem(context, onTask, "On Task"),
-        _legendItem(context, disengaged, "Disengaged"),
+        _legendItem(context, offTask, "Off Task"),
         _legendItem(context, sleeping, "Sleeping"),
-        _legendItem(context, phone, "Phone"),
+        _legendItem(context, phone, "Using Phone"),
       ],
     );
   }

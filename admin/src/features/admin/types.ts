@@ -177,7 +177,7 @@ export type SessionLogPoint = {
   on_task: number;
   sleeping: number;
   using_phone: number;
-  disengaged_posture: number;
+  off_task: number;
   not_visible: number;
   total_detected: number;
 };
@@ -186,9 +186,9 @@ export type SessionMetricPoint = {
   window_start: string;
   window_end: string;
   on_task_avg: number;
-  phone_avg: number;
+  using_phone_avg: number;
   sleeping_avg: number;
-  disengaged_posture_avg: number;
+  off_task_avg: number;
   not_visible_avg: number;
   engagement_score: number;
 };
@@ -215,7 +215,6 @@ export type AdminDetectionBox = {
   box: [number, number, number, number];
   label: string;
   confidence: number;
-  normalized_label: string;
 };
 
 export type AdminTestDetectionResponse = {
@@ -256,13 +255,14 @@ export type AdminSettings = {
     server_camera_preview: boolean;
     server_camera_index: number;
     detection_confidence_threshold: number;
+    detection_imgsz: number;
     alert_cooldown_minutes: number;
   };
   engagement_weights: {
     on_task: number;
-    phone: number;
+    using_phone: number;
     sleeping: number;
-    disengaged_posture: number;
+    off_task: number;
   };
   admin_ops: {
     enable_admin_log_stream: boolean;

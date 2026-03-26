@@ -191,7 +191,7 @@ def main() -> None:
                 "on_task": 1,
                 "sleeping": 4,
                 "using_phone": 0,
-                "disengaged_posture": 0,
+                "off_task": 0,
                 "not_visible": 0,
             },
         )

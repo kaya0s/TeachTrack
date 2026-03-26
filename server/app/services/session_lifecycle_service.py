@@ -114,14 +114,14 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
         weights = settings_service.get_engagement_weights(db)
         if log_count > 0 and session.students_present > 0:
             on_task_sum = _to_float(stats[1])
-            phone_sum = _to_float(stats[2])
+            using_phone_sum = _to_float(stats[2])
             sleeping_sum = _to_float(stats[3])
-            disengaged_sum = _to_float(stats[4])
+            off_task_sum = _to_float(stats[4])
             raw_total = (
                 (weights["on_task"] * on_task_sum)
-                - (weights["phone"] * phone_sum)
+                - (weights["using_phone"] * using_phone_sum)
                 - (weights["sleeping"] * sleeping_sum)
-                - (weights["disengaged_posture"] * disengaged_sum)
+                - (weights["off_task"] * off_task_sum)
             )
             avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
 

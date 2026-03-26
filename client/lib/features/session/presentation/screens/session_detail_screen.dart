@@ -561,7 +561,7 @@ class _BehaviorChartCard extends StatelessWidget {
     Color(0xFF00C9A7), // On Task
     Color(0xFFFF6B6B), // Sleeping
     Color(0xFFFFB300), // Using Phone
-    Color(0xFF6C63FF), // Disengaged
+    Color(0xFF6C63FF), // offTask
     Color(0xFF90A4AE), // Not Visible
   ];
 
@@ -569,26 +569,26 @@ class _BehaviorChartCard extends StatelessWidget {
     'On Task',
     'Sleeping',
     'Phone',
-    'Disengaged',
+    'Off Task',
     'Not Visible',
   ];
 
   @override
   Widget build(BuildContext context) {
     // Aggregate from recent logs
-    int onTask = 0, sleeping = 0, phone = 0, disengaged = 0, notVisible = 0;
+    int onTask = 0, sleeping = 0, phone = 0, offTask = 0, notVisible = 0;
     for (final log in metrics.recentLogs) {
       onTask += log.onTask;
       sleeping += log.sleeping;
       phone += log.usingPhone;
-      disengaged += log.disengagedPosture;
+      offTask += log.offTask;
       notVisible += log.notVisible;
     }
     final values = [
       onTask.toDouble(),
       sleeping.toDouble(),
       phone.toDouble(),
-      disengaged.toDouble(),
+      offTask.toDouble(),
       notVisible.toDouble(),
     ];
     final total = values.fold(0.0, (a, b) => a + b);
@@ -745,19 +745,19 @@ class _KpiGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Aggregate totals from recent logs
-    int onTask = 0, sleeping = 0, phone = 0, disengaged = 0;
+    int onTask = 0, sleeping = 0, phone = 0, offTask = 0;
     for (final log in metrics.recentLogs) {
       onTask += log.onTask;
       sleeping += log.sleeping;
       phone += log.usingPhone;
-      disengaged += log.disengagedPosture;
+      offTask += log.offTask;
     }
 
     final count = metrics.totalLogs > 0 ? metrics.totalLogs : 1;
     final avgOnTask = onTask / count;
     final avgSleeping = sleeping / count;
     final avgPhone = phone / count;
-    final avgDisengaged = disengaged / count;
+    final avgOffTask = offTask / count;
 
     final tiles = [
       _KpiTile(
@@ -780,9 +780,9 @@ class _KpiGrid extends StatelessWidget {
           color: const Color(0xFFFFB300)),
       _KpiTile(
           icon: Icons.sentiment_dissatisfied_rounded,
-          label: 'Disengaged',
-          value: '$disengaged',
-          average: avgDisengaged,
+          label: 'Off Task',
+          value: '$offTask',
+          average: avgOffTask,
           color: const Color(0xFF6C63FF)),
     ];
 
@@ -938,10 +938,10 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
       buffer.writeln('Total Logs,${m.totalLogs}');
       buffer.writeln('');
       buffer.writeln('--- BEHAVIOR LOGS ---');
-      buffer.writeln('Timestamp,On Task,Sleeping,Using Phone,Disengaged,Not Visible,Total Detected');
+      buffer.writeln('Timestamp,On Task,Sleeping,Using Phone,off_task,Not Visible,Total Detected');
       for (final log in m.recentLogs) {
         buffer.writeln(
-          '${fmt.format(log.timestamp)},${log.onTask},${log.sleeping},${log.usingPhone},${log.disengagedPosture},${log.notVisible},${log.totalDetected}',
+          '${fmt.format(log.timestamp)},${log.onTask},${log.sleeping},${log.usingPhone},${log.offTask},${log.notVisible},${log.totalDetected}',
         );
       }
     }
@@ -998,13 +998,13 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     final fmtShort = DateFormat('yyyy-MM-dd HH:mm');
 
     // Compute behavior totals
-    int onTask = 0, sleeping = 0, phone = 0, disengaged = 0, notVisible = 0;
+    int onTask = 0, sleeping = 0, phone = 0, offTask = 0, notVisible = 0;
     if (m != null) {
       for (final log in m.recentLogs) {
         onTask += log.onTask;
         sleeping += log.sleeping;
         phone += log.usingPhone;
-        disengaged += log.disengagedPosture;
+        offTask += log.offTask;
         notVisible += log.notVisible;
       }
     }
@@ -1196,7 +1196,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
                 _pdfTableRow('On Task', '$onTask'),
                 _pdfTableRow('Sleeping', '$sleeping'),
                 _pdfTableRow('Using Phone', '$phone'),
-                _pdfTableRow('Disengaged', '$disengaged'),
+                _pdfTableRow('Off Task', '$offTask'),
                 _pdfTableRow('Not Visible', '$notVisible'),
               ],
             ),
@@ -1229,7 +1229,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
                       _pdfTableHeader('On Task'),
                       _pdfTableHeader('Sleep'),
                       _pdfTableHeader('Phone'),
-                      _pdfTableHeader('Disengage'),
+                      _pdfTableHeader('Off Task'),
                       _pdfTableHeader('N/V'),
                     ],
                   ),
@@ -1239,7 +1239,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
                           _pdfTableCell('${log.onTask}'),
                           _pdfTableCell('${log.sleeping}'),
                           _pdfTableCell('${log.usingPhone}'),
-                          _pdfTableCell('${log.disengagedPosture}'),
+                          _pdfTableCell('${log.offTask}'),
                           _pdfTableCell('${log.notVisible}'),
                         ]),
                       ),
@@ -1433,3 +1433,5 @@ class _ExportOption extends StatelessWidget {
     );
   }
 }
+
+

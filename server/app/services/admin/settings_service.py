@@ -23,13 +23,14 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         "server_camera_preview": env_settings.SERVER_CAMERA_PREVIEW,
         "server_camera_index": env_settings.SERVER_CAMERA_INDEX,
         "detection_confidence_threshold": env_settings.DETECTION_CONFIDENCE_THRESHOLD,
+        "detection_imgsz": env_settings.DETECTION_IMGSZ,
         "alert_cooldown_minutes": getattr(env_settings, "ALERT_COOLDOWN_MINUTES", 5),
     },
     "engagement_weights": {
         "on_task": env_settings.W_ON_TASK,
-        "phone": env_settings.W_PHONE,
+        "using_phone": env_settings.W_USING_PHONE,
         "sleeping": env_settings.W_SLEEPING,
-        "disengaged_posture": env_settings.W_DISENGAGED_POSTURE,
+        "off_task": env_settings.W_OFF_TASK,
     },
     "admin_ops": {
         "enable_admin_log_stream": env_settings.ENABLE_ADMIN_LOG_STREAM,
@@ -98,11 +99,13 @@ def _validate_effective(effective: dict[str, Any]) -> None:
         raise ValueError("server_camera_index must be between 0 and 10.")
     if not (0.0 <= float(detection["detection_confidence_threshold"]) <= 1.0):
         raise ValueError("detection_confidence_threshold must be between 0.0 and 1.0.")
+    if not (320 <= int(detection["detection_imgsz"]) <= 1280):
+        raise ValueError("detection_imgsz must be between 320 and 1280.")
     if not (1 <= int(detection["alert_cooldown_minutes"]) <= 120):
         raise ValueError("alert_cooldown_minutes must be between 1 and 120.")
 
     weights = effective["engagement_weights"]
-    for key in ("on_task", "phone", "sleeping", "disengaged_posture"):
+    for key in ("on_task", "using_phone", "sleeping", "off_task"):
         value = float(weights[key])
         if value < 0 or value > 5:
             raise ValueError(f"engagement weight '{key}' must be between 0 and 5.")

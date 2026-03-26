@@ -122,7 +122,7 @@ class AdminBehaviorLogPoint(BaseModel):
     on_task: int
     sleeping: int
     using_phone: int
-    disengaged_posture: int
+    off_task: int
     not_visible: int
     total_detected: int
 
@@ -131,9 +131,9 @@ class AdminMetricPoint(BaseModel):
     window_start: datetime
     window_end: datetime
     on_task_avg: float
-    phone_avg: float
+    using_phone_avg: float
     sleeping_avg: float
-    disengaged_posture_avg: float
+    off_task_avg: float
     not_visible_avg: float
     engagement_score: float
 
@@ -386,6 +386,7 @@ class AdminSettingsDetection(BaseModel):
     server_camera_preview: bool
     server_camera_index: int
     detection_confidence_threshold: float
+    detection_imgsz: int
     alert_cooldown_minutes: int
 
 
@@ -393,7 +394,6 @@ class AdminDetectionBox(BaseModel):
     box: list[float]  # [x1, y1, x2, y2]
     label: str
     confidence: float
-    normalized_label: str
 
 
 class AdminTestDetectionResponse(BaseModel):
@@ -402,9 +402,9 @@ class AdminTestDetectionResponse(BaseModel):
 
 class AdminSettingsEngagementWeights(BaseModel):
     on_task: float
-    phone: float
+    using_phone: float
     sleeping: float
-    disengaged_posture: float
+    off_task: float
 
 
 class AdminSettingsAdminOps(BaseModel):

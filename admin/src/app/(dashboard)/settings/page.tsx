@@ -55,14 +55,14 @@ const validateSettings = (settings: AdminSettings | null): ValidationResult => {
   if (weights.on_task < 0 || weights.on_task > 5) {
     errors["engagement_weights.on_task"] = "Must be between 0 and 5.";
   }
-  if (weights.phone < 0 || weights.phone > 5) {
-    errors["engagement_weights.phone"] = "Must be between 0 and 5.";
+  if (weights.using_phone < 0 || weights.using_phone > 5) {
+    errors["engagement_weights.using_phone"] = "Must be between 0 and 5.";
   }
   if (weights.sleeping < 0 || weights.sleeping > 5) {
     errors["engagement_weights.sleeping"] = "Must be between 0 and 5.";
   }
-  if (weights.disengaged_posture < 0 || weights.disengaged_posture > 5) {
-    errors["engagement_weights.disengaged_posture"] = "Must be between 0 and 5.";
+  if (weights.off_task < 0 || weights.off_task > 5) {
+    errors["engagement_weights.off_task"] = "Must be between 0 and 5.";
   }
 
   if (settings.security.access_token_expire_minutes < 5 || settings.security.access_token_expire_minutes > 43200) {
@@ -133,22 +133,28 @@ function DetectionThresholdPreview({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [detections, setDetections] = useState<AdminDetectionBox[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeLegendFilter, setActiveLegendFilter] = useState<string>("all");
   const imageRef = useRef<HTMLImageElement>(null);
   const DETECTION_COLORS: Record<string, string> = {
     on_task: "#22c55e",
     using_phone: "#ef4444",
-    disengaged_posture: "#f97316",
+    off_task: "#f97316",
     sleeping: "#a855f7",
-    not_visible: "#64748b",
   };
 
-  const getDetectionKey = (det: AdminDetectionBox): string =>
-    (det.normalized_label || det.label || "").toLowerCase().replace(/\s+/g, "_");
+  const getDetectionKey = (det: AdminDetectionBox): string => (det.label || "").trim();
 
   const formatBehaviorLabel = (value: string): string => value.replace(/_/g, " ");
 
   const getDetectionColor = (det: AdminDetectionBox): string =>
     DETECTION_COLORS[getDetectionKey(det)] || "#3b82f6";
+  const legendItems = [
+    { key: "all", label: "All" },
+    { key: "on_task", label: "On Task" },
+    { key: "using_phone", label: "Using Phone" },
+    { key: "off_task", label: "Off Task" },
+    { key: "sleeping", label: "Sleeping" },
+  ];
 
   const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,19 +210,27 @@ function DetectionThresholdPreview({
           <span>Stricter Results</span>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-          <span className="font-semibold text-foreground/80">Box Legend:</span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
-            <span className="h-2 w-2 rounded-full bg-[#22c55e]" />
-            On Task
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
-            <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
-            Using Phone
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5">
-            <span className="h-2 w-2 rounded-full bg-[#f97316]" />
-            Disengaged Posture
-          </span>
+          <span className="font-semibold text-foreground/80">Box Legend (Click to Filter):</span>
+          {legendItems.map((item) => {
+            const isActive = activeLegendFilter === item.key;
+            const dotColor = item.key === "all" ? "#3b82f6" : (DETECTION_COLORS[item.key] || "#3b82f6");
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setActiveLegendFilter(item.key)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition",
+                  isActive
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border/60 bg-card/70 text-muted-foreground hover:border-primary/35 hover:text-foreground"
+                )}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: dotColor }} />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -245,10 +259,12 @@ function DetectionThresholdPreview({
 
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               {detections.map((det, i) => {
+                const detKey = getDetectionKey(det);
+                if (activeLegendFilter !== "all" && detKey !== activeLegendFilter) return null;
                 const isAbove = det.confidence >= threshold;
                 if (!imageRef.current) return null;
                 const detectionColor = getDetectionColor(det);
-                const labelText = formatBehaviorLabel(getDetectionKey(det));
+                const labelText = formatBehaviorLabel(detKey);
                 
                 const naturalW = imageRef.current.naturalWidth || 1;
                 const naturalH = imageRef.current.naturalHeight || 1;
@@ -729,17 +745,17 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium">Phone usage weight</label>
+              <label className="text-sm font-medium">Using phone weight</label>
               <Input
                 type="number"
                 min={0}
                 max={5}
                 step="0.1"
-                value={settings.engagement_weights.phone}
-                onChange={(e) => updateWeights("phone", Number(e.target.value || 0))}
+                value={settings.engagement_weights.using_phone}
+                onChange={(e) => updateWeights("using_phone", Number(e.target.value || 0))}
               />
-              {errors["engagement_weights.phone"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.phone"]}</p>
+              {errors["engagement_weights.using_phone"] ? (
+                <p className="text-xs text-danger">{errors["engagement_weights.using_phone"]}</p>
               ) : null}
             </div>
 
@@ -759,17 +775,17 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium">Disengaged posture weight</label>
+              <label className="text-sm font-medium">Off-task weight</label>
               <Input
                 type="number"
                 min={0}
                 max={5}
                 step="0.1"
-                value={settings.engagement_weights.disengaged_posture}
-                onChange={(e) => updateWeights("disengaged_posture", Number(e.target.value || 0))}
+                value={settings.engagement_weights.off_task}
+                onChange={(e) => updateWeights("off_task", Number(e.target.value || 0))}
               />
-              {errors["engagement_weights.disengaged_posture"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.disengaged_posture"]}</p>
+              {errors["engagement_weights.off_task"] ? (
+                <p className="text-xs text-danger">{errors["engagement_weights.off_task"]}</p>
               ) : null}
             </div>
           </div>
