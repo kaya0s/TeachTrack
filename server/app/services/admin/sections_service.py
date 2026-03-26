@@ -25,7 +25,7 @@ def _serialize_section(row: ClassSection) -> dict[str, Any]:
         "section_letter": row.section_letter,
         "teacher_id": row.teacher_id,
         "teacher_username": row.teacher.username if row.teacher else "unassigned",
-        "teacher_fullname": row.teacher.username if row.teacher else None,
+        "teacher_fullname": row.teacher.fullname if row.teacher else None,
         "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
         "created_at": row.created_at,
     }
