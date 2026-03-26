@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,13 +44,14 @@ class Settings(BaseSettings):
     SERVER_CAMERA_PREVIEW: bool = False
     SERVER_CAMERA_INDEX: int = 0
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.5
+    DETECTION_IMGSZ: int = 960
     ALERT_COOLDOWN_MINUTES: int = 5
     
     # Engagement calculation weights (PARTIAL)
     W_ON_TASK: float = 1.0
-    W_PHONE: float = 1.2
+    W_USING_PHONE: float = 1.2
     W_SLEEPING: float = 1.5
-    W_DISENGAGED_POSTURE: float = 1.0
+    W_OFF_TASK: float = 1.0
 
     GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE: str = ""
     GOOGLE_DRIVE_FOLDER_ID: str = ""
