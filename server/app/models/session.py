@@ -17,14 +17,14 @@ class ClassSession(Base):
     __tablename__ = "class_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    teacher_id = Column(Integer, ForeignKey("users.id"))
+    teacher_id = Column(Integer, ForeignKey("users.id"), index=True)
     section_id = Column(Integer, ForeignKey("class_sections.id"))
     subject_id = Column(Integer, ForeignKey("subjects.id"))
     students_present = Column(Integer, nullable=False, default=1)
     
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
@@ -39,8 +39,8 @@ class BehaviorLog(Base):
     __tablename__ = "behavior_logs"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"))
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
     # Counts
     on_task = Column(Integer, default=0)
@@ -57,13 +57,13 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"))
+    session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
     
     alert_type = Column(String(50)) # Storing Enum as string for simplicity in DB, or use Enum type
     message = Column(String(255))
-    triggered_at = Column(DateTime(timezone=True), server_default=func.now())
-    severity = Column(String(20), default=AlertSeverity.WARNING.value)
-    is_read = Column(Boolean, default=False)
+    triggered_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    severity = Column(String(20), default=AlertSeverity.WARNING.value, index=True)
+    is_read = Column(Boolean, default=False, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     session = relationship("ClassSession", back_populates="alerts")
@@ -72,8 +72,8 @@ class SessionMetrics(Base):
     __tablename__ = "session_metrics"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"))
-    window_start = Column(DateTime(timezone=True), nullable=False)
+    session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
+    window_start = Column(DateTime(timezone=True), nullable=False, index=True)
     window_end = Column(DateTime(timezone=True), nullable=False)
 
     total_detected = Column(Integer, nullable=False, default=0)
@@ -92,8 +92,8 @@ class SessionHistory(Base):
     __tablename__ = "session_history"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"))
-    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     change_type = Column(String(20), nullable=False)
     prev_start_time = Column(DateTime(timezone=True), nullable=True)
@@ -106,8 +106,8 @@ class AlertHistory(Base):
     __tablename__ = "alerts_history"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    alert_id = Column(Integer, ForeignKey("alerts.id"))
-    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    alert_id = Column(Integer, ForeignKey("alerts.id"), index=True)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     change_type = Column(String(20), nullable=False)
     prev_is_read = Column(Boolean, nullable=True)

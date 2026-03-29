@@ -6,7 +6,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export async function httpRequest(url: string, options: RequestInit = {}) {
+type HttpRequestOptions = RequestInit & {
+  suppressAuthRedirect?: boolean;
+};
+
+export async function httpRequest(url: string, options: HttpRequestOptions = {}) {
+  const { suppressAuthRedirect = false, ...requestOptions } = options;
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
   const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
   const authEndpoints = [
@@ -19,14 +24,14 @@ export async function httpRequest(url: string, options: RequestInit = {}) {
   const isAuthEndpoint = authEndpoints.some((path) => fullUrl.includes(path));
 
   const token = getToken();
-  const headers = new Headers(options.headers || {});
+  const headers = new Headers(requestOptions.headers || {});
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
   // Normalize body and set Content-Type when appropriate
-  let body: any = options.body;
+  let body: any = requestOptions.body;
   if (body && !headers.has("Content-Type")) {
     if (body instanceof FormData || body instanceof URLSearchParams || body instanceof Blob) {
       // Let the browser set the correct Content-Type for these types
@@ -39,26 +44,12 @@ export async function httpRequest(url: string, options: RequestInit = {}) {
   }
 
   const response = await fetch(fullUrl, {
-    ...options,
+    ...requestOptions,
     headers,
     body,
   });
 
   if (!response.ok) {
-    // If unauthorized or forbidden, clear token and redirect to login (except auth endpoints)
-    if ((response.status === 401 || response.status === 403) && !isAuthEndpoint) {
-      clearToken();
-      if (typeof window !== "undefined") {
-        const loginUrl = "/login";
-        try {
-          window.location.href = loginUrl;
-        } catch {
-          // ignore
-        }
-      }
-      throw new Error("Not authenticated");
-    }
-
     let errorMessage = `HTTP ${response.status}`;
     try {
       const errorData = await response.json() as any;
@@ -69,6 +60,20 @@ export async function httpRequest(url: string, options: RequestInit = {}) {
     if ((response.status === 401 || response.status === 403) && isAuthEndpoint) {
       errorMessage = errorMessage === `HTTP ${response.status}` ? "Invalid username or password." : errorMessage;
     }
+
+    // Auto-logout only for real auth/session failures (can be disabled per-request).
+    if ((response.status === 401 || response.status === 403) && !isAuthEndpoint && !suppressAuthRedirect) {
+      clearToken();
+      if (typeof window !== "undefined") {
+        const loginUrl = "/login";
+        try {
+          window.location.href = loginUrl;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     throw new Error(errorMessage);
   }
 

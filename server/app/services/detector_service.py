@@ -48,13 +48,9 @@ def _empty_behavior_counts() -> dict[str, int]:
         "on_task": 0,
         "sleeping": 0,
         "using_phone": 0,
-        "disengaged_posture": 0,
+        "off_task": 0,
         "not_visible": 0,
     }
-
-
-def _normalize_behavior_label(name: str) -> str:
-    return name.lower().replace(" ", "_")
 
 
 def _runtime_detection_settings() -> dict[str, Any]:
@@ -133,19 +129,19 @@ def detect_counts_from_image_bytes(raw: bytes) -> dict[str, int]:
         raise ValueError("Invalid image data")
 
     model = _get_model()
-    results = model(frame, verbose=False)
+    detection_settings = _runtime_detection_settings()
+    results = model(frame, imgsz=int(detection_settings["detection_imgsz"]), verbose=False)
 
     counts = _empty_behavior_counts()
-    threshold = _runtime_detection_settings()["detection_confidence_threshold"]
+    threshold = detection_settings["detection_confidence_threshold"]
     for box in results[0].boxes:
         cls_id = int(box.cls[0])
         conf = float(box.conf[0])
         if conf < threshold:
             continue
-        class_name = model.names[cls_id]
-        normalized = _normalize_behavior_label(class_name)
-        if normalized in counts:
-            counts[normalized] += 1
+        class_name = str(model.names[cls_id]).strip()
+        if class_name in counts:
+            counts[class_name] += 1
     return counts
 
 
@@ -156,7 +152,8 @@ def test_detection(raw: bytes) -> list[dict]:
         raise ValueError("Invalid image data")
 
     model = _get_model()
-    results = model(frame, verbose=False)
+    detection_settings = _runtime_detection_settings()
+    results = model(frame, imgsz=int(detection_settings["detection_imgsz"]), verbose=False)
 
     detections = []
     for box in results[0].boxes:
@@ -173,7 +170,6 @@ def test_detection(raw: bytes) -> list[dict]:
                 "box": b,
                 "label": name,
                 "confidence": conf,
-                "normalized_label": _normalize_behavior_label(name),
             }
         )
     return detections
@@ -219,7 +215,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             if current_time - last_send_time < detection_settings["detect_interval_seconds"]:
                 continue
 
-            results = model(frame, verbose=False)
+            results = model(frame, imgsz=int(detection_settings["detection_imgsz"]), verbose=False)
             if detection_settings["server_camera_preview"]:
                 try:
                     annotated = results[0].plot()
@@ -235,10 +231,9 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 conf = float(box.conf[0])
                 if conf < detection_settings["detection_confidence_threshold"]:
                     continue
-                class_name = model.names[cls_id]
-                normalized = _normalize_behavior_label(class_name)
-                if normalized in counts:
-                    counts[normalized] += 1
+                class_name = str(model.names[cls_id]).strip()
+                if class_name in counts:
+                    counts[class_name] += 1
 
             db = SessionLocal()
             try:

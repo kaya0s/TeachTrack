@@ -33,10 +33,12 @@ class AdminUserUpdate(BaseModel):
     username: Optional[str] = None
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
+    confirm_password: Optional[str] = None
 
 
 class AdminPasswordReset(BaseModel):
     new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+    confirm_password: str = Field(min_length=1)
 
 
 class AdminSessionSummary(BaseModel):
@@ -56,6 +58,8 @@ class AdminSessionSummary(BaseModel):
     average_engagement: float
     college_id: Optional[int] = None
     college_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     major_id: Optional[int] = None
     major_name: Optional[str] = None
 
@@ -115,6 +119,15 @@ class AdminModelSelectionRequest(BaseModel):
 
 class AdminActionMessage(BaseModel):
     message: str
+
+
+class AdminCriticalActionConfirm(BaseModel):
+    confirm_password: str = Field(min_length=1)
+
+
+class AdminMediaUploadResponse(BaseModel):
+    secure_url: str
+    public_id: str
 
 
 class AdminBehaviorLogPoint(BaseModel):
@@ -194,6 +207,8 @@ class AdminTeacherSummary(BaseModel):
     profile_picture_url: Optional[str] = None
     college_id: Optional[int] = None
     college_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -208,6 +223,7 @@ class AdminTeacherCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     college_id: int
+    department_id: int
 
     @field_validator("firstname", "lastname")
     @classmethod
@@ -236,6 +252,10 @@ class AdminSubjectSummary(BaseModel):
     teacher_profile_picture_url: Optional[str] = None
     sections_count: int
     section_names: list[str] = []
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     college_id: Optional[int] = None
     college_name: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -251,6 +271,13 @@ class AdminSectionSummary(BaseModel):
     name: str # From the linked Section model
     subject_id: Optional[int] = None
     subject_name: str
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    year_level: Optional[int] = None
+    section_code: Optional[str] = None
+    section_letter: Optional[str] = None  # backwards-compat alias of section_code
     teacher_id: Optional[int] = None
     teacher_username: str
     teacher_fullname: Optional[str] = None
@@ -261,16 +288,29 @@ class AdminSectionSummary(BaseModel):
 class AdminCollegeSummary(BaseModel):
     id: int
     name: str
+    acronym: Optional[str] = None
     logo_path: Optional[str] = None
+    majors_count: int = 0
+    majors: list[dict[str, Any]] = []
     created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class AdminMajorSummary(BaseModel):
     id: int
-    college_id: int
+    department_id: int
+    department_name: Optional[str] = None
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
     name: str
     code: str
+    cover_image_url: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class PaginatedCollegesResponse(BaseModel):
@@ -283,20 +323,102 @@ class PaginatedMajorsResponse(BaseModel):
     items: list[AdminMajorSummary]
 
 
-class AdminSectionPoolSummary(BaseModel):
+class AdminMajorCreate(BaseModel):
+    department_id: int
+    name: str = Field(min_length=1, max_length=100)
+    code: str = Field(min_length=1, max_length=20)
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def _normalize_major_name(cls, value: str) -> str:
+        return (value or "").strip()
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_major_code(cls, value: str) -> str:
+        return (value or "").strip().upper()
+
+
+class AdminMajorUpdate(BaseModel):
+    department_id: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    code: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def _normalize_major_name_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_major_code_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip().upper()
+
+
+class AdminDepartmentSummary(BaseModel):
     id: int
+    college_id: int
+    college_name: Optional[str] = None
     name: str
-    subjects_count: int = 0
-    subject_names: list[str] = []
-    major_id: Optional[int] = None
-    year_level: Optional[int] = None
-    section_letter: Optional[str] = None
+    code: Optional[str] = None
+    cover_image_url: Optional[str] = None
     created_at: Optional[datetime] = None
 
+    class Config:
+        from_attributes = True
 
-class PaginatedSectionPoolResponse(BaseModel):
+
+class PaginatedDepartmentsResponse(BaseModel):
     total: int
-    items: list[AdminSectionPoolSummary]
+    items: list[AdminDepartmentSummary]
+
+
+class AdminDepartmentCreate(BaseModel):
+    college_id: int
+    name: str = Field(min_length=1, max_length=120)
+    code: Optional[str] = Field(default=None, max_length=30)
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def _normalize_department_name(cls, value: str) -> str:
+        return (value or "").strip()
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_department_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+
+class AdminDepartmentUpdate(BaseModel):
+    college_id: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    code: Optional[str] = Field(default=None, max_length=30)
+    cover_image_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def _normalize_department_name_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_department_code_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
 
 
 class PaginatedSectionsResponse(BaseModel):
@@ -306,6 +428,7 @@ class PaginatedSectionsResponse(BaseModel):
 
 class AdminTeacherAssignment(BaseModel):
     teacher_id: int
+    subject_id: Optional[int] = None
 
 
 class AdminSubjectCreate(BaseModel):
@@ -313,7 +436,7 @@ class AdminSubjectCreate(BaseModel):
     code: Optional[str] = Field(default=None, max_length=20)
     description: Optional[str] = None
     cover_image_url: Optional[str] = Field(default=None, max_length=500)
-    college_id: Optional[int] = None
+    major_id: int
 
     @field_validator("name")
     @classmethod
@@ -331,7 +454,7 @@ class AdminSubjectUpdate(BaseModel):
     description: Optional[str] = None
     cover_image_url: Optional[str] = Field(default=None, max_length=500)
     teacher_id: Optional[int] = None
-    college_id: Optional[int] = None
+    major_id: Optional[int] = None
 
     @field_validator("name")
     @classmethod
@@ -353,12 +476,15 @@ class AdminSectionCreate(BaseModel):
     # Hierarchy fields
     major_id: Optional[int] = None
     year_level: Optional[int] = None
-    section_letter: Optional[str] = None
+    section_code: Optional[str] = None
+    section_letter: Optional[str] = None  # backward compat input alias
 
 
 class AdminSectionUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    major_id: Optional[int] = None
     year_level: Optional[int] = None
+    section_code: Optional[str] = None
     section_letter: Optional[str] = None
     subject_id: Optional[int] = None
     teacher_id: Optional[int] = None
@@ -371,7 +497,8 @@ class AdminClassCreate(BaseModel):
     section_name: Optional[str] = None
     major_id: Optional[int] = None
     year_level: Optional[int] = None
-    section_letter: Optional[str] = None
+    section_code: Optional[str] = None
+    section_letter: Optional[str] = None  # backward compat input alias
 
 
 class AdminSettingsIntegrations(BaseModel):
@@ -435,6 +562,7 @@ class AdminSettingsUpdate(BaseModel):
 class AdminCollegeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     acronym: Optional[str] = Field(default=None, max_length=20)
+    logo_path: Optional[str] = Field(default=None, max_length=500)
 
     @field_validator("name")
     @classmethod
@@ -453,6 +581,7 @@ class AdminCollegeCreate(BaseModel):
 class AdminCollegeUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     acronym: Optional[str] = Field(default=None, max_length=20)
+    logo_path: Optional[str] = Field(default=None, max_length=500)
 
     @field_validator("name")
     @classmethod
@@ -484,6 +613,8 @@ class AdminCollegeDetails(BaseModel):
     logo_path: Optional[str] = None
     teachers_count: int
     teachers: list[AdminCollegeTeacher]
+    departments_count: int = 0
+    departments: list[AdminDepartmentSummary] = []
     total_sessions: int
     active_sessions: int
     avg_sessions_per_teacher: float

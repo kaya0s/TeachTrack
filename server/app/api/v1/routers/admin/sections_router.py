@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminActionMessage,
+    AdminCriticalActionConfirm,
     AdminSectionCreate,
     AdminSectionUpdate,
     AdminSectionSummary,
@@ -27,11 +28,20 @@ def list_admin_sections(
     limit: int = DEFAULT_PAGE_SIZE,
     q: Optional[str] = None,
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     major_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.list_sections(db, skip=skip, limit=limit, q=q, college_id=college_id, major_id=major_id)
+    return admin_service.list_sections(
+        db,
+        skip=skip,
+        limit=limit,
+        q=q,
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+    )
 
 
 @router.post("/sections", response_model=AdminSectionSummary)
@@ -56,10 +66,16 @@ def update_admin_section(
 @router.delete("/sections/{section_id}", response_model=AdminActionMessage)
 def delete_admin_section(
     section_id: int,
+    payload: AdminCriticalActionConfirm,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.delete_section(db, section_id=section_id)
+    return admin_service.delete_section(
+        db,
+        section_id=section_id,
+        actor_user_id=current_user.id,
+        confirm_password=payload.confirm_password,
+    )
 
 
 @router.post("/classes", response_model=AdminSectionSummary)
@@ -78,13 +94,19 @@ def assign_admin_section_teacher(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.assign_section_teacher(db, section_id=section_id, teacher_id=payload.teacher_id)
+    return admin_service.assign_section_teacher(
+        db,
+        section_id=section_id,
+        teacher_id=payload.teacher_id,
+        subject_id=payload.subject_id,
+    )
 
 
 @router.api_route("/sections/{section_id}/unassign-teacher", methods=["PUT", "POST"], response_model=AdminSectionSummary)
 def unassign_admin_section_teacher(
     section_id: int,
+    subject_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.unassign_section_teacher(db, section_id=section_id)
+    return admin_service.unassign_section_teacher(db, section_id=section_id, subject_id=subject_id)

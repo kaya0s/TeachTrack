@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminActionMessage,
+    AdminCriticalActionConfirm,
     AdminSubjectCreate,
     AdminSubjectUpdate,
     AdminSubjectSummary,
@@ -26,11 +27,21 @@ def list_admin_subjects(
     skip: int = 0,
     limit: int = DEFAULT_PAGE_SIZE,
     q: Optional[str] = None,
+    major_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     college_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.list_subjects(db, skip=skip, limit=limit, q=q, college_id=college_id)
+    return admin_service.list_subjects(
+        db,
+        skip=skip,
+        limit=limit,
+        q=q,
+        major_id=major_id,
+        department_id=department_id,
+        college_id=college_id,
+    )
 
 
 @router.post("/subjects", response_model=AdminSubjectSummary)
@@ -55,10 +66,16 @@ def update_admin_subject(
 @router.delete("/subjects/{subject_id}", response_model=AdminActionMessage)
 def delete_admin_subject(
     subject_id: int,
+    payload: AdminCriticalActionConfirm,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.delete_subject(db, subject_id=subject_id)
+    return admin_service.delete_subject(
+        db,
+        subject_id=subject_id,
+        actor_user_id=current_user.id,
+        confirm_password=payload.confirm_password,
+    )
 
 
 @router.post("/subjects/upload-cover", response_model=SubjectCoverUploadResponse)

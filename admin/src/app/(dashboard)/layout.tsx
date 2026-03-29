@@ -193,15 +193,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             />
             <main className="relative min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
               {/* Top Progress Bar for Navigation */}
-                {navLoading && (
-                  <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
-                    <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
-                  </div>
-                )}
-                <PageBackground className="min-h-full">
-                  {navLoading ? <DashboardRouteLoading /> : children}
-                </PageBackground>
-              </main>
+              {navLoading && (
+                <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/10 overflow-hidden">
+                  <div className="h-full bg-primary animate-progress-indefinite shadow-[0_0_8px_hsl(var(--primary))]" />
+                </div>
+              )}
+              <PageBackground className="min-h-full">
+                {children}
+              </PageBackground>
+            </main>
           </div>
         </div>
 

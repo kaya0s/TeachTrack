@@ -8,9 +8,10 @@ from app.core import security
 from app.constants import DEFAULT_PAGE_SIZE, MIN_PASSWORD_LENGTH, UserRole
 from app.core.pagination import clamp_pagination
 from app.models.user import User
-from app.models.classroom import College
+from app.models.classroom import College, Department
 from app.repositories.user_repository import UserRepository
 from app.services import audit_service, notification_service
+from app.services.admin.security_service import verify_admin_password_or_401
 from app.utils.datetime import utc_now
 
 
@@ -100,11 +101,12 @@ def list_teachers(
     q: Optional[str] = None,
     is_active: Optional[bool] = None,
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
 ) -> dict[str, Any]:
     skip, limit = clamp_pagination(skip, limit)
     query = (
         db.query(User)
-        .options(joinedload(User.college))
+        .options(joinedload(User.college), joinedload(User.department))
         .filter(User.is_superuser == False, User.role == UserRole.TEACHER.value)
     )
     if q:
@@ -120,6 +122,8 @@ def list_teachers(
         query = query.filter(User.is_active == is_active)
     if college_id is not None:
         query = query.filter(User.college_id == college_id)
+    if department_id is not None:
+        query = query.filter(User.department_id == department_id)
 
     total = query.count()
     items = (
@@ -138,6 +142,7 @@ def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> 
     email = str(payload.get("email") or "").strip().lower()
     password = str(payload.get("password") or "")
     college_id = payload.get("college_id")
+    department_id = payload.get("department_id")
 
     if not firstname or not lastname:
         raise HTTPException(status_code=400, detail="First name and last name are required.")
@@ -152,10 +157,19 @@ def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> 
         )
     if college_id is None:
         raise HTTPException(status_code=400, detail="College is required.")
+    if department_id is None:
+        raise HTTPException(status_code=400, detail="Department is required.")
 
     college = db.query(College).filter(College.id == int(college_id)).first()
     if not college:
         raise HTTPException(status_code=404, detail="College not found.")
+    department = (
+        db.query(Department)
+        .filter(Department.id == int(department_id), Department.college_id == college.id)
+        .first()
+    )
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found for selected college.")
 
     if UserRepository.get_by_email(db, email):
         raise HTTPException(status_code=400, detail="Email is already in use.")
@@ -172,6 +186,7 @@ def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> 
         is_active=True,
         is_superuser=False,
         college_id=college.id,
+        department_id=department.id,
     )
     db.add(teacher)
     db.flush()
@@ -188,11 +203,12 @@ def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> 
             "username": teacher.username,
             "fullname": teacher.fullname,
             "college_id": teacher.college_id,
+            "department_id": teacher.department_id,
         },
     )
     db.commit()
     db.refresh(teacher)
-    teacher = db.query(User).options(joinedload(User.college)).filter(User.id == teacher.id).first()
+    teacher = db.query(User).options(joinedload(User.college), joinedload(User.department)).filter(User.id == teacher.id).first()
     return teacher
 
 
@@ -212,6 +228,7 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
     new_username = payload.get("username")
     new_is_active = payload.get("is_active")
     new_is_superuser = payload.get("is_superuser")
+    confirm_password = payload.get("confirm_password")
 
     if new_email and new_email != user.email:
         exists = db.query(User).filter(User.email == new_email, User.id != user.id).first()
@@ -224,6 +241,8 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
             raise HTTPException(status_code=400, detail="Username is already in use.")
         user.username = new_username
     if new_is_active is not None:
+        if bool(new_is_active) != bool(user.is_active):
+            verify_admin_password_or_401(db, actor_user_id=actor_user_id, confirm_password=confirm_password)
         user.is_active = new_is_active
     if new_is_superuser is not None:
         user.is_superuser = new_is_superuser
@@ -252,7 +271,15 @@ def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_i
     return user
 
 
-def admin_reset_user_password(db: Session, user_id: int, new_password: str, actor_user_id: int) -> None:
+def admin_reset_user_password(
+    db: Session,
+    user_id: int,
+    new_password: str,
+    actor_user_id: int,
+    confirm_password: str,
+) -> None:
+    verify_admin_password_or_401(db, actor_user_id=actor_user_id, confirm_password=confirm_password)
+
     if len(new_password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(
             status_code=400,

@@ -25,8 +25,12 @@ class Section(SectionBase):
     subject_id: Optional[int]
     teacher_id: Optional[int] = None
     teacher_username: Optional[str] = None
+    department_name: Optional[str] = None
     college_name: Optional[str] = None
+    major_id: Optional[int] = None
     major_name: Optional[str] = None
+    year_level: Optional[int] = None
+    section_code: Optional[str] = None
     created_at: Optional[datetime]
 
     class Config:
@@ -52,6 +56,10 @@ class Subject(SubjectBase):
     id: int
     teacher_id: Optional[int] = None
     teacher_username: Optional[str] = None
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     college_id: Optional[int] = None
     college_name: Optional[str] = None
     college_logo_path: Optional[str] = None

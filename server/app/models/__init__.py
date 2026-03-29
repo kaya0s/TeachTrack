@@ -1,5 +1,12 @@
 from app.models.user import User
-from app.models.classroom import Subject, ClassSection
+from app.models.classroom import (
+    ClassSection,
+    College,
+    Department,
+    Major,
+    SectionSubjectAssignment,
+    Subject,
+)
 from app.models.notification import Notification
 from app.models.audit import AuditLog
 from app.models.settings import SystemSettings
@@ -19,6 +26,10 @@ __all__ = [
     "AuditLog",
     "Subject",
     "ClassSection",
+    "College",
+    "Department",
+    "Major",
+    "SectionSubjectAssignment",
     "ClassSession",
     "BehaviorLog",
     "Alert",

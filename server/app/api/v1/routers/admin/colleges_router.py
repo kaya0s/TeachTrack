@@ -8,11 +8,14 @@ from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminActionMessage,
+    AdminCriticalActionConfirm,
     AdminCollegeCreate,
     AdminCollegeUpdate,
     AdminCollegeSummary,
     AdminCollegeDetails,
-    AdminCollegeTeacher,
+    AdminMajorCreate,
+    AdminMajorUpdate,
+    AdminMajorSummary,
     PaginatedCollegesResponse,
     PaginatedMajorsResponse,
 )
@@ -69,19 +72,72 @@ def update_admin_college(
 @router.delete("/colleges/{college_id}", response_model=AdminActionMessage)
 def delete_admin_college(
     college_id: int,
+    payload: AdminCriticalActionConfirm,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.delete_college(db, college_id=college_id, actor_user_id=current_user.id)
+    return admin_service.delete_college(
+        db,
+        college_id=college_id,
+        actor_user_id=current_user.id,
+        confirm_password=payload.confirm_password,
+    )
 
 
 @router.get("/majors", response_model=PaginatedMajorsResponse)
 def list_admin_majors(
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     skip: int = 0,
     limit: int = DEFAULT_PAGE_SIZE,
     q: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.list_majors(db, college_id=college_id, skip=skip, limit=limit, q=q)
+    return admin_service.list_majors(
+        db,
+        college_id=college_id,
+        department_id=department_id,
+        skip=skip,
+        limit=limit,
+        q=q,
+    )
+
+
+@router.post("/majors", response_model=AdminMajorSummary)
+def create_admin_major(
+    payload: AdminMajorCreate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.create_major(db, payload.model_dump(), actor_user_id=current_user.id)
+
+
+@router.patch("/majors/{major_id}", response_model=AdminMajorSummary)
+def update_admin_major(
+    major_id: int,
+    payload: AdminMajorUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.update_major(
+        db,
+        major_id=major_id,
+        payload=payload.model_dump(exclude_unset=True),
+        actor_user_id=current_user.id,
+    )
+
+
+@router.delete("/majors/{major_id}", response_model=AdminActionMessage)
+def delete_admin_major(
+    major_id: int,
+    payload: AdminCriticalActionConfirm,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.delete_major(
+        db,
+        major_id=major_id,
+        actor_user_id=current_user.id,
+        confirm_password=payload.confirm_password,
+    )

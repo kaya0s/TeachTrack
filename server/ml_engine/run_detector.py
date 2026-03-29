@@ -13,6 +13,16 @@ DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "weights" / "Track_1.0.pt
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def normalize_api_url(raw_url: str | None) -> str:
     value = (raw_url or "").strip()
     if not value:
@@ -59,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         help="Seconds between API log sends (default: 3)",
     )
     parser.add_argument(
+        "--imgsz",
+        type=int,
+        default=_env_int("DETECTION_IMGSZ", 640),
+        help="YOLO inference image size (default: DETECTION_IMGSZ env or 640)",
+    )
+    parser.add_argument(
         "--camera", type=int, default=0, help="Webcam index for OpenCV (default: 0)"
     )
     parser.add_argument(
@@ -73,6 +89,7 @@ def run_detection(
     api_url: str,
     confidence_threshold: float,
     interval_seconds: float,
+    inference_imgsz: int,
     camera_index: int,
     show_window: bool,
 ) -> None:
@@ -90,6 +107,7 @@ def run_detection(
     print(f"Camera: {camera_index}")
     print(f"Confidence threshold: {confidence_threshold}")
     print(f"Send interval: {interval_seconds}s")
+    print(f"Inference image size: {inference_imgsz}")
 
     try:
         model = YOLO(str(model_file))
@@ -113,7 +131,7 @@ def run_detection(
                 print("ERROR: Failed to read frame from webcam")
                 break
 
-            results = model(frame, verbose=False)
+            results = model(frame, imgsz=inference_imgsz, verbose=False)
 
             if show_window:
                 annotated = results[0].plot()
@@ -125,7 +143,7 @@ def run_detection(
                     "on_task": 0,
                     "sleeping": 0,
                     "using_phone": 0,
-                    "disengaged_posture": 0,
+                    "off_task": 0,
                     "not_visible": 0,
                 }
 
@@ -135,11 +153,9 @@ def run_detection(
                     if conf < confidence_threshold:
                         continue
 
-                    class_name = str(model.names[cls_id])
-                    normalized = class_name.lower().replace(" ", "_")
-
-                    if normalized in counts:
-                        counts[normalized] += 1
+                    class_name = str(model.names[cls_id]).strip()
+                    if class_name in counts:
+                        counts[class_name] += 1
 
                 try:
                     response = requests.post(endpoint, json=counts, timeout=8)
@@ -172,6 +188,7 @@ if __name__ == "__main__":
         api_url=normalize_api_url(args.api_url),
         confidence_threshold=args.confidence,
         interval_seconds=args.interval,
+        inference_imgsz=args.imgsz,
         camera_index=args.camera,
         show_window=not args.no_window,
     )

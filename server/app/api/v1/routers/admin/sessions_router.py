@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -26,7 +27,10 @@ def list_admin_sessions(
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     major_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
@@ -37,7 +41,10 @@ def list_admin_sessions(
         is_active=is_active,
         teacher_id=teacher_id,
         college_id=college_id,
+        department_id=department_id,
         major_id=major_id,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 
@@ -72,13 +79,15 @@ def force_stop_admin_session(
 
 
 @router.post("/subjects/{subject_id}/upload-cover", response_model=SubjectCoverUploadResponse)
-def upload_subject_cover(
+async def upload_subject_cover(
     subject_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return classroom_service.upload_subject_cover(db, subject_id=subject_id, file=file)
+    # subject_id is kept in the route for backward compatibility with older admin clients.
+    _ = subject_id
+    return await classroom_service.upload_subject_cover_image(db, file=file, current_user=current_user)
 
 
 @router.get("/sessions/{session_id}/alerts", response_model=list[AlertSchema])

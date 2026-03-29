@@ -84,8 +84,10 @@ export default function UsersPage() {
                     <TD><Badge tone={user.is_active ? "success" : "danger"}>{user.is_active ? "Active" : "Disabled"}</Badge></TD>
                     <TD className="flex justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={async () => {
+                        const adminPassword = window.prompt("Enter your admin password to confirm this status change:");
+                        if (!adminPassword) return;
                         try {
-                          await patchUser(user.id, { is_active: !user.is_active });
+                          await patchUser(user.id, { is_active: !user.is_active, confirm_password: adminPassword });
                           notify({
                             tone: "success",
                             title: `User ${user.is_active ? "disabled" : "enabled"}`,
@@ -124,8 +126,10 @@ export default function UsersPage() {
                       <Button size="sm" variant="ghost" onClick={async () => {
                         const newPass = window.prompt("Set temporary password (min 8 chars):");
                         if (!newPass) return;
+                        const adminPassword = window.prompt("Enter your admin password to confirm password reset:");
+                        if (!adminPassword) return;
                         try {
-                          await resetPassword(user.id, newPass);
+                          await resetPassword(user.id, newPass, adminPassword);
                           notify({
                             tone: "success",
                             title: "Temporary password set",

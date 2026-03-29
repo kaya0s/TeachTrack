@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -14,6 +14,7 @@ from app.models.session import (
     SessionHistory,
     SessionMetrics,
 )
+from app.models.classroom import ClassSection, Department, Major
 from app.models.user import User
 from app.services.admin import settings_service
 from app.services import audit_service, detector_service
@@ -69,33 +70,107 @@ def _avg_engagement_from_stats(stats_row: tuple, students_present: int, weights:
     return round(max(0.0, min(100.0, (raw_total / (students_present * log_count)) * 100)), 2)
 
 
-def get_dashboard_data(db: Session) -> dict[str, Any]:
+def _apply_session_scope_filters(
+    query,
+    college_id: int | None = None,
+    department_id: int | None = None,
+    major_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
+    if major_id is not None or department_id is not None or college_id is not None:
+        query = query.join(ClassSection, ClassSession.section_id == ClassSection.id)
+    if major_id is not None:
+        query = query.filter(ClassSection.major_id == major_id)
+    if department_id is not None or college_id is not None:
+        query = query.join(Major, ClassSection.major_id == Major.id)
+    if department_id is not None:
+        query = query.filter(Major.department_id == department_id)
+    if college_id is not None:
+        query = query.join(Department, Major.department_id == Department.id).filter(Department.college_id == college_id)
+    if date_from is not None:
+        query = query.filter(ClassSession.start_time >= datetime.combine(date_from, time.min))
+    if date_to is not None:
+        query = query.filter(ClassSession.start_time < datetime.combine(date_to + timedelta(days=1), time.min))
+    return query
+
+
+def get_dashboard_data(
+    db: Session,
+    college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
+    major_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> dict[str, Any]:
     weights = settings_service.get_engagement_weights(db)
     total_users = db.query(func.count(User.id)).scalar() or 0
     active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
-    total_subjects = db.query(func.count(ClassSession.subject_id)).scalar() or 0
-    total_sections = db.query(func.count(ClassSession.section_id)).scalar() or 0
-    active_sessions_count = db.query(func.count(ClassSession.id)).filter(ClassSession.is_active == True).scalar() or 0
-    unread_alerts = db.query(func.count(Alert.id)).filter(Alert.is_read == False).scalar() or 0
-    critical_unread_alerts = (
+    session_scope_query = _apply_session_scope_filters(
+        db.query(ClassSession),
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    total_subjects = session_scope_query.with_entities(func.count(func.distinct(ClassSession.subject_id))).scalar() or 0
+    total_sections = session_scope_query.with_entities(func.count(func.distinct(ClassSession.section_id))).scalar() or 0
+    active_sessions_count = (
+        session_scope_query.filter(ClassSession.is_active == True).with_entities(func.count(ClassSession.id)).scalar() or 0
+    )
+    scoped_session_ids_subquery = (
+        _apply_session_scope_filters(
+            db.query(ClassSession.id),
+            college_id=college_id,
+            department_id=department_id,
+            major_id=major_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        .subquery()
+    )
+    unread_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.is_read == False, Alert.severity == AlertSeverity.CRITICAL.value)
+        .filter(Alert.is_read == False, Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)))
         .scalar()
         or 0
     )
-    teacher_rows = (
-        db.query(User.id)
-        .join(ClassSession, ClassSession.teacher_id == User.id)
-        .distinct()
-        .all()
+    critical_unread_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(
+            Alert.is_read == False,
+            Alert.severity == AlertSeverity.CRITICAL.value,
+            Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)),
+        )
+        .scalar()
+        or 0
     )
-    total_teachers = len(teacher_rows)
+    total_teachers = (
+        _apply_session_scope_filters(
+            db.query(ClassSession.teacher_id).filter(ClassSession.teacher_id.isnot(None)),
+            college_id=college_id,
+            department_id=department_id,
+            major_id=major_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        .distinct()
+        .count()
+    )
 
     active_sessions_raw = (
-        db.query(ClassSession)
+        _apply_session_scope_filters(
+            db.query(ClassSession),
+            college_id=college_id,
+            department_id=department_id,
+            major_id=major_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
         .options(
             joinedload(ClassSession.subject),
-            joinedload(ClassSession.section),
+            joinedload(ClassSession.section).joinedload(ClassSection.major).joinedload(Major.department).joinedload(Department.college),
             joinedload(ClassSession.teacher),
         )
         .filter(ClassSession.is_active == True)
@@ -106,10 +181,17 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
     active_session_ids = [row.id for row in active_sessions_raw]
 
     recent_sessions_raw = (
-        db.query(ClassSession)
+        _apply_session_scope_filters(
+            db.query(ClassSession),
+            college_id=college_id,
+            department_id=department_id,
+            major_id=major_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
         .options(
             joinedload(ClassSession.subject),
-            joinedload(ClassSession.section),
+            joinedload(ClassSession.section).joinedload(ClassSection.major).joinedload(Major.department).joinedload(Department.college),
             joinedload(ClassSession.teacher),
         )
         .order_by(ClassSession.start_time.desc())
@@ -145,8 +227,10 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
             "subject_name": row.subject.name if row.subject else "unknown",
             "section_id": row.section_id,
             "section_name": row.section.name if row.section else "unknown",
-            "college_id": row.section.major.college_id if row.section and row.section.major else None,
-            "college_name": row.section.major.college.name if row.section and row.section.major and row.section.major.college else None,
+            "college_id": row.section.major.department.college_id if row.section and row.section.major and row.section.major.department else None,
+            "college_name": row.section.major.department.college.name if row.section and row.section.major and row.section.major.department and row.section.major.department.college else None,
+            "department_id": row.section.major.department_id if row.section and row.section.major else None,
+            "department_name": row.section.major.department.name if row.section and row.section.major and row.section.major.department else None,
             "major_id": row.section.major_id if row.section else None,
             "major_name": row.section.major.name if row.section and row.section.major else None,
             "students_present": row.students_present,
@@ -168,6 +252,7 @@ def get_dashboard_data(db: Session) -> dict[str, Any]:
         db.query(Alert, ClassSession, User)
         .join(ClassSession, Alert.session_id == ClassSession.id)
         .join(User, User.id == ClassSession.teacher_id)
+        .filter(Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)))
         .order_by(Alert.triggered_at.desc())
         .limit(10)
         .all()
@@ -215,26 +300,29 @@ def list_sessions(
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     major_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
 ) -> dict[str, Any]:
     skip, limit = clamp_pagination(skip, limit, default_limit=DEFAULT_PAGE_SIZE)
     query = db.query(ClassSession).options(
         joinedload(ClassSession.teacher),
         joinedload(ClassSession.subject),
-        joinedload(ClassSession.section),
+        joinedload(ClassSession.section).joinedload(ClassSection.major).joinedload(Major.department).joinedload(Department.college),
     )
     if is_active is not None:
         query = query.filter(ClassSession.is_active == is_active)
     if teacher_id is not None:
         query = query.filter(ClassSession.teacher_id == teacher_id)
-    
-    if college_id or major_id:
-        # Join through ClassSection and its embedded major to filter by major/college
-        query = query.join(ClassSection, ClassSession.section_id == ClassSection.id)
-        if major_id:
-            query = query.filter(ClassSection.major_id == major_id)
-        if college_id:
-            query = query.join(Major, ClassSection.major_id == Major.id).filter(Major.college_id == college_id)
+    query = _apply_session_scope_filters(
+        query,
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
     total = query.count()
     rows = (
@@ -275,8 +363,10 @@ def list_sessions(
                 "subject_name": row.subject.name if row.subject else "unknown",
                 "section_id": row.section_id,
                 "section_name": row.section.name if row.section else "unknown",
-                "college_id": row.section.major.college_id if row.section and row.section.major else None,
-                "college_name": row.section.major.college.name if row.section and row.section.major and row.section.major.college else None,
+                "college_id": row.section.major.department.college_id if row.section and row.section.major and row.section.major.department else None,
+                "college_name": row.section.major.department.college.name if row.section and row.section.major and row.section.major.department and row.section.major.department.college else None,
+                "department_id": row.section.major.department_id if row.section and row.section.major else None,
+                "department_name": row.section.major.department.name if row.section and row.section.major and row.section.major.department else None,
                 "major_id": row.section.major_id if row.section else None,
                 "major_name": row.section.major.name if row.section and row.section.major else None,
                 "students_present": row.students_present,
@@ -345,7 +435,7 @@ def get_session_detail(
         .options(
             joinedload(ClassSession.teacher),
             joinedload(ClassSession.subject),
-            joinedload(ClassSession.section),
+            joinedload(ClassSession.section).joinedload(ClassSection.major).joinedload(Major.department).joinedload(Department.college),
         )
         .filter(ClassSession.id == session_id)
         .first()
@@ -373,6 +463,12 @@ def get_session_detail(
         "subject_name": session.subject.name if session.subject else "unknown",
         "section_id": session.section_id,
         "section_name": session.section.name if session.section else "unknown",
+        "college_id": session.section.major.department.college_id if session.section and session.section.major and session.section.major.department else None,
+        "college_name": session.section.major.department.college.name if session.section and session.section.major and session.section.major.department and session.section.major.department.college else None,
+        "department_id": session.section.major.department_id if session.section and session.section.major else None,
+        "department_name": session.section.major.department.name if session.section and session.section.major and session.section.major.department else None,
+        "major_id": session.section.major_id if session.section else None,
+        "major_name": session.section.major.name if session.section and session.section.major else None,
         "students_present": session.students_present,
         "start_time": session.start_time,
         "end_time": session.end_time,

@@ -13,7 +13,6 @@ from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.services.admin import settings_service
 from app.schemas.user import ForgotPassword, GoogleLogin, ResetPassword, UserCreate, VerifyCode
-from app.utils.security import generate_reset_token
 from app.utils.datetime import utc_now
 from app.constants import RESET_CODE_EXPIRY_SECONDS
 
@@ -82,13 +81,13 @@ async def forgot_password(db: Session, data: ForgotPassword) -> dict[str, str]:
     if not user:
         return {"message": "If the email exists, a code has been sent."}
 
-    code = generate_reset_token()
+    code = security.generate_reset_code()
     user.reset_code = security.hash_reset_code(data.email, code)
     user.reset_code_expires = int(utc_now().timestamp()) + RESET_CODE_EXPIRY_SECONDS
     db.commit()
 
     await send_verification_email(data.email, code)
-    return {"message": "Verification code sent."}
+    return {"message": "If the email exists, a code has been sent."}
 
 
 def verify_reset_code(db: Session, data: VerifyCode) -> dict[str, str]:

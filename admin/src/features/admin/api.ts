@@ -8,9 +8,10 @@ import type {
   AdminCollegeTeacher,
   AdminCollegeDetails,
   AdminMajor,
+  AdminDepartment,
+  AdminAcademicFilters,
   AdminAlert,
   AdminSection,
-  AdminSectionPoolItem,
   AdminSessionDetail,
   AdminSession,
   AdminSubject,
@@ -24,6 +25,7 @@ import type {
   AdminSettings,
   AdminSettingsUpdate,
   AdminBackupRun,
+  AdminMediaUploadResponse,
 } from "@/features/admin/types";
 
 export type {
@@ -31,9 +33,10 @@ export type {
   AdminCollegeTeacher,
   AdminCollegeDetails,
   AdminMajor,
+  AdminDepartment,
+  AdminAcademicFilters,
   AdminAlert,
   AdminSection,
-  AdminSectionPoolItem,
   AdminSessionDetail,
   AdminSession,
   AdminSubject,
@@ -47,7 +50,28 @@ export type {
   AdminSettings,
   AdminSettingsUpdate,
   AdminBackupRun,
+  AdminMediaUploadResponse,
 };
+
+function toQueryString(params: Record<string, string | number | boolean | null | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    query.set(key, String(value));
+  }
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+export function buildAcademicFilterQuery(filters: AdminAcademicFilters = {}): string {
+  return toQueryString({
+    college_id: filters.college_id ?? undefined,
+    department_id: filters.department_id ?? undefined,
+    major_id: filters.major_id ?? undefined,
+    date_from: filters.date_from ?? undefined,
+    date_to: filters.date_to ?? undefined,
+  });
+}
 
 // Auth endpoints
 export async function login(username: string, password: string) {
@@ -93,8 +117,9 @@ export async function resetPasswordWithCode(email: string, code: string, newPass
 }
 
 // Admin endpoints
-export async function getDashboard() {
-  return httpRequest("/admin/dashboard");
+export async function getDashboard(filters?: AdminAcademicFilters) {
+  const query = filters ? buildAcademicFilterQuery(filters) : "";
+  return httpRequest(`/admin/dashboard${query}`);
 }
 
 export async function getUsers(params = "") {
@@ -118,20 +143,23 @@ export async function patchUser(userId: number, payload: any) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    suppressAuthRedirect: true,
   });
 }
 
-export async function resetPassword(userId: number, newPassword: string) {
+export async function resetPassword(userId: number, newPassword: string, confirmPassword: string) {
   return httpRequest(`/admin/users/${userId}/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ new_password: newPassword }),
+    body: JSON.stringify({ new_password: newPassword, confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
   });
 }
 
 // Session endpoints
-export async function getSessions(params = "") {
-  return httpRequest(`/admin/sessions${params}`);
+export async function getSessions(params: string | AdminAcademicFilters = "") {
+  const query = typeof params === "string" ? params : buildAcademicFilterQuery(params);
+  return httpRequest(`/admin/sessions${query}`);
 }
 
 export async function forceStopSession(sessionId: number) {
@@ -165,9 +193,12 @@ export async function updateCollege(collegeId: number, payload: any) {
   });
 }
 
-export async function deleteCollege(collegeId: number) {
+export async function deleteCollege(collegeId: number, confirmPassword: string) {
   return httpRequest(`/admin/colleges/${collegeId}`, {
     method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
   });
 }
 
@@ -175,13 +206,78 @@ export async function getCollegeDetails(collegeId: number): Promise<AdminCollege
   return httpRequest(`/admin/colleges/${collegeId}`);
 }
 
-export async function getMajors(collegeId?: number, params = "") {
-  if (collegeId) {
-    // Add college_id as a query parameter instead of in the path
-    const separator = params ? '&' : '?';
-    return httpRequest(`/admin/majors?college_id=${collegeId}${params ? separator + params.slice(1) : ''}`);
+export async function getMajors(collegeId?: number, params = "", departmentId?: number) {
+  const query: string[] = [];
+  if (collegeId) query.push(`college_id=${collegeId}`);
+  if (departmentId) query.push(`department_id=${departmentId}`);
+
+  if (query.length > 0) {
+    const base = `/admin/majors?${query.join("&")}`;
+    if (params) {
+      const suffix = params.startsWith("?") ? params.slice(1) : params;
+      return httpRequest(`${base}&${suffix}`);
+    }
+    return httpRequest(base);
   }
   return httpRequest(`/admin/majors${params}`);
+}
+
+export async function createMajor(payload: any) {
+  return httpRequest("/admin/majors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMajor(majorId: number, payload: any) {
+  return httpRequest(`/admin/majors/${majorId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMajor(majorId: number, confirmPassword: string) {
+  return httpRequest(`/admin/majors/${majorId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
+  });
+}
+
+export async function getDepartments(collegeId?: number, params = "") {
+  if (collegeId) {
+    const suffix = params ? (params.startsWith("?") ? params.slice(1) : params) : "";
+    return httpRequest(`/admin/departments?college_id=${collegeId}${suffix ? `&${suffix}` : ""}`);
+  }
+  return httpRequest(`/admin/departments${params}`);
+}
+
+export async function createDepartment(payload: any) {
+  return httpRequest("/admin/departments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateDepartment(departmentId: number, payload: any) {
+  return httpRequest(`/admin/departments/${departmentId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteDepartment(departmentId: number, confirmPassword: string) {
+  return httpRequest(`/admin/departments/${departmentId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
+  });
 }
 
 // Subject endpoints
@@ -205,9 +301,12 @@ export async function updateSubject(subjectId: number, payload: any) {
   });
 }
 
-export async function deleteSubject(subjectId: number) {
+export async function deleteSubject(subjectId: number, confirmPassword: string) {
   return httpRequest(`/admin/subjects/${subjectId}`, {
     method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
   });
 }
 
@@ -229,8 +328,9 @@ export async function uploadSubjectCoverImage(file: File) {
 }
 
 // Section endpoints
-export async function getSections(params = "") {
-  return httpRequest(`/admin/sections${params}`);
+export async function getSections(params: string | AdminAcademicFilters = "") {
+  const query = typeof params === "string" ? params : buildAcademicFilterQuery(params);
+  return httpRequest(`/admin/sections${query}`);
 }
 
 
@@ -250,23 +350,37 @@ export async function updateSection(sectionId: number, payload: any) {
   });
 }
 
-export async function deleteSection(sectionId: number) {
+export async function deleteSection(sectionId: number, confirmPassword: string) {
   return httpRequest(`/admin/sections/${sectionId}`, {
     method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+    suppressAuthRedirect: true,
   });
 }
 
-export async function assignSectionTeacher(sectionId: number, teacherId: number) {
+export async function assignSectionTeacher(sectionId: number, teacherId: number, subjectId?: number | null) {
   return httpRequest(`/admin/sections/${sectionId}/assign-teacher`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ teacher_id: teacherId }),
+    body: JSON.stringify({ teacher_id: teacherId, subject_id: subjectId ?? undefined }),
   });
 }
 
-export async function unassignSectionTeacher(sectionId: number) {
-  return httpRequest(`/admin/sections/${sectionId}/unassign-teacher`, {
+export async function unassignSectionTeacher(sectionId: number, subjectId?: number | null) {
+  const params = subjectId ? `?subject_id=${subjectId}` : "";
+  return httpRequest(`/admin/sections/${sectionId}/unassign-teacher${params}`, {
     method: "PUT",
+  });
+}
+
+export async function uploadAdminMedia(file: File, entity: "college" | "department" | "major" | "subject"): Promise<AdminMediaUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("entity", entity);
+  return httpRequest("/admin/media/upload", {
+    method: "POST",
+    body: formData,
   });
 }
 
@@ -322,6 +436,7 @@ export async function updateSettings(payload: any) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    suppressAuthRedirect: true,
   });
 }
 
@@ -336,15 +451,16 @@ export async function testDetection(file: File) {
 
 // Backup endpoints
 export async function getBackups(params = ""): Promise<AdminBackupRun[]> {
-  return httpRequest(`/admin/backups${params}`);
+  return httpRequest(`/admin/backups${params}`, { suppressAuthRedirect: true });
 }
 
 export async function runBackup(): Promise<AdminBackupRun> {
   return httpRequest("/admin/backups", {
     method: "POST",
+    suppressAuthRedirect: true,
   });
 }
 
 export async function getBackupStatus(backupId: number): Promise<AdminBackupRun> {
-  return httpRequest(`/admin/backups/${backupId}`);
+  return httpRequest(`/admin/backups/${backupId}`, { suppressAuthRedirect: true });
 }

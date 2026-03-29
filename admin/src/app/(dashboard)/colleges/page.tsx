@@ -1,603 +1,683 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { Plus, School, Trash2, Edit2, BookType, GraduationCap, Info, MoreHorizontal } from "lucide-react";
-import { AlertDialog } from "@/components/ui/alert-dialog";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ImagePlus, MoreVertical, Pencil, Plus, School, Trash2, Building2, BookOpen } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/ui/toast";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
+import { Modal } from "@/components/ui/modal";
+import { CriticalActionModal } from "@/components/ui/critical-action-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   createCollege,
+  createDepartment,
+  createMajor,
   deleteCollege,
-  getCollegeDetails,
+  deleteDepartment,
+  deleteMajor,
   getColleges,
+  getDepartments,
+  getMajors,
   updateCollege,
+  updateDepartment,
+  updateMajor,
+  uploadAdminMedia,
 } from "@/features/admin/api";
-import type { AdminCollege, AdminCollegeDetails, AdminMajor } from "@/features/admin/types";
-import { SearchBar } from "@/components/ui/search-bar";
+import type { AdminCollege, AdminDepartment, AdminMajor } from "@/features/admin/types";
+import { useToast } from "@/components/ui/toast";
 import { getErrorMessage } from "@/lib/errors";
-import { Users, Calendar, Activity, FileText, Layout } from "lucide-react";
 
-/**
- * CollegesPage Component
- * Displays academic colleges in a premium carousel with redesigned cards.
- */
+type ModalMode = "create" | "edit";
+
+/* ── tiny inline dropdown ── */
+function ActionMenu({
+  onEdit,
+  onDelete,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-8 z-50 min-w-[130px] rounded-lg border border-border bg-popover shadow-lg">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent rounded-t-lg"
+            onClick={() => { setOpen(false); onEdit(); }}
+          >
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
+            onClick={() => { setOpen(false); onDelete(); }}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CollegesPage() {
   const { notify } = useToast();
-  const [items, setItems] = useState<AdminCollege[]>([]);
-  const [query, setQuery] = useState("");
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingMajors, setLoadingMajors] = useState(false);
 
-  const [activeCollege, setActiveCollege] = useState<AdminCollege | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-  // Detail Modal State
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [details, setDetails] = useState<AdminCollegeDetails | null>(null);
-  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [colleges, setColleges] = useState<AdminCollege[]>([]);
+  const [departments, setDepartments] = useState<AdminDepartment[]>([]);
+  const [majors, setMajors] = useState<AdminMajor[]>([]);
 
-  const [name, setName] = useState("");
-  const [acronym, setAcronym] = useState("");
+  const [selectedCollegeId, setSelectedCollegeId] = useState<number | null>(null);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
-  // Track which card has the menu open
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [collegeModalOpen, setCollegeModalOpen] = useState(false);
+  const [collegeModalMode, setCollegeModalMode] = useState<ModalMode>("create");
+  const [editingCollege, setEditingCollege] = useState<AdminCollege | null>(null);
+  const [collegeName, setCollegeName] = useState("");
+  const [collegeAcronym, setCollegeAcronym] = useState("");
+  const [collegeLogoPath, setCollegeLogoPath] = useState("");
 
-  async function load() {
+  const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
+  const [departmentModalMode, setDepartmentModalMode] = useState<ModalMode>("create");
+  const [editingDepartment, setEditingDepartment] = useState<AdminDepartment | null>(null);
+  const [departmentName, setDepartmentName] = useState("");
+  const [departmentCode, setDepartmentCode] = useState("");
+  const [departmentCoverImageUrl, setDepartmentCoverImageUrl] = useState("");
+
+  const [majorModalOpen, setMajorModalOpen] = useState(false);
+  const [majorModalMode, setMajorModalMode] = useState<ModalMode>("create");
+  const [editingMajor, setEditingMajor] = useState<AdminMajor | null>(null);
+  const [majorName, setMajorName] = useState("");
+  const [majorCode, setMajorCode] = useState("");
+  const [majorCoverImageUrl, setMajorCoverImageUrl] = useState("");
+
+  const [uploadingField, setUploadingField] = useState<null | "collegeLogo" | "departmentCover" | "majorCover">(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { type: "college"; id: number; label: string }
+    | { type: "department"; id: number; label: string }
+    | { type: "major"; id: number; label: string }
+    | null
+  >(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const selectedCollege = useMemo(
+    () => colleges.find((row) => row.id === selectedCollegeId) ?? null,
+    [colleges, selectedCollegeId],
+  );
+  const selectedDepartment = useMemo(
+    () => departments.find((row) => row.id === selectedDepartmentId) ?? null,
+    [departments, selectedDepartmentId],
+  );
+  const collegeLabel = colleges.length === 1 ? "College" : "Colleges";
+  const normalizedSearch = query.trim().toLowerCase();
+  const filteredCollegeOptions = useMemo(() => {
+    if (!normalizedSearch) return colleges;
+    return colleges.filter((row) => {
+      const majorsText = (row.majors ?? [])
+        .map((major) => `${major.name} ${major.code} ${major.department_name ?? ""}`)
+        .join(" ");
+      return `${row.name} ${row.acronym ?? ""} ${majorsText}`.toLowerCase().includes(normalizedSearch);
+    });
+  }, [colleges, normalizedSearch]);
+  const filteredDepartments = useMemo(() => {
+    if (!normalizedSearch) return departments;
+    return departments.filter((row) =>
+      `${row.name} ${row.code ?? ""}`.toLowerCase().includes(normalizedSearch),
+    );
+  }, [departments, normalizedSearch]);
+  const filteredMajors = useMemo(() => {
+    if (!normalizedSearch) return majors;
+    return majors.filter((row) =>
+      `${row.name} ${row.code} ${row.department_name ?? ""} ${row.college_name ?? ""}`.toLowerCase().includes(normalizedSearch),
+    );
+  }, [majors, normalizedSearch]);
+
+  const loadColleges = useCallback(async () => {
     setLoading(true);
     try {
-      const params = query ? `?q=${encodeURIComponent(query)}` : "";
+      const params = "?limit=500";
       const res = await getColleges(params);
-      setItems(res.items || []);
-      setError(null);
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to load colleges"));
+      const rows: AdminCollege[] = res.items ?? [];
+      setColleges(rows);
+      if (rows.length === 0) {
+        setSelectedCollegeId(null);
+        setSelectedDepartmentId(null);
+        setDepartments([]);
+        setMajors([]);
+      } else {
+        setSelectedCollegeId((prev) =>
+          prev && rows.some((c: AdminCollege) => c.id === prev) ? prev : rows[0].id,
+        );
+      }
+    } catch (error) {
+      notify({ tone: "danger", title: "Load failed", description: getErrorMessage(error, "Unable to load colleges.") });
     } finally {
       setLoading(false);
     }
-  }
+  }, [notify]);
 
+  const loadDepartments = useCallback(async (collegeId: number | null) => {
+    if (!collegeId) { setDepartments([]); setSelectedDepartmentId(null); return; }
+    setLoadingDepartments(true);
+    try {
+      const res = await getDepartments(collegeId, "?limit=500");
+      const rows: AdminDepartment[] = res.items ?? [];
+      setDepartments(rows);
+      setSelectedDepartmentId((prev) =>
+        prev && rows.some((d: AdminDepartment) => d.id === prev) ? prev : rows[0]?.id ?? null,
+      );
+    } catch (error) {
+      notify({ tone: "danger", title: "Load failed", description: getErrorMessage(error, "Unable to load departments.") });
+    } finally {
+      setLoadingDepartments(false);
+    }
+  }, [notify]);
+
+  const loadMajors = useCallback(async (departmentId: number | null) => {
+    if (!departmentId) { setMajors([]); return; }
+    setLoadingMajors(true);
+    try {
+      const res = await getMajors(undefined, "?limit=500", departmentId);
+      setMajors(res.items ?? []);
+    } catch (error) {
+      notify({ tone: "danger", title: "Load failed", description: getErrorMessage(error, "Unable to load majors.") });
+    } finally {
+      setLoadingMajors(false);
+    }
+  }, [notify]);
+
+  useEffect(() => { loadColleges(); }, [loadColleges]);
+  useEffect(() => { loadDepartments(selectedCollegeId); }, [selectedCollegeId, loadDepartments]);
+  useEffect(() => { loadMajors(selectedDepartmentId); }, [selectedDepartmentId, loadMajors]);
   useEffect(() => {
-    load();
-  }, []);
-
-  async function onSearch(e: FormEvent) {
-    e.preventDefault();
-    await load();
-  }
-
-  function openCreate() {
-    setName("");
-    setAcronym("");
-    setFormError(null);
-    setCreateOpen(true);
-  }
-
-  function openEdit(college: AdminCollege) {
-    setActiveCollege(college);
-    setName(college.name);
-    setAcronym(college.acronym || "");
-    setFormError(null);
-    setEditOpen(true);
-    setOpenMenuId(null);
-  }
-
-  function openDelete(college: AdminCollege) {
-    setActiveCollege(college);
-    setDeleteConfirmOpen(true);
-    setOpenMenuId(null);
-  }
-
-  async function openDetails(collegeId: number) {
-    setDetailsOpen(true);
-    setDetails(null);
-    setLoadingDetails(true);
-    try {
-      const data = await getCollegeDetails(collegeId);
-      setDetails(data);
-    } catch (err) {
-      notify({
-        tone: "danger",
-        title: "Load failed",
-        description: getErrorMessage(err, "Failed to load college details"),
-      });
-      setDetailsOpen(false);
-    } finally {
-      setLoadingDetails(false);
+    if (filteredCollegeOptions.length === 0) return;
+    if (!selectedCollegeId || !filteredCollegeOptions.some((row) => row.id === selectedCollegeId)) {
+      setSelectedCollegeId(filteredCollegeOptions[0].id);
     }
-  }
+  }, [filteredCollegeOptions, selectedCollegeId]);
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setSubmitting(true);
-    setFormError(null);
+  const onSearchSubmit = async (event: FormEvent) => { event.preventDefault(); await loadColleges(); };
+
+  /* ── open helpers ── */
+  const openCreateCollege = () => {
+    setCollegeModalMode("create"); setEditingCollege(null);
+    setCollegeName(""); setCollegeAcronym(""); setCollegeLogoPath("");
+    setCollegeModalOpen(true);
+  };
+  const openEditCollege = (row: AdminCollege) => {
+    setCollegeModalMode("edit"); setEditingCollege(row);
+    setCollegeName(row.name); setCollegeAcronym(row.acronym ?? "");
+    setCollegeLogoPath(row.logo_path ?? "");
+    setCollegeModalOpen(true);
+  };
+  const openCreateDepartment = () => {
+    if (!selectedCollegeId) { notify({ tone: "warning", title: "Select a college", description: "Choose a college before creating a department." }); return; }
+    setDepartmentModalMode("create"); setEditingDepartment(null);
+    setDepartmentName(""); setDepartmentCode(""); setDepartmentCoverImageUrl("");
+    setDepartmentModalOpen(true);
+  };
+  const openEditDepartment = (row: AdminDepartment) => {
+    setDepartmentModalMode("edit"); setEditingDepartment(row);
+    setDepartmentName(row.name); setDepartmentCode(row.code ?? ""); setDepartmentCoverImageUrl(row.cover_image_url ?? "");
+    setDepartmentModalOpen(true);
+  };
+  const openCreateMajor = () => {
+    if (!selectedDepartmentId) { notify({ tone: "warning", title: "Select a department", description: "Choose a department before creating a major." }); return; }
+    setMajorModalMode("create"); setEditingMajor(null);
+    setMajorName(""); setMajorCode(""); setMajorCoverImageUrl("");
+    setMajorModalOpen(true);
+  };
+  const openEditMajor = (row: AdminMajor) => {
+    setMajorModalMode("edit"); setEditingMajor(row);
+    setMajorName(row.name); setMajorCode(row.code); setMajorCoverImageUrl(row.cover_image_url ?? "");
+    setMajorModalOpen(true);
+  };
+
+  /* ── submits ── */
+  const submitCollege = async (event: FormEvent) => {
+    event.preventDefault(); setSubmitting(true);
     try {
-      await createCollege({ name: name.trim(), acronym: acronym.trim() || null });
-      notify({ tone: "success", title: "College created" });
-      setCreateOpen(false);
-      await load();
-    } catch (err) {
-      setFormError(getErrorMessage(err, "Failed to create college"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+      if (collegeModalMode === "create") {
+        await createCollege({ name: collegeName.trim(), acronym: collegeAcronym.trim() || null, logo_path: collegeLogoPath.trim() || null });
+        notify({ tone: "success", title: "College created" });
+      } else if (editingCollege) {
+        await updateCollege(editingCollege.id, { name: collegeName.trim(), acronym: collegeAcronym.trim() || null, logo_path: collegeLogoPath.trim() || null });
+        notify({ tone: "success", title: "College updated" });
+      }
+      setCollegeModalOpen(false); await loadColleges();
+    } catch (error) {
+      notify({ tone: "danger", title: "Save failed", description: getErrorMessage(error, "Unable to save college.") });
+    } finally { setSubmitting(false); }
+  };
 
-  async function handleUpdate(e: FormEvent) {
-    e.preventDefault();
-    if (!activeCollege || !name.trim()) return;
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      await updateCollege(activeCollege.id, {
-        name: name.trim(),
-        acronym: acronym.trim() || null,
-      });
-      notify({ tone: "success", title: "College updated" });
-      setEditOpen(false);
-      await load();
-    } catch (err) {
-      setFormError(getErrorMessage(err, "Failed to update college"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!activeCollege) return;
+  const submitDepartment = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedCollegeId && departmentModalMode === "create") return;
     setSubmitting(true);
     try {
-      await deleteCollege(activeCollege.id);
-      notify({ tone: "success", title: "College deleted" });
-      setDeleteConfirmOpen(false);
-      await load();
-    } catch (err) {
-      notify({
-        tone: "danger",
-        title: "Delete failed",
-        description: getErrorMessage(err, "Failed to delete college"),
-      });
-    } finally {
-      setSubmitting(false);
-    }
+      if (departmentModalMode === "create") {
+        await createDepartment({ college_id: selectedCollegeId, name: departmentName.trim(), code: departmentCode.trim() || null, cover_image_url: departmentCoverImageUrl.trim() || null });
+        notify({ tone: "success", title: "Department created" });
+      } else if (editingDepartment) {
+        await updateDepartment(editingDepartment.id, { name: departmentName.trim(), code: departmentCode.trim() || null, cover_image_url: departmentCoverImageUrl.trim() || null });
+        notify({ tone: "success", title: "Department updated" });
+      }
+      setDepartmentModalOpen(false); await loadDepartments(selectedCollegeId);
+    } catch (error) {
+      notify({ tone: "danger", title: "Save failed", description: getErrorMessage(error, "Unable to save department.") });
+    } finally { setSubmitting(false); }
+  };
+
+  const submitMajor = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedDepartmentId && majorModalMode === "create") return;
+    setSubmitting(true);
+    try {
+      if (majorModalMode === "create") {
+        await createMajor({ department_id: selectedDepartmentId, name: majorName.trim(), code: majorCode.trim(), cover_image_url: majorCoverImageUrl.trim() || null });
+        notify({ tone: "success", title: "Major created" });
+      } else if (editingMajor) {
+        await updateMajor(editingMajor.id, { name: majorName.trim(), code: majorCode.trim(), cover_image_url: majorCoverImageUrl.trim() || null });
+        notify({ tone: "success", title: "Major updated" });
+      }
+      setMajorModalOpen(false); await loadMajors(selectedDepartmentId); await loadColleges();
+    } catch (error) {
+      notify({ tone: "danger", title: "Save failed", description: getErrorMessage(error, "Unable to save major.") });
+    } finally { setSubmitting(false); }
+  };
+
+  async function onUploadAsset(file: File, target: "collegeLogo" | "departmentCover" | "majorCover") {
+    setUploadingField(target);
+    try {
+      const entity = target === "majorCover" ? "major" : target === "departmentCover" ? "department" : "college";
+      const result = await uploadAdminMedia(file, entity);
+      const url = result.secure_url;
+      if (target === "collegeLogo") setCollegeLogoPath(url);
+      if (target === "departmentCover") setDepartmentCoverImageUrl(url);
+      if (target === "majorCover") setMajorCoverImageUrl(url);
+
+      let appliedImmediately = false;
+      if (target === "collegeLogo" && collegeModalMode === "edit" && editingCollege) {
+        await updateCollege(editingCollege.id, { logo_path: url });
+        await loadColleges(); appliedImmediately = true;
+      }
+      if (target === "departmentCover" && departmentModalMode === "edit" && editingDepartment) {
+        await updateDepartment(editingDepartment.id, { cover_image_url: url });
+        await loadDepartments(selectedCollegeId); appliedImmediately = true;
+      }
+      if (target === "majorCover" && majorModalMode === "edit" && editingMajor) {
+        await updateMajor(editingMajor.id, { cover_image_url: url });
+        await loadMajors(selectedDepartmentId); appliedImmediately = true;
+      }
+      notify({ tone: "success", title: appliedImmediately ? "Image uploaded and applied" : "Image uploaded", description: appliedImmediately ? "Changes are now visible in the list." : "Click Save to persist this image." });
+    } catch (error) {
+      notify({ tone: "danger", title: "Upload failed", description: getErrorMessage(error, "Unable to upload image.") });
+    } finally { setUploadingField(null); }
   }
+
+  const confirmDelete = async (password: string) => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      if (deleteTarget.type === "college") { await deleteCollege(deleteTarget.id, password); notify({ tone: "success", title: "College deleted" }); await loadColleges(); }
+      if (deleteTarget.type === "department") { await deleteDepartment(deleteTarget.id, password); notify({ tone: "success", title: "Department deleted" }); await loadDepartments(selectedCollegeId); }
+      if (deleteTarget.type === "major") { await deleteMajor(deleteTarget.id, password); notify({ tone: "success", title: "Major deleted" }); await loadMajors(selectedDepartmentId); await loadColleges(); }
+      setDeleteTarget(null);
+    } catch (error) {
+      notify({ tone: "danger", title: "Delete failed", description: getErrorMessage(error, "Unable to delete selected item.") });
+    } finally { setDeleting(false); }
+  };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-12 pb-20">
-      <div className="flex flex-wrap items-start justify-between gap-4 px-4">
-        <PageHeader
-          title={<><School className="h-6 w-6" />Colleges</>}
-          description="Manage academic colleges and organizational structure."
-        />
-        <Button onClick={openCreate} className="rounded-xl shadow-xl shadow-primary/20">
-          <Plus className="mr-2 h-5 w-5" />
+    <div className="space-y-6">
+      <PageHeader
+        title={
+          <>
+            <School className="h-5 w-5" />
+            {collegeLabel}
+          </>
+        }
+        description="Hierarchy-first management for Colleges, Departments, and Majors."
+      />
+
+      {/* Search + Add */}
+      <form onSubmit={onSearchSubmit} className="flex items-center gap-2">
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search colleges, departments, majors..." className="max-w-sm" />
+        <Button type="submit" variant="outline">Search</Button>
+        <Button type="button" onClick={openCreateCollege}>
+          <Plus className="mr-2 h-4 w-4" />
           Add College
         </Button>
-      </div>
+      </form>
 
-      <div className="flex max-w-md items-center gap-3 px-4">
-        <SearchBar
-          placeholder="Search colleges..."
-          value={query}
-          onChange={setQuery}
-          onSubmit={onSearch}
-        />
-      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
 
-      {error ? (
-        <div className="px-4">
-          <Card className="border-danger/20 bg-danger/5">
-            <CardContent className="flex items-center gap-3 py-4 text-danger">
-              <Info className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">{error}</p>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      <div className="relative px-6 sm:px-16" onClick={() => setOpenMenuId(null)}>
-        {loading ? (
-          <div className="flex gap-6 overflow-hidden">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-[480px] min-w-[320px] flex-1 rounded-xl" />
-            ))}
+        {/* -- 1. Colleges -- */}
+        <div className="space-y-3">
+          <div className="text-center">
+            <h2 className="text-base font-semibold tracking-tight">{collegeLabel}</h2>
+            {colleges.length > 1 ? <p className="text-xs text-muted-foreground">Select a college to drill down</p> : null}
           </div>
-        ) : items.length > 0 ? (
-          <Carousel
-            opts={{
-              align: "start",
-              loop: true,
-            }}
-            className="w-full"
-          >
-            <CarouselContent className="-ml-6">
-              {items.map((college) => (
-                <CarouselItem key={college.id} className="pl-6 md:basis-1/2 lg:basis-1/3 xl:basis-1/3">
-                  <Card
-                    onClick={() => openDetails(college.id)}
-                    className="group relative flex h-[480px] cursor-pointer flex-col overflow-hidden border-border/40 bg-card/40 backdrop-blur-xl transition-all hover:bg-card/60 hover:shadow-2xl hover:shadow-primary/5 active:scale-[0.99] rounded-xl"
+          <div className="space-y-3">
+            {loading ? (
+              [1, 2].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)
+            ) : filteredCollegeOptions.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {query.trim() ? `No colleges, departments, or majors match "${query.trim()}".` : "No colleges found."}
+              </p>
+            ) : (
+              <>
+                {filteredCollegeOptions.length > 1 ? (
+                  <select
+                    value={selectedCollegeId ?? ""}
+                    onChange={(e) => setSelectedCollegeId(e.target.value ? Number(e.target.value) : null)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
+                    {filteredCollegeOptions.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.acronym ? `${row.acronym} - ${row.name}` : row.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
 
-                    {/* Actions Menu */}
-                    <div className="absolute right-6 top-6 z-20">
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(openMenuId === college.id ? null : college.id);
-                          }}
-                          className="h-9 w-9 rounded-full bg-background/20 border-border/20 backdrop-blur hover:bg-background/40"
-                        >
-                          <MoreHorizontal className="h-5 w-5" />
-                        </Button>
-
-                        {openMenuId === college.id && (
-                          <div className="absolute right-0 top-11 w-32 origin-top-right rounded-xl border border-border/50 bg-background/90 p-1.5 shadow-xl backdrop-blur-md animate-in fade-in zoom-in duration-200">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openEdit(college); }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold transition-colors hover:bg-muted"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                              Edit Profile
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openDelete(college); }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold text-danger transition-colors hover:bg-danger/10"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
+                {selectedCollege ? (
+                  <div className="p-2">
+                    <div className="mb-3 flex items-center justify-end">
+                      <ActionMenu
+                        onEdit={() => openEditCollege(selectedCollege)}
+                        onDelete={() => setDeleteTarget({ type: "college", id: selectedCollege.id, label: selectedCollege.name })}
+                      />
+                    </div>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="flex h-52 w-52 items-center justify-center overflow-hidden rounded-full border-4 border-primary/15 bg-muted shadow-md">
+                        {selectedCollege.logo_path ? (
+                          <img src={selectedCollege.logo_path} alt={`${selectedCollege.name} logo`} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-4xl font-semibold text-muted-foreground">
+                            {selectedCollege.acronym?.slice(0, 2) ?? selectedCollege.name.slice(0, 2)}
+                          </span>
                         )}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold leading-tight">{selectedCollege.name}</p>
+                        <p className="text-xs text-muted-foreground">{selectedCollege.acronym ?? "No acronym"}</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 rounded-md border border-border/70 px-2 py-1">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {departments.length} dept{departments.length !== 1 ? "s" : ""}
+                        </span>
+                        <span className="flex items-center gap-1 rounded-md border border-border/70 px-2 py-1">
+                          <BookOpen className="h-3.5 w-3.5" />
+                          {selectedCollege.majors?.length ?? 0} major{(selectedCollege.majors?.length ?? 0) !== 1 ? "s" : ""}
+                        </span>
                       </div>
                     </div>
-
-                    <CardContent className="flex flex-1 flex-col items-center p-10 text-center">
-                      {/* Logo Section (Circular, No overlay) */}
-                      <div className="mb-8">
-                        <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-muted/40 shadow-xl transition-transform group-hover:scale-105">
-                          {college.logo_path ? (
-                            <img src={college.logo_path} alt={college.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <GraduationCap className="h-16 w-16 text-muted-foreground/20" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Header Info */}
-                      <div className="space-y-3">
-                        <h3 className="text-2xl font-black text-foreground leading-tight tracking-tight line-clamp-2 min-h-[4rem]">{college.name}</h3>
-                        {college.acronym && (
-                          <div className="flex justify-center">
-                            <span className="inline-block rounded-full bg-primary/10 px-5 py-1.5 text-[11px] font-black uppercase tracking-[0.3em] text-primary">
-                              {college.acronym}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Content Separator */}
-                      <div className="mt-10 w-full space-y-5">
-                        <div className="flex items-center gap-3">
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border/40 to-border/40" />
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 whitespace-nowrap px-2">Academic Programs</span>
-                          <div className="h-px flex-1 bg-gradient-to-l from-transparent via-border/40 to-border/40" />
-                        </div>
-
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {college.majors && college.majors.length > 0 ? (
-                            <>
-                              {college.majors.slice(0, 5).map((major: AdminMajor) => (
-                                <Badge key={major.id} tone="default" className="rounded-full border-border/40 bg-muted/20 px-3.5 py-1 text-[10px] font-bold text-muted-foreground transition-all hover:bg-primary/5 hover:text-primary hover:border-primary/20">
-                                  {major.code}
-                                </Badge>
-                              ))}
-                              {college.majors.length > 5 && (
-                                <Badge tone="default" className="rounded-full border-border/40 bg-muted/20 px-3.5 py-1 text-[10px] font-bold text-muted-foreground">
-                                  +{college.majors.length - 5}
-                                </Badge>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center gap-1 opacity-10">
-                              <BookType className="h-5 w-5" />
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Empty Records</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Footer Metadata */}
-                      <div className="mt-auto pt-8 opacity-10 group-hover:opacity-30 transition-opacity">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Institutional ID: {college.id.toString().padStart(3, '0')}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious className="-left-6 h-12 w-12 border-border/40 bg-card/50 shadow-xl backdrop-blur-sm hover:bg-card hidden sm:flex" />
-            <CarouselNext className="-right-6 h-12 w-12 border-border/40 bg-card/50 shadow-xl backdrop-blur-sm hover:bg-card hidden sm:flex" />
-          </Carousel>
-        ) : (
-          <div className="rounded-xl border-2 border-dashed border-border/40 bg-muted/5 py-40 text-center">
-            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted/20">
-              <School className="h-12 w-12 text-muted-foreground/10" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground">No Academic Records</h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground/60">Try searching for something else or create a new college record.</p>
-            <Button variant="outline" className="mt-10 rounded-xl px-10" onClick={() => { setQuery(""); load(); }}>
-              Show All Colleges
-            </Button>
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
-        )}
+        </div>
+        {/* ── 2. Departments ── */}
+        <Card>
+          <CardHeader className="flex flex-col items-center gap-1 pb-3">
+            <CardTitle className="text-base font-semibold tracking-tight">Departments</CardTitle>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {selectedCollege ? `Under ${selectedCollege.name}` : "Select a college first"}
+              </p>
+              <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={openCreateDepartment}>
+                <Plus className="mr-1 h-3 w-3" /> Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {!selectedCollege ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Select a college to manage departments.
+              </p>
+            ) : loadingDepartments ? (
+              [1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)
+            ) : filteredDepartments.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {query.trim() ? `No departments match "${query.trim()}" under ${selectedCollege.name}.` : `No departments under ${selectedCollege.name}.`}
+              </p>
+            ) : (
+              filteredDepartments.map((row) => (
+                <div
+                  key={row.id}
+                  className={`group relative overflow-hidden rounded-xl border p-0 ${
+                    selectedDepartmentId === row.id ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <button type="button" className="relative w-full text-left" onClick={() => setSelectedDepartmentId(row.id)}>
+                    <div className="relative min-h-[120px] w-full">
+                      {row.cover_image_url ? (
+                        <img src={row.cover_image_url} alt={row.name} className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 bg-muted">
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Building2 className="h-10 w-10 text-muted-foreground/70" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
+                      <div className="relative flex min-h-[120px] flex-col justify-end px-3 py-3">
+                        <p className="font-semibold text-white">{row.name}</p>
+                        <p className="text-xs text-white/85">{row.code ?? "No code"}</p>
+                      </div>
+                    </div>
+                  </button>
+                  <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu
+                      onEdit={() => openEditDepartment(row)}
+                      onDelete={() => setDeleteTarget({ type: "department", id: row.id, label: row.name })}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── 3. Majors ── */}
+        <Card>
+          <CardHeader className="flex flex-col items-center gap-1 pb-3">
+            <CardTitle className="text-base font-semibold tracking-tight">Majors</CardTitle>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {selectedDepartment ? `Under ${selectedDepartment.name}` : "Select a department first"}
+              </p>
+              <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={openCreateMajor}>
+                <Plus className="mr-1 h-3 w-3" /> Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {!selectedDepartment ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Select a department to manage majors.
+              </p>
+            ) : loadingMajors ? (
+              [1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)
+            ) : filteredMajors.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {query.trim() ? `No majors match "${query.trim()}" under ${selectedDepartment.name}.` : `No majors under ${selectedDepartment.name}.`}
+              </p>
+            ) : (
+              filteredMajors.map((row) => (
+                <div key={row.id} className="group relative overflow-hidden rounded-xl border border-border p-0">
+                  <div className="relative min-h-[110px] w-full">
+                    {row.cover_image_url ? (
+                      <img src={row.cover_image_url} alt={row.name} className="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 bg-muted">
+                        <div className="flex h-full w-full items-center justify-center">
+                          <BookOpen className="h-10 w-10 text-muted-foreground/70" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
+                    <div className="relative flex min-h-[110px] flex-col justify-end px-3 py-3">
+                      <p className="font-semibold text-white">{row.name}</p>
+                      <p className="text-xs text-white/85">{row.code}</p>
+                    </div>
+                  </div>
+                  <div className="absolute right-2 top-2 z-10">
+                    <ActionMenu
+                      onEdit={() => openEditMajor(row)}
+                      onDelete={() => setDeleteTarget({ type: "major", id: row.id, label: row.name })}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Hierarchy Context */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-center text-sm">Hierarchy Context</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-1 text-xs uppercase text-muted-foreground">College</p>
+            <p className="font-semibold">{selectedCollege?.name ?? "None selected"}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-1 text-xs uppercase text-muted-foreground">Department</p>
+            <p className="font-semibold">{selectedDepartment?.name ?? "None selected"}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-1 text-xs uppercase text-muted-foreground">Majors</p>
+            <p className="font-semibold">{majors.length}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Modals ── */}
       <Modal
-        open={createOpen}
-        onClose={() => !submitting && setCreateOpen(false)}
-        title="Register New College"
-        description="Add a new academic unit to the institutional directory."
+        open={collegeModalOpen}
+        onClose={() => !submitting && setCollegeModalOpen(false)}
+        title={collegeModalMode === "create" ? "Create College" : "Edit College"}
+        description="College record for top-level hierarchy."
       >
-        <form onSubmit={handleCreate} className="space-y-4 pt-2">
-          {formError && (
-            <div className="flex items-center gap-2 rounded-xl border border-danger/20 bg-danger/5 p-3 text-xs font-bold text-danger">
-              <Info className="h-4 w-4" />
-              {formError}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</label>
-            <Input
-              placeholder="e.g. College of Engineering"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="h-12 border-border/60 rounded-xl"
-              autoFocus
-            />
+        <form onSubmit={submitCollege} className="space-y-3">
+          <label className="space-y-1 text-sm"><span>Name</span><Input value={collegeName} onChange={(e) => setCollegeName(e.target.value)} required /></label>
+          <label className="space-y-1 text-sm"><span>Acronym</span><Input value={collegeAcronym} onChange={(e) => setCollegeAcronym(e.target.value.toUpperCase())} /></label>
+          <label className="space-y-1 text-sm"><span>Logo URL</span><Input value={collegeLogoPath} onChange={(e) => setCollegeLogoPath(e.target.value)} placeholder="https://..." /></label>
+          {collegeLogoPath ? <div className="flex items-center gap-2"><img src={collegeLogoPath} alt="College logo preview" className="h-12 w-12 rounded-full border border-border object-cover" /><span className="text-xs text-muted-foreground">Logo preview</span></div> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center rounded-md border border-input px-3 py-2 text-xs font-medium hover:bg-accent">
+              <ImagePlus className="mr-1 h-3.5 w-3.5" />Upload Logo
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void onUploadAsset(file, "collegeLogo"); }} />
+            </label>
+            {uploadingField === "collegeLogo" ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Institutional Code (Acronym)</label>
-            <Input
-              placeholder="e.g. COE"
-              value={acronym}
-              onChange={(e) => setAcronym(e.target.value)}
-              className="h-12 border-border/60 font-mono uppercase tracking-widest rounded-xl"
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCreateOpen(false)}
-              disabled={submitting}
-              className="px-6 rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting || !name.trim()} className="px-8 shadow-lg shadow-primary/10 rounded-xl">
-              {submitting ? "Saving..." : "Create Record"}
-            </Button>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCollegeModalOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
           </div>
         </form>
       </Modal>
 
-      {/* Edit Modal */}
       <Modal
-        open={editOpen}
-        onClose={() => !submitting && setEditOpen(false)}
-        title="Update College Profile"
-        description="Modify the existing institutional records for this college."
+        open={departmentModalOpen}
+        onClose={() => !submitting && setDepartmentModalOpen(false)}
+        title={departmentModalMode === "create" ? "Create Department" : "Edit Department"}
+        description="Department belongs to selected college."
       >
-        <form onSubmit={handleUpdate} className="space-y-4 pt-2">
-          {formError && (
-            <div className="flex items-center gap-2 rounded-xl border border-danger/20 bg-danger/5 p-3 text-xs font-bold text-danger">
-              <Info className="h-4 w-4" />
-              {formError}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="h-12 border-border/60 rounded-xl"
-              autoFocus
-            />
+        <form onSubmit={submitDepartment} className="space-y-3">
+          <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">College: {selectedCollege?.name ?? "-"}</div>
+          <label className="space-y-1 text-sm"><span>Name</span><Input value={departmentName} onChange={(e) => setDepartmentName(e.target.value)} required /></label>
+          <label className="space-y-1 text-sm"><span>Code</span><Input value={departmentCode} onChange={(e) => setDepartmentCode(e.target.value.toUpperCase())} /></label>
+          <label className="space-y-1 text-sm"><span>Cover Image URL</span><Input value={departmentCoverImageUrl} onChange={(e) => setDepartmentCoverImageUrl(e.target.value)} placeholder="https://..." /></label>
+          {departmentCoverImageUrl ? <img src={departmentCoverImageUrl} alt="Department cover preview" className="h-20 w-full rounded-md object-cover" /> : null}
+          <div className="flex items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center rounded-md border border-input px-3 py-2 text-xs font-medium hover:bg-accent">
+              <ImagePlus className="mr-1 h-3.5 w-3.5" />Upload Cover
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void onUploadAsset(file, "departmentCover"); }} />
+            </label>
+            {uploadingField === "departmentCover" ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Institutional Code</label>
-            <Input
-              value={acronym}
-              onChange={(e) => setAcronym(e.target.value)}
-              className="h-12 border-border/60 font-mono uppercase tracking-widest rounded-xl"
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setEditOpen(false)}
-              disabled={submitting}
-              className="px-6 rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting || !name.trim()} className="px-8 shadow-lg shadow-primary/10 rounded-xl">
-              {submitting ? "Updating..." : "Save Changes"}
-            </Button>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setDepartmentModalOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
           </div>
         </form>
       </Modal>
 
-      {/* Detail Modal */}
       <Modal
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        title="College Report & Insights"
-        description="Detailed performance metrics and institutional overview."
-        className="max-w-4xl"
+        open={majorModalOpen}
+        onClose={() => !submitting && setMajorModalOpen(false)}
+        title={majorModalMode === "create" ? "Create Major" : "Edit Major"}
+        description="Major belongs to selected department."
       >
-        {loadingDetails ? (
-          <div className="space-y-6 py-10">
-            <div className="flex items-center gap-6">
-              <Skeleton className="h-24 w-24 rounded-full" />
-              <div className="space-y-3">
-                <Skeleton className="h-8 w-64" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
-            </div>
-            <Skeleton className="h-64 rounded-xl" />
+        <form onSubmit={submitMajor} className="space-y-3">
+          <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">Department: {selectedDepartment?.name ?? "-"}</div>
+          <label className="space-y-1 text-sm"><span>Name</span><Input value={majorName} onChange={(e) => setMajorName(e.target.value)} required /></label>
+          <label className="space-y-1 text-sm"><span>Code</span><Input value={majorCode} onChange={(e) => setMajorCode(e.target.value.toUpperCase())} required /></label>
+          <label className="space-y-1 text-sm"><span>Cover Image URL</span><Input value={majorCoverImageUrl} onChange={(e) => setMajorCoverImageUrl(e.target.value)} placeholder="https://..." /></label>
+          {majorCoverImageUrl ? <img src={majorCoverImageUrl} alt="Major cover preview" className="h-20 w-full rounded-md object-cover" /> : null}
+          <div className="flex items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center rounded-md border border-input px-3 py-2 text-xs font-medium hover:bg-accent">
+              <ImagePlus className="mr-1 h-3.5 w-3.5" />Upload Cover
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void onUploadAsset(file, "majorCover"); }} />
+            </label>
+            {uploadingField === "majorCover" ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
           </div>
-        ) : details ? (
-          <div className="space-y-8 py-4">
-            {/* Report Header */}
-            <div className="flex flex-col md:flex-row items-center gap-8 border-b border-border/40 pb-8">
-              <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-full border-4 border-background bg-card shadow-2xl">
-                {details.logo_path ? (
-                  <img src={details.logo_path} alt={details.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-muted">
-                    <School className="h-12 w-12 text-muted-foreground/40" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 text-center md:text-left space-y-2">
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                  <h2 className="text-3xl font-black tracking-tighter text-foreground">{details.name}</h2>
-                  {details.acronym && (
-                    <Badge className="bg-primary/10 text-primary font-black px-4 py-1 text-xs">
-                      {details.acronym}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                  Institution ID: {details.id.toString().padStart(4, '0')}
-                </p>
-              </div>
-            </div>
-
-            {/* Core Metrics Bento Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-border/40 bg-card/40 p-6 backdrop-blur-md">
-                <Users className="mb-4 h-6 w-6 text-primary" />
-                <h4 className="text-2xl font-black text-foreground">{details.teachers_count}</h4>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Faculty Members</p>
-              </div>
-              <div className="rounded-xl border border-border/40 bg-card/40 p-6 backdrop-blur-md text-info">
-                <Activity className="mb-4 h-6 w-6 text-info" />
-                <h4 className="text-2xl font-black text-foreground">{details.active_sessions}</h4>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Active Sessions</p>
-              </div>
-              <div className="rounded-xl border border-border/40 bg-card/40 p-6 backdrop-blur-md">
-                <Calendar className="mb-4 h-6 w-6 text-warning" />
-                <h4 className="text-2xl font-black text-foreground">{details.total_sessions}</h4>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Lifetime Sessions</p>
-              </div>
-              <div className="rounded-xl border border-border/40 bg-card/40 p-6 backdrop-blur-md">
-                <Layout className="mb-4 h-6 w-6 text-primary" />
-                <h4 className="text-2xl font-black text-foreground">{details.avg_sessions_per_teacher}</h4>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Avg. Sess / Faculty</p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Teachers List section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <h4 className="text-xs font-black uppercase tracking-[0.2em] text-foreground flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Faculty Directory
-                  </h4>
-                  <Badge tone="default" className="text-[10px]">{details.teachers.length}</Badge>
-                </div>
-                <div className="max-h-[300px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                  {details.teachers.length > 0 ? (
-                    details.teachers.map(teacher => (
-                      <div key={teacher.id} className="flex items-center gap-3 rounded-lg border border-border/20 bg-muted/10 p-3 transition-colors hover:bg-muted/20">
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/40 bg-muted">
-                          {teacher.profile_picture_url ? (
-                            <img src={teacher.profile_picture_url} className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] font-bold">
-                              {teacher.fullname?.charAt(0) || teacher.email.charAt(0)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate text-sm font-black text-foreground">{teacher.fullname}</p>
-                          <p className="truncate text-[10px] font-bold text-muted-foreground/60">{teacher.email}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="py-10 text-center text-xs font-bold text-muted-foreground/40 italic">No faculty members assigned.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Majors Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <h4 className="text-xs font-black uppercase tracking-[0.2em] text-foreground flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> Academic Majors
-                  </h4>
-                  <Badge tone="default" className="text-[10px]">{details.majors.length}</Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {details.majors.length > 0 ? (
-                    details.majors.map(major => (
-                      <div key={major.id} className="group relative flex items-center gap-3 rounded-xl border border-border/40 bg-card/50 p-4 transition-all hover:border-primary/40 hover:bg-card">
-                        <div>
-                          <p className="text-xs font-black text-foreground tracking-tight">{major.name}</p>
-                          <p className="text-[10px] font-bold text-primary uppercase tracking-widest">{major.code}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="w-full py-10 text-center text-xs font-bold text-muted-foreground/40 italic">No majors found.</p>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setMajorModalOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
           </div>
-        ) : null}
+        </form>
       </Modal>
 
-      {/* Delete Confirmation */}
-      <AlertDialog
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={handleDelete}
-        title="Confirm Deletion"
-        description={`Warning: You are about to permanently delete "${activeCollege?.name}". This record cannot be restored and will fail if linked majors or teachers exist.`}
-        confirmText="Confirm Delete"
-        variant="danger"
-        loading={submitting}
+      <CriticalActionModal
+        open={Boolean(deleteTarget)}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title={`Delete ${deleteTarget?.type ?? "item"}`}
+        description={`Delete "${deleteTarget?.label ?? ""}"? This cannot be undone and will fail if related records exist.`}
+        confirmText="Delete"
+        loading={deleting}
       />
     </div>
   );

@@ -59,7 +59,13 @@ def reset_admin_user_password(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    admin_service.admin_reset_user_password(db, user_id, payload.new_password, current_user.id)
+    admin_service.admin_reset_user_password(
+        db,
+        user_id,
+        payload.new_password,
+        current_user.id,
+        payload.confirm_password,
+    )
     return {"message": "Password reset successfully"}
 
 
@@ -69,10 +75,18 @@ def list_admin_teachers(
     limit: int = DEFAULT_PAGE_SIZE,
     q: Optional[str] = None,
     college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.list_teachers(db, skip=skip, limit=limit, q=q, college_id=college_id)
+    return admin_service.list_teachers(
+        db,
+        skip=skip,
+        limit=limit,
+        q=q,
+        college_id=college_id,
+        department_id=department_id,
+    )
 
 
 @router.post("/teachers", response_model=AdminTeacherSummary)

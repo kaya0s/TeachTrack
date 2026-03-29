@@ -27,6 +27,8 @@ export type AdminTeacher = {
   profile_picture_url: string | null;
   college_id: number | null;
   college_name: string | null;
+  department_id: number | null;
+  department_name: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -45,6 +47,10 @@ export type AdminSubject = {
   section_name?: string | null;
   sections_count: number;
   section_names: string[];
+  major_id: number | null;
+  major_name: string | null;
+  department_id: number | null;
+  department_name: string | null;
   college_id: number | null;
   college_name: string | null;
   created_at: string | null;
@@ -73,6 +79,8 @@ export type AdminCollegeDetails = {
   logo_path: string | null;
   teachers_count: number;
   teachers: AdminCollegeTeacher[];
+  departments_count: number;
+  departments: AdminDepartment[];
   total_sessions: number;
   active_sessions: number;
   avg_sessions_per_teacher: number;
@@ -82,27 +90,40 @@ export type AdminCollegeDetails = {
 
 export type AdminMajor = {
   id: number;
+  department_id: number;
+  department_name: string | null;
   college_id: number;
+  college_name: string | null;
   name: string;
   code: string;
+  cover_image_url: string | null;
   created_at: string | null;
 };
 
-export type AdminSectionPoolItem = {
+export type AdminDepartment = {
   id: number;
+  college_id: number;
+  college_name: string | null;
   name: string;
-  subject_id?: number | null;
-  subject_name?: string | null;
-  teacher_id?: number | null;
-  teacher_username?: string | null;
-  teacher_fullname?: string | null;
-  major_name?: string | null;
-  subjects_count?: number;
-  subject_names?: string[];
-  major_id: number | null;
-  year_level: number | null;
-  section_letter: string | null;
+  code: string | null;
+  cover_image_url: string | null;
   created_at: string | null;
+};
+
+export type AdminMediaUploadResponse = {
+  secure_url: string;
+  public_id: string;
+};
+
+export type AdminAcademicDatePreset = "today" | "last_7_days" | "last_30_days";
+
+export type AdminAcademicFilters = {
+  college_id?: number | null;
+  department_id?: number | null;
+  major_id?: number | null;
+  date_from?: string | null; // YYYY-MM-DD
+  date_to?: string | null; // YYYY-MM-DD
+  date_preset?: AdminAcademicDatePreset | null;
 };
 
 export type AdminSection = {
@@ -111,7 +132,11 @@ export type AdminSection = {
   subject_id: number | null;
   subject_name: string;
   major_id?: number | null;
+  major_name?: string | null;
+  department_id?: number | null;
+  department_name?: string | null;
   year_level?: number | null;
+  section_code?: string | null;
   section_letter?: string | null;
   teacher_id: number | null;
   teacher_username: string;
@@ -137,6 +162,8 @@ export type AdminSession = {
   average_engagement: number;
   college_id?: number | null;
   college_name?: string | null;
+  department_id?: number | null;
+  department_name?: string | null;
   major_id?: number | null;
   major_name?: string | null;
 };

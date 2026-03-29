@@ -45,7 +45,7 @@ This is a multi-workspace repository organized as follows:
 - **[admin/](./admin)**: A Next.js-based administration portal for managing colleges, majors, subjects, teachers, and system-wide monitoring (including backups, audit logs, and settings).
 - **[client/](./client)**: A Flutter mobile and web application used by teachers to conduct sessions, monitor real-time engagement, and review past session metrics.
 - **[server/](./server)**: The core FastAPI backend providing RESTful APIs for authentication, classroom management, and real-time data processing.
-- **[server/ml_engine/](./server/ml_engine)**: The machine learning component containing the YOLOv8-based detection logic and pre-trained weights for behavior analysis.
+- **[server/ml_engine/](./server/ml_engine)**: The machine learning component containing the YOLOv8-based(YOLOv11 for final model) detection logic and pre-trained weights for behavior analysis.
 - **[docs-site/](./docs-site)**: A dedicated documentation site built with Next.js for project guidelines, setup instructions, and operational manuals.
 - **[notebooks/](./notebooks)**: Jupyter notebooks used during the research phase for data exploration, model training experiments, and behavior analysis validation.
 

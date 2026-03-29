@@ -40,13 +40,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Drawer } from "@/components/ui/drawer";
 import { SessionDetailView } from "@/features/admin/components/session-detail-view";
-import { getDashboard, getSessionDetail, getColleges, getMajors } from "@/features/admin/api";
+import { getDashboard, getSessionDetail, getColleges, getDepartments } from "@/features/admin/api";
 import type {
   AdminSession,
   AdminSessionDetail,
   DashboardResponse,
   AdminCollege,
-  AdminMajor,
+  AdminDepartment,
 } from "@/features/admin/types";
 import { cn } from "@/lib/utils";
 import { getCurrentActorUserId } from "@/lib/auth";
@@ -90,9 +90,9 @@ export default function DashboardPage() {
   const [maxEngagement, setMaxEngagement] = useState("");
 
   const [colleges, setColleges] = useState<AdminCollege[]>([]);
-  const [majors, setMajors] = useState<AdminMajor[]>([]);
+  const [departments, setDepartments] = useState<AdminDepartment[]>([]);
   const [selectedCollegeId, setSelectedCollegeId] = useState<string>("all");
-  const [selectedMajorId, setSelectedMajorId] = useState<string>("all");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("all");
 
 
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
@@ -142,10 +142,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (selectedCollegeId !== "all") {
-      getMajors(Number(selectedCollegeId)).then((res) => setMajors(res.items));
+      getDepartments(Number(selectedCollegeId)).then((res) => setDepartments(res.items));
     } else {
-      setMajors([]);
-      setSelectedMajorId("all");
+      setDepartments([]);
+      setSelectedDepartmentId("all");
     }
   }, [selectedCollegeId]);
 
@@ -222,11 +222,11 @@ export default function DashboardPage() {
       if (max !== null && Number.isFinite(max) && score > max) return false;
 
       if (selectedCollegeId !== "all" && s.college_id !== Number(selectedCollegeId)) return false;
-      if (selectedMajorId !== "all" && s.major_id !== Number(selectedMajorId)) return false;
+      if (selectedDepartmentId !== "all" && s.department_id !== Number(selectedDepartmentId)) return false;
 
       return true;
     });
-  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement, selectedCollegeId, selectedMajorId]);
+  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement, selectedCollegeId, selectedDepartmentId]);
 
   const teacherAnalytics = useMemo(() => {
     const q = analyticsQuery.trim().toLowerCase();
@@ -896,7 +896,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 2: Preset chips + College/Major dropdowns + Engagement range */}
+        {/* Row 2: Preset chips + College/Department dropdowns + Engagement range */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-muted/10">
           {/* Engagement presets */}
           <div className="flex items-center gap-1">
@@ -925,7 +925,7 @@ export default function DashboardPage() {
 
           <div className="h-4 w-px bg-border/50 hidden sm:block" />
 
-          {/* College + Major dropdowns */}
+          {/* College + Department dropdowns */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               College
@@ -933,7 +933,10 @@ export default function DashboardPage() {
             <select
               className="h-7 rounded-lg border border-border/60 bg-background px-2 text-[11px] font-medium outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
               value={selectedCollegeId}
-              onChange={(e) => setSelectedCollegeId(e.target.value)}
+              onChange={(e) => {
+                setSelectedCollegeId(e.target.value);
+                setSelectedDepartmentId("all");
+              }}
             >
               <option value="all">All</option>
               {colleges.map((c) => (
@@ -944,16 +947,16 @@ export default function DashboardPage() {
             {selectedCollegeId !== "all" && (
               <>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Major
+                  Department
                 </span>
                 <select
                   className="h-7 rounded-lg border border-border/60 bg-background px-2 text-[11px] font-medium outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
-                  value={selectedMajorId}
-                  onChange={(e) => setSelectedMajorId(e.target.value)}
+                  value={selectedDepartmentId}
+                  onChange={(e) => setSelectedDepartmentId(e.target.value)}
                 >
                   <option value="all">All</option>
-                  {majors.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>{department.name}</option>
                   ))}
                 </select>
               </>

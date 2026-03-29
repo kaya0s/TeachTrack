@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.session import ClassSession, SessionHistory
+from app.models.classroom import ClassSection, SectionSubjectAssignment, Subject
 from app.repositories.session_repository import SessionRepository
 from app.schemas.session import SessionCreate
 from app.services import audit_service
@@ -24,6 +25,27 @@ def _to_float(value: Any) -> float:
 def start_session(db: Session, session_in: SessionCreate, current_user) -> ClassSession:
     if session_in.students_present <= 0:
         raise HTTPException(status_code=400, detail="students_present must be greater than 0")
+    section = db.query(ClassSection).filter(ClassSection.id == session_in.section_id).first()
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    subject = db.query(Subject).filter(Subject.id == session_in.subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    if section.major_id != subject.major_id:
+        raise HTTPException(status_code=400, detail="Section and subject must belong to the same major")
+
+    assignment = (
+        db.query(SectionSubjectAssignment)
+        .filter(
+            SectionSubjectAssignment.section_id == section.id,
+            SectionSubjectAssignment.subject_id == subject.id,
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=400, detail="Selected subject is not assigned to the selected section")
+    if assignment.teacher_id is not None and assignment.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not assigned to this section and subject")
 
     session = ClassSession(
         **session_in.dict(),

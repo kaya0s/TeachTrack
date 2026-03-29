@@ -41,14 +41,14 @@ app.include_router(classrooms_router.router, prefix=f"{settings.API_V1_STR}/clas
 app.include_router(sessions_router.router, prefix=f"{settings.API_V1_STR}/sessions", tags=["sessions"])
 app.include_router(sessions_router.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
 app.include_router(notifications_router.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
-app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
+app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin")
 
 
-@app.get("/healthz")
+@app.get("/healthz", tags=["system"])
 def healthz():
     return {"status": "ok", "service": settings.PROJECT_NAME, "env": settings.ENV}
 
 
-@app.get("/")
+@app.get("/", tags=["system"])
 def read_root():
     return {"message": "TeachTrack API is running. Visit http://localhost:8000/docs for API documentation."}

@@ -1,4 +1,5 @@
-from typing import Any
+from datetime import date
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -24,10 +25,22 @@ router = APIRouter()
 
 @router.get("/dashboard", response_model=AdminDashboardResponse)
 def get_admin_dashboard(
+    college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
+    major_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.get_dashboard(db)
+    return admin_service.get_dashboard(
+        db,
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @router.get("/settings", response_model=AdminSettingsResponse)

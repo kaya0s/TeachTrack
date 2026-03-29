@@ -12,6 +12,7 @@ from app.models.session import Alert as _AlertModel
 from app.services.admin import (
     backup_service as _backup,
     colleges_service as _colleges,
+    media_service as _media,
     sections_service as _sections,
     sessions_service as _sessions,
     settings_service as _settings,
@@ -32,6 +33,13 @@ create_college = _colleges.create_college
 update_college = _colleges.update_college
 delete_college = _colleges.delete_college
 list_majors = _colleges.list_majors
+create_major = _colleges.create_major
+update_major = _colleges.update_major
+delete_major = _colleges.delete_major
+list_departments = _colleges.list_departments
+create_department = _colleges.create_department
+update_department = _colleges.update_department
+delete_department = _colleges.delete_department
 get_college_details = _colleges.get_college_details
 
 # --- Subjects ---
@@ -73,8 +81,22 @@ get_engagement_weights = _settings.get_engagement_weights
 is_admin_log_stream_enabled = _settings.is_admin_log_stream_enabled
 
 
-def get_dashboard(db: _Session):
-    return get_dashboard_data(db)
+def get_dashboard(
+    db: _Session,
+    college_id: int | None = None,
+    department_id: int | None = None,
+    major_id: int | None = None,
+    date_from=None,
+    date_to=None,
+):
+    return get_dashboard_data(
+        db,
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 def get_college(db: _Session, college_id: int):
@@ -121,6 +143,13 @@ __all__ = [
     "update_college",
     "delete_college",
     "list_majors",
+    "create_major",
+    "update_major",
+    "delete_major",
+    "list_departments",
+    "create_department",
+    "update_department",
+    "delete_department",
     "get_college",
     # subjects
     "list_subjects",
@@ -155,4 +184,7 @@ __all__ = [
     "get_backup_runs",
     "create_backup_run",
     "run_backup_task",
+    # media
+    "upload_admin_media",
 ]
+upload_admin_media = _media.upload_admin_media

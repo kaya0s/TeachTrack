@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import time
 from typing import Any
@@ -6,14 +8,22 @@ import httpx
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.constants import MAX_FILE_SIZE_MB, MAX_PAGE_SIZE
 from app.core.config import settings
-from app.models.classroom import Subject
+from app.models.classroom import ClassSection, SectionSubjectAssignment, Subject
 from app.repositories.classroom_repository import ClassroomRepository
 from app.schemas.classroom import SubjectCoverUploadResponse, SubjectUpdate
 from app.services import audit_service
 from app.utils.file import is_valid_image_extension, sanitize_filename
-from app.constants import MAX_FILE_SIZE_MB, MAX_PAGE_SIZE
 from app.validators.session import validate_subject_name
+
+
+def _is_assignment_visible_to_teacher(assignment: SectionSubjectAssignment, teacher_id: int) -> bool:
+    if assignment.teacher_id == teacher_id:
+        return True
+    if assignment.teacher_id is None and assignment.section and assignment.section.teacher_id == teacher_id:
+        return True
+    return False
 
 
 def read_colleges(db: Session):
@@ -29,64 +39,73 @@ def read_colleges(db: Session):
     ]
 
 
+def _format_subject_for_teacher(subject: Subject, teacher_id: int) -> dict[str, Any]:
+    visible_assignments = [
+        assignment
+        for assignment in (subject.section_assignments or [])
+        if _is_assignment_visible_to_teacher(assignment, teacher_id)
+    ]
+    formatted_sections = []
+    for assignment in visible_assignments:
+        section = assignment.section
+        if not section:
+            continue
+        major = section.major
+        department = major.department if major else None
+        college = department.college if department else None
+        teacher = assignment.teacher if assignment.teacher else section.teacher
+        formatted_sections.append(
+            {
+                "id": section.id,
+                "name": section.name,
+                "subject_id": subject.id,
+                "teacher_id": teacher.id if teacher else None,
+                "teacher_username": teacher.username if teacher else None,
+                "college_name": college.name if college else None,
+                "department_name": department.name if department else None,
+                "major_name": major.name if major else None,
+                "major_id": major.id if major else None,
+                "year_level": section.year_level,
+                "section_code": section.section_code,
+                "created_at": section.created_at,
+            }
+        )
+
+    major = subject.major
+    department = major.department if major else None
+    college = department.college if department else None
+    return {
+        "id": subject.id,
+        "name": subject.name,
+        "teacher_id": None,
+        "teacher_username": None,
+        "major_id": subject.major_id,
+        "major_name": major.name if major else None,
+        "department_id": department.id if department else None,
+        "department_name": department.name if department else None,
+        "college_id": college.id if college else None,
+        "college_name": college.name if college else None,
+        "college_logo_path": college.logo_path if college else None,
+        "code": subject.code,
+        "description": subject.description,
+        "cover_image_url": subject.cover_image_url,
+        "created_at": subject.created_at,
+        "sections": formatted_sections,
+    }
+
+
 def read_subjects(db: Session, teacher_id: int, skip: int, limit: int):
     skip = max(0, skip)
     limit = max(1, min(limit, MAX_PAGE_SIZE))
     subjects = ClassroomRepository.list_subjects(db, teacher_id, skip, limit)
-    formatted_subjects = []
-    for subject in subjects:
-        # Filter sections to only include those belonging to this subject
-        subject_sections = [section for section in subject.sections if section.subject_id == subject.id]
-        
-        # Format sections with college and major info
-        formatted_sections = []
-        for section in subject_sections:
-            college_name = None
-            major_name = None
-            
-            if section.major:
-                major_name = section.major.name
-                if section.major.college:
-                    college_name = section.major.college.name
-            
-            formatted_section = {
-                "id": section.id,
-                "name": section.name,
-                "subject_id": section.subject_id,
-                "teacher_id": section.teacher_id,
-                "teacher_username": section.teacher.username if section.teacher else None,
-                "college_name": college_name,
-                "major_name": major_name,
-                "created_at": section.created_at
-            }
-            formatted_sections.append(formatted_section)
-        
-        # Format subject
-        formatted_subject = {
-            "id": subject.id,
-            "name": subject.name,
-            "teacher_id": None,
-            "teacher_username": None,
-            "college_id": subject.college_id,
-            "college_name": subject.college.name if subject.college else None,
-            "college_logo_path": subject.college.logo_path if subject.college else None,
-            "code": subject.code,
-            "description": subject.description,
-            "cover_image_url": subject.cover_image_url,
-            "created_at": subject.created_at,
-            "sections": formatted_sections
-        }
-        formatted_subjects.append(formatted_subject)
-    
-    return formatted_subjects
+    return [_format_subject_for_teacher(subject, teacher_id) for subject in subjects]
 
 
-def read_subject(db: Session, subject_id: int, teacher_id: int) -> Subject:
+def read_subject(db: Session, subject_id: int, teacher_id: int) -> dict[str, Any]:
     subject = ClassroomRepository.get_subject(db, subject_id, teacher_id, with_sections=True)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
-    subject.sections = [section for section in subject.sections if section.subject_id == subject.id]
-    return subject
+    return _format_subject_for_teacher(subject, teacher_id)
 
 
 def update_subject(db: Session, subject_id: int, subject_in: SubjectUpdate, teacher_id: int) -> Subject:
@@ -134,8 +153,7 @@ def update_subject(db: Session, subject_id: int, subject_in: SubjectUpdate, teac
 async def upload_subject_cover_image(db: Session, file: UploadFile, current_user) -> SubjectCoverUploadResponse:
     teacher_id = getattr(current_user, "id", None)
     teacher_username = getattr(current_user, "username", None)
-    
-    # Validate file extension using utility
+
     if file.filename and not is_valid_image_extension(file.filename):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file type.")
 
@@ -152,8 +170,8 @@ async def upload_subject_cover_image(db: Session, file: UploadFile, current_user
     file_size_mb = len(file_bytes) / (1024 * 1024)
     if file_size_mb > MAX_FILE_SIZE_MB:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"Image size exceeds {MAX_FILE_SIZE_MB} MB limit."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image size exceeds {MAX_FILE_SIZE_MB} MB limit.",
         )
 
     timestamp = int(time.time())
@@ -208,14 +226,64 @@ async def upload_subject_cover_image(db: Session, file: UploadFile, current_user
 
 
 def read_sections_by_subject(db: Session, subject_id: int, teacher_id: int):
-    # get_subject now accepts section-level teacher assignments too
     subject = ClassroomRepository.get_subject(db, subject_id, teacher_id, with_sections=False)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
-    return ClassroomRepository.list_sections_by_subject(db, subject_id)
+    sections = ClassroomRepository.list_sections_by_subject(db, subject_id)
+    visible_sections: list[dict[str, Any]] = []
+    for section in sections:
+        for assignment in section.subject_assignments or []:
+            if assignment.subject_id != subject_id:
+                continue
+            if _is_assignment_visible_to_teacher(assignment, teacher_id):
+                major = section.major
+                department = major.department if major else None
+                college = department.college if department else None
+                teacher = assignment.teacher if assignment.teacher else section.teacher
+                visible_sections.append(
+                    {
+                        "id": section.id,
+                        "name": section.name,
+                        "subject_id": subject_id,
+                        "teacher_id": teacher.id if teacher else None,
+                        "teacher_username": teacher.username if teacher else None,
+                        "college_name": college.name if college else None,
+                        "department_name": department.name if department else None,
+                        "major_name": major.name if major else None,
+                        "major_id": major.id if major else None,
+                        "year_level": section.year_level,
+                        "section_code": section.section_code,
+                        "created_at": section.created_at,
+                    }
+                )
+                break
+    return visible_sections
 
 
 def read_sections(db: Session, teacher_id: int, skip: int, limit: int):
     skip = max(0, skip)
     limit = max(1, min(limit, MAX_PAGE_SIZE))
-    return ClassroomRepository.list_sections(db, teacher_id, skip, limit)
+    sections = ClassroomRepository.list_sections(db, teacher_id, skip, limit)
+    formatted = []
+    for section in sections:
+        major = section.major
+        department = major.department if major else None
+        college = department.college if department else None
+        # Return one row per section with no subject binding in this endpoint.
+        formatted.append(
+            {
+                "id": section.id,
+                "name": section.name,
+                "subject_id": None,
+                "teacher_id": section.teacher_id,
+                "teacher_username": section.teacher.username if section.teacher else None,
+                "college_name": college.name if college else None,
+                "department_name": department.name if department else None,
+                "major_name": major.name if major else None,
+                "major_id": major.id if major else None,
+                "year_level": section.year_level,
+                "section_code": section.section_code,
+                "created_at": section.created_at,
+            }
+        )
+    return formatted

@@ -42,7 +42,7 @@ class SessionRepository:
             func.sum(BehaviorLog.on_task),
             func.sum(BehaviorLog.using_phone),
             func.sum(BehaviorLog.sleeping),
-            func.sum(BehaviorLog.disengaged_posture),
+            func.sum(BehaviorLog.off_task),
             func.count(BehaviorLog.id),
         ).filter(BehaviorLog.session_id.in_(ids)).group_by(BehaviorLog.session_id).all()
         return {row[0]: row for row in rows}
