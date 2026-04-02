@@ -27,7 +27,7 @@ export default function MethodologyPage() {
     getSettings().then(setSettings).catch(console.error);
   }, []);
 
-  const weights = settings?.engagement_weights || {
+  const weights = settings?.engagement_weights?.LECTURE || {
     on_task: 1.0,
     using_phone: 1.2,
     sleeping: 1.5,
@@ -49,11 +49,11 @@ export default function MethodologyPage() {
             <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-wider text-[10px]">
               <UserPlus className="h-3 w-3" /> Step 1: Baseline
             </div>
-            <CardTitle className="text-lg">Teacher Input</CardTitle>
+            <CardTitle className="text-lg">AI Detection</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              The teacher defines the <strong>expected headcount</strong> at the start of the session. This represents the total class attendance.
+              The system identifies students currently <strong>in the camera's view</strong>. This "Visible Sample" becomes the basis for the current snapshot's engagement score.
             </p>
           </CardContent>
         </Card>
@@ -61,13 +61,13 @@ export default function MethodologyPage() {
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-wider text-[10px]">
-              <Camera className="h-3 w-3" /> Step 2: AI Detection
+              <Camera className="h-3 w-3" /> Step 2: Behavior Analysis
             </div>
             <CardTitle className="text-lg">YOLO Inference</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              The AI Camera counts <strong>behaviors</strong> for every visible student. Any gap between the AI count and Teacher count is moved to <em>"Not Visible"</em>.
+              The AI counts <strong>specific behaviors</strong> (On-Task, Phone, Sleep) for only the detected students. Students out of frame are counted as "Not Visible" but do not penalize the score.
             </p>
           </CardContent>
         </Card>
@@ -77,11 +77,11 @@ export default function MethodologyPage() {
             <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-wider text-[10px]">
               <Calculator className="h-3 w-3" /> Step 3: Scoring
             </div>
-            <CardTitle className="text-lg">Weighted Average</CardTitle>
+            <CardTitle className="text-lg">Visibility-Based Avg</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Engagement is calculated by subtracting <strong>weighted penalties</strong> from on-task students and dividing by the total class size.
+              Engagement is calculated by taking the weighted behaviors of <strong>observed students</strong> and dividing by the <strong>number of students seen</strong>.
             </p>
           </CardContent>
         </Card>
@@ -102,19 +102,17 @@ export default function MethodologyPage() {
               <span className="text-danger">(Phone &times; {weights.using_phone})</span>
               <span className="text-white/20">+</span>
               <span className="text-danger">(Off Task &times; {weights.off_task})</span>
-              <span className="text-white/20">+</span>
-              <span className="text-warning">(Invisible &times; {weights.not_visible})</span>
             </div>
             <div className="h-px w-24 bg-white/20 md:hidden" />
             <div className="hidden md:block h-12 w-px bg-white/20" />
             <div className="flex flex-col items-center">
                 <span className="text-sm text-white/40 mb-1">divided by</span>
-                <span className="font-bold border-t border-white/20 pt-1">Total Class Size</span>
+                <span className="font-bold border-t border-white/20 pt-1">Total Visible Sample</span>
             </div>
           </div>
           <div className="mt-8 flex justify-center gap-6 text-[10px] uppercase font-bold text-white/40">
               <div className="flex items-center gap-1"><Zap className="h-3 w-3 text-warning" /> Clamped [0% to 100%]</div>
-              <div className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-success" /> Real-time Sync</div>
+              <div className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-success" /> FOV Adaptive</div>
           </div>
         </div>
       </Card>
@@ -147,9 +145,9 @@ export default function MethodologyPage() {
                         <span className="text-sm font-medium">Generic Off-Task Penalty</span>
                         <Badge tone="danger">-{weights.off_task} points</Badge>
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-warning/5 border border-warning/10">
-                        <span className="text-sm font-medium">Invisible Penalty</span>
-                        <Badge tone="warning">-{weights.not_visible} points</Badge>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-warning/5 border border-warning/10 opacity-50">
+                        <span className="text-sm font-medium text-muted-foreground">Invisible Penalty (Legacy)</span>
+                        <Badge tone="warning">0.0 (Ignored)</Badge>
                     </div>
                 </div>
             </CardContent>
@@ -157,7 +155,7 @@ export default function MethodologyPage() {
 
         <Card>
             <CardHeader className="pb-2">
-                <CardTitle className="text-base">Why the "Not Visible" Metric matters</CardTitle>
+                <CardTitle className="text-base">Why Visibility-Based Normalization?</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
                 <div className="flex items-start gap-3">
@@ -165,9 +163,9 @@ export default function MethodologyPage() {
                         <Users className="h-4 w-4 text-primary" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold">Accuracy Control</h4>
+                        <h4 className="text-sm font-bold">Hardware Adaptability</h4>
                         <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-                            By comparing YOLO detections with teacher headcounts, we identify "blind spots." This prevents the system from giving 100% scores purely because it only happens to see one well-behaved student.
+                            Classrooms have different dimensions and camera setups. By calculating engagement based on detected students, we provide a fair metric that isn't penalized by limited camera field-of-view (FOV).
                         </p>
                     </div>
                 </div>
@@ -176,9 +174,9 @@ export default function MethodologyPage() {
                         <TrendingUp className="h-4 w-4 text-primary" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold">Session Consistency</h4>
+                        <h4 className="text-sm font-bold">Statistically Sound Sampling</h4>
                         <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-                            Our system captures a <em>"Headcount Snapshot"</em> every time a log is created. If a teacher updates a headcount mid-session, historical logs remain accurate to the original count.
+                            The students in range of the camera act as a representative sample of the class's current state. This ensures the engagement score accurately reflects the intensity of observed behavior.
                         </p>
                     </div>
                 </div>
