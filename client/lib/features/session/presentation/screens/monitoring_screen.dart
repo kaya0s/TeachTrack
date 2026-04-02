@@ -34,6 +34,27 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   void initState() {
     super.initState();
     _startDetectorAndHeartbeat();
+    
+    // Listen for metrics changes to check for new alerts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      session.addListener(_onSessionChanged);
+    });
+  }
+  
+  void _onSessionChanged() {
+    final metrics = Provider.of<SessionProvider>(context, listen: false).metrics;
+    if (metrics != null) {
+      _checkForNewAlerts(metrics);
+    }
+  }
+  
+  @override
+  void dispose() {
+    _heartbeatTimer?.cancel();
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    session.removeListener(_onSessionChanged);
+    super.dispose();
   }
 
   void _checkForNewAlerts(SessionMetricsModel metrics) {
@@ -188,12 +209,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   @override
-  void dispose() {
-    _heartbeatTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Consumer2<SessionProvider, ClassroomProvider>(
       builder: (context, session, classroom, child) {
@@ -220,9 +235,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         final metrics = session.metrics;
         final active = session.activeSession!;
         
-        if (metrics != null) {
-          _checkForNewAlerts(metrics);
-        }
+        // Don't call _checkForNewAlerts here - it will be called when metrics change
 
         SubjectModel? subject;
         try {
