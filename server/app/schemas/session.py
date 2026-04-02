@@ -3,17 +3,32 @@ from datetime import datetime
 from typing import Optional, List
 from enum import Enum
 
+class ActivityMode(str, Enum):
+    LECTURE = "LECTURE"
+    STUDY = "STUDY"
+    COLLABORATION = "COLLABORATION"
+    EXAM = "EXAM"
+
+class SessionCreate(BaseModel):
+    section_id: int
+    subject_id: int
+    students_present: int
+    activity_mode: ActivityMode = ActivityMode.LECTURE
+
 class AlertSeverityEnum(str, Enum):
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
 
-# -- Logs --
+# -- Behavior Logs --
 class BehaviorLogBase(BaseModel):
     on_task: int = 0
     sleeping: int = 0
     using_phone: int = 0
     off_task: int = 0
     not_visible: int = 0
+
+    class Config:
+        from_attributes = True
 
 class BehaviorLogCreate(BehaviorLogBase):
     pass
@@ -28,41 +43,20 @@ class BehaviorLog(BehaviorLogBase):
         from_attributes = True
 
 # -- Alerts --
-class AlertBase(BaseModel):
-    alert_type: str
-    message: str
-    severity: AlertSeverityEnum = AlertSeverityEnum.WARNING
-    is_read: bool = False
-
-class Alert(AlertBase):
+class Alert(BaseModel):
     id: int
     session_id: int
+    alert_type: str
+    message: str
     triggered_at: datetime
+    severity: str
+    is_read: bool
+    snapshot_url: Optional[str] = None
 
     class Config:
         from_attributes = True
 
-# -- Sessions --
-class SessionBase(BaseModel):
-    subject_id: int
-    section_id: int
-    students_present: int = Field(..., ge=1)
-
-class SessionCreate(SessionBase):
-    pass
-
-class Session(SessionBase):
-    id: int
-    teacher_id: int
-    start_time: datetime
-    end_time: Optional[datetime] = None
-    is_active: bool
-    
-    # We might want logs or alerts nested, but usually fine to fetch separately
-    
-    class Config:
-        from_attributes = True
-
+# -- Session Metrics & Detail --
 class SessionMetrics(BaseModel):
     session_id: int
     students_present: int
@@ -88,13 +82,14 @@ class SessionMetricRow(BaseModel):
     class Config:
         from_attributes = True
 
+# -- Session Summary --
 class SessionSummary(BaseModel):
     id: int
     subject_id: int
     section_id: int
     subject_name: str
     section_name: str
-    # Hierarchy context (optional for backward compatibility)
+    # Hierarchy context
     college_id: Optional[int] = None
     college_name: Optional[str] = None
     college_logo_path: Optional[str] = None
@@ -107,11 +102,16 @@ class SessionSummary(BaseModel):
     start_time: datetime
     end_time: Optional[datetime] = None
     is_active: bool
+    activity_mode: ActivityMode
     average_engagement: float
 
     class Config:
         from_attributes = True
 
+class Session(SessionSummary):
+    pass
+
+# -- History & Logs --
 class SessionHistory(BaseModel):
     id: int
     session_id: int
@@ -138,6 +138,7 @@ class AlertHistory(BaseModel):
     class Config:
         from_attributes = True
 
+# -- AI Model Management --
 class ModelOption(BaseModel):
     file_name: str
     is_current: bool = False

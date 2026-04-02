@@ -36,6 +36,8 @@ class AdminUserUpdate(BaseModel):
     confirm_password: Optional[str] = None
 
 
+
+
 class AdminPasswordReset(BaseModel):
     new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     confirm_password: str = Field(min_length=1)
@@ -51,19 +53,23 @@ class AdminSessionSummary(BaseModel):
     section_id: int
     section_name: str
     students_present: int
+    activity_mode: str
     start_time: datetime
     end_time: Optional[datetime] = None
     is_active: bool
     teacher_profile_picture_url: Optional[str] = None
     average_engagement: float
+    on_task: float = 0.0
+    sleeping: float = 0.0
+    using_phone: float = 0.0
+    off_task: float = 0.0
+    not_visible: float = 0.0
     college_id: Optional[int] = None
     college_name: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
     major_id: Optional[int] = None
     major_name: Optional[str] = None
-
-
 
 class AdminAlertSummary(BaseModel):
     id: int
@@ -79,7 +85,6 @@ class AdminAlertSummary(BaseModel):
     triggered_at: datetime
     updated_at: Optional[datetime] = None
 
-
 class AdminDashboardStats(BaseModel):
     total_users: int
     active_users: int
@@ -90,13 +95,11 @@ class AdminDashboardStats(BaseModel):
     unread_alerts: int
     critical_unread_alerts: int
 
-
 class AdminDashboardResponse(BaseModel):
     stats: AdminDashboardStats
     active_sessions: list[AdminSessionSummary]
     recent_sessions: list[AdminSessionSummary]
     recent_alerts: list[AdminAlertSummary]
-
 
 class PaginatedUsersResponse(BaseModel):
     total: int
@@ -576,16 +579,27 @@ class AdminTestDetectionResponse(BaseModel):
     detections: list[AdminDetectionBox]
 
 
-class AdminSettingsEngagementWeights(BaseModel):
+class AdminWeightsSet(BaseModel):
     on_task: float
     using_phone: float
     sleeping: float
     off_task: float
     not_visible: float
 
+class AdminSettingsEngagementWeights(BaseModel):
+    LECTURE: AdminWeightsSet
+    STUDY: AdminWeightsSet
+    COLLABORATION: AdminWeightsSet
+    EXAM: AdminWeightsSet
+
 
 class AdminSettingsAdminOps(BaseModel):
     enable_admin_log_stream: bool
+
+class AdminSettingsExamProctoring(BaseModel):
+    phone_count_threshold: int
+    off_task_count_threshold: int
+
 
 
 class AdminSettingsSecurity(BaseModel):
@@ -595,6 +609,7 @@ class AdminSettingsSecurity(BaseModel):
 class AdminSettingsResponse(BaseModel):
     detection: AdminSettingsDetection
     engagement_weights: AdminSettingsEngagementWeights
+    exam_proctoring: AdminSettingsExamProctoring
     admin_ops: AdminSettingsAdminOps
     security: AdminSettingsSecurity
     integrations: AdminSettingsIntegrations
@@ -603,6 +618,7 @@ class AdminSettingsResponse(BaseModel):
 class AdminSettingsUpdate(BaseModel):
     detection: Optional[dict[str, Any]] = None
     engagement_weights: Optional[dict[str, Any]] = None
+    exam_proctoring: Optional[dict[str, Any]] = None
     admin_ops: Optional[dict[str, Any]] = None
     security: Optional[dict[str, Any]] = None
     confirm_password: str = Field(min_length=1)
