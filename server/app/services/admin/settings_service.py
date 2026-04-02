@@ -31,6 +31,9 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         "using_phone": env_settings.W_USING_PHONE,
         "sleeping": env_settings.W_SLEEPING,
         "off_task": env_settings.W_OFF_TASK,
+        # not_visible defaults to 0 (neutral) — fully backward-compatible.
+        # Set > 0 to penalize students the detector cannot see.
+        "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
     },
     "admin_ops": {
         "enable_admin_log_stream": env_settings.ENABLE_ADMIN_LOG_STREAM,
@@ -43,7 +46,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
 
 _ALLOWED_KEYS = {
     "detection": set(_DEFAULT_SETTINGS["detection"].keys()),
-    "engagement_weights": set(_DEFAULT_SETTINGS["engagement_weights"].keys()),
+    "engagement_weights": set(_DEFAULT_SETTINGS["engagement_weights"].keys()),  # includes not_visible
     "admin_ops": set(_DEFAULT_SETTINGS["admin_ops"].keys()),
     "security": set(_DEFAULT_SETTINGS["security"].keys()),
 }
@@ -105,10 +108,17 @@ def _validate_effective(effective: dict[str, Any]) -> None:
         raise ValueError("alert_cooldown_minutes must be between 1 and 120.")
 
     weights = effective["engagement_weights"]
-    for key in ("on_task", "using_phone", "sleeping", "off_task"):
-        value = float(weights[key])
-        if value < 0 or value > 5:
-            raise ValueError(f"engagement weight '{key}' must be between 0 and 5.")
+    for key in ("on_task", "using_phone", "sleeping", "off_task", "not_visible"):
+        value = float(weights.get(key, 0.0))
+        if key == "on_task":
+            if value <= 0 or value > 5:
+                raise ValueError(f"engagement weight 'on_task' must be between 0 (exclusive) and 5.")
+        else:
+            if value < 0 or value > 5:
+                raise ValueError(f"engagement weight '{key}' must be between 0 and 5.")
+    
+    if float(weights["on_task"]) <= 0:
+        raise ValueError("engagement weight 'on_task' must be greater than 0 — otherwise engagement can never be positive.")
 
     admin_ops = effective["admin_ops"]
     if not isinstance(admin_ops["enable_admin_log_stream"], bool):
@@ -183,6 +193,12 @@ def update_settings(db: Session, payload: dict[str, Any], actor_user_id: int | N
     )
     db.commit()
     db.refresh(row)
+
+    # If engagement weights were updated, trigger a recalculation of all session engagement caches
+    if reset or "engagement_weights" in payload:
+        from app.services.admin import sessions_service
+        # Recalculate all session engagement based on the new weights
+        sessions_service.recalculate_all_sessions_engagement(db)
 
     effective["integrations"] = _integration_status()
     _cache_effective(effective)

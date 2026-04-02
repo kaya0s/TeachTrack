@@ -26,11 +26,15 @@ def list_admin_sessions(
     limit: int = DEFAULT_PAGE_SIZE,
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
+    section_id: Optional[int] = None,
+    subject_id: Optional[int] = None,
     college_id: Optional[int] = None,
     department_id: Optional[int] = None,
     major_id: Optional[int] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    search: Optional[str] = None,
+    sort: Optional[str] = "newest",
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
@@ -40,11 +44,15 @@ def list_admin_sessions(
         limit=limit,
         is_active=is_active,
         teacher_id=teacher_id,
+        section_id=section_id,
+        subject_id=subject_id,
         college_id=college_id,
         department_id=department_id,
         major_id=major_id,
         date_from=date_from,
         date_to=date_to,
+        search=search,
+        sort=sort,
     )
 
 

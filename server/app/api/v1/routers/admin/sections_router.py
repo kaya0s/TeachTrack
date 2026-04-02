@@ -8,12 +8,15 @@ from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminActionMessage,
+    AdminClassAssignment,
     AdminCriticalActionConfirm,
+    AdminClassUpdate,
     AdminSectionCreate,
     AdminSectionUpdate,
     AdminSectionSummary,
     AdminClassCreate,
     AdminTeacherAssignment,
+    PaginatedClassAssignmentsResponse,
     PaginatedSectionsResponse,
 )
 from app.services import admin_service
@@ -78,13 +81,62 @@ def delete_admin_section(
     )
 
 
-@router.post("/classes", response_model=AdminSectionSummary)
+@router.post("/classes", response_model=AdminClassAssignment)
 def create_admin_class(
     payload: AdminClassCreate,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
     return admin_service.create_class(db, payload.model_dump(exclude_unset=True))
+
+
+@router.get("/classes", response_model=PaginatedClassAssignmentsResponse)
+def list_admin_classes(
+    skip: int = 0,
+    limit: int = DEFAULT_PAGE_SIZE,
+    q: Optional[str] = None,
+    college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
+    major_id: Optional[int] = None,
+    teacher_id: Optional[int] = None,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.list_classes(
+        db,
+        skip=skip,
+        limit=limit,
+        q=q,
+        college_id=college_id,
+        department_id=department_id,
+        major_id=major_id,
+        teacher_id=teacher_id,
+        status=status,
+    )
+
+
+@router.patch("/classes/{class_assignment_id}", response_model=AdminClassAssignment)
+def update_admin_class(
+    class_assignment_id: int,
+    payload: AdminClassUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.update_class(
+        db,
+        class_assignment_id=class_assignment_id,
+        payload=payload.model_dump(exclude_unset=True),
+    )
+
+
+@router.delete("/classes/{class_assignment_id}", response_model=AdminActionMessage)
+def delete_admin_class(
+    class_assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.delete_class(db, class_assignment_id=class_assignment_id)
 
 
 @router.api_route("/sections/{section_id}/assign-teacher", methods=["PUT", "POST"], response_model=AdminSectionSummary)

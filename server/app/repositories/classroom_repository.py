@@ -27,6 +27,14 @@ class ClassroomRepository:
         return db.query(College).order_by(College.name.asc()).all()
 
     @staticmethod
+    def list_departments(db: Session) -> list[Department]:
+        return db.query(Department).order_by(Department.name.asc()).all()
+
+    @staticmethod
+    def list_majors(db: Session) -> list[Major]:
+        return db.query(Major).order_by(Major.name.asc()).all()
+
+    @staticmethod
     def list_subjects(db: Session, teacher_id: int, skip: int, limit: int) -> list[Subject]:
         subject_subquery = (
             db.query(SectionSubjectAssignment.subject_id)

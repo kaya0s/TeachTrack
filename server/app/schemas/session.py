@@ -94,6 +94,16 @@ class SessionSummary(BaseModel):
     section_id: int
     subject_name: str
     section_name: str
+    # Hierarchy context (optional for backward compatibility)
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
+    college_logo_path: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    department_code: Optional[str] = None
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+    major_code: Optional[str] = None
     start_time: datetime
     end_time: Optional[datetime] = None
     is_active: bool

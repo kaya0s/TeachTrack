@@ -10,6 +10,7 @@ from app.services import alert_service, session_lifecycle_service
 from app.services.admin import settings_service
 from app.utils.datetime import utc_now
 
+
 def _to_float(value: Any) -> float:
     if value is None:
         return 0.0
@@ -21,9 +22,16 @@ def _weighted_engagement_percent(
     using_phone: int,
     sleeping: int,
     off_task: int,
+    not_visible: int,
     students_present: int,
     weights: dict[str, float],
 ) -> float:
+    """Calculate weighted engagement percent for a single detection cycle.
+
+    Uses students_present as the normaliser so the score reflects the
+    proportion of the whole class that is engaged, not just detected students.
+    not_visible students receive an optional configurable penalty (default 0).
+    """
     if students_present <= 0:
         return 0.0
     raw_score = (
@@ -31,9 +39,61 @@ def _weighted_engagement_percent(
         - (weights["using_phone"] * using_phone)
         - (weights["sleeping"] * sleeping)
         - (weights["off_task"] * off_task)
+        - (weights.get("not_visible", 0.0) * not_visible)
     )
     percent = (raw_score / students_present) * 100
     return max(0.0, min(100.0, percent))
+
+
+def _avg_engagement_from_snapshot_logs(
+    db: Session,
+    session_id: int,
+    session_students_present: int,
+    weights: dict[str, float],
+) -> float:
+    """Compute session-level engagement by averaging per-log scores.
+
+    When a log has students_present_snapshot recorded, that value is used
+    as the normaliser for that log (accurate even if headcount changed mid-session).
+    Older logs without a snapshot fall back to session_students_present.
+    Returns a value in [0, 100].
+    """
+    rows = (
+        db.query(
+            BehaviorLog.on_task,
+            BehaviorLog.using_phone,
+            BehaviorLog.sleeping,
+            BehaviorLog.off_task,
+            BehaviorLog.not_visible,
+            BehaviorLog.students_present_snapshot,
+        )
+        .filter(BehaviorLog.session_id == session_id)
+        .all()
+    )
+    if not rows:
+        return 0.0
+
+    total_score = 0.0
+    count = 0
+    for on_task, using_phone, sleeping, off_task, not_visible, snapshot in rows:
+        sp = snapshot if snapshot and snapshot > 0 else session_students_present
+        if sp <= 0:
+            continue
+        score = _weighted_engagement_percent(
+            on_task=on_task or 0,
+            using_phone=using_phone or 0,
+            sleeping=sleeping or 0,
+            off_task=off_task or 0,
+            not_visible=not_visible or 0,
+            students_present=sp,
+            weights=weights,
+        )
+        total_score += score
+        count += 1
+
+    if count == 0:
+        return 0.0
+    return round(total_score / count, 2)
 
 
 def process_behavior_log(
@@ -60,20 +120,27 @@ def process_behavior_log(
         off_task=log_in.off_task,
         not_visible=not_visible,
         total_detected=total,
+        # Snapshot the current headcount so the engagement formula stays
+        # accurate even if the teacher changes students_present later.
+        students_present_snapshot=session.students_present,
     )
     db.add(log)
     db.flush()
 
-    if total > 0 and log_in.sleeping > 0:
+    # --- Alert: high sleeping rate ---
+    # Require total >= 5 for sleeping (same consistent guard as engagement_drop).
+    if total > 0 and total >= 5 and log_in.sleeping > 0:
         ratio = log_in.sleeping / total
-        if ratio > 0.3 and total >= 5:
+        if ratio > 0.3:
             msg = f"High sleeping detected: {log_in.sleeping} students ({int(ratio*100)}%)."
             alert_service.trigger_alert(db, session_id, AlertType.SLEEPING, msg, AlertSeverity.WARNING)
 
-    if total > 0 and log_in.using_phone > 0:
+    # --- Alert: phone usage spike ---
+    # Apply the same total >= 5 guard for consistency.
+    if total > 0 and total >= 5 and log_in.using_phone > 0:
         ratio = log_in.using_phone / total
         if ratio > 0.2:
-            msg = f"Phone usage usage spike: {log_in.using_phone} students ({int(ratio*100)}%)."
+            msg = f"Phone usage spike: {log_in.using_phone} students ({int(ratio*100)}%)."
             alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING)
 
     weights = settings_service.get_engagement_weights(db)
@@ -82,6 +149,7 @@ def process_behavior_log(
         using_phone=log_in.using_phone,
         sleeping=log_in.sleeping,
         off_task=log_in.off_task,
+        not_visible=not_visible,
         students_present=session.students_present,
         weights=weights,
     )
@@ -91,6 +159,11 @@ def process_behavior_log(
         alert_service.trigger_alert(db, session_id, AlertType.ENGAGEMENT_DROP, msg, severity)
 
     _update_session_metrics(db, session_id, log.timestamp)
+    
+    # Recalculate and cache overall session engagement for performant sorting in admin views
+    session.average_engagement = _avg_engagement_from_snapshot_logs(db, session_id, session.students_present, weights)
+    db.add(session)
+    
     db.commit()
 
 
@@ -102,35 +175,14 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
 
     alerts = db.query(Alert).filter(Alert.session_id == session_id, Alert.is_read == False).all()
 
-    stats = db.query(
-        func.sum(BehaviorLog.on_task),
-        func.sum(BehaviorLog.using_phone),
-        func.sum(BehaviorLog.sleeping),
-        func.sum(BehaviorLog.off_task),
-        func.count(BehaviorLog.id),
-    ).filter(BehaviorLog.session_id == session_id).first()
-
-    avg_eng = 0.0
-    log_count = stats[4] or 0
     weights = settings_service.get_engagement_weights(db)
-    if log_count > 0 and session.students_present > 0:
-        on_task_sum = _to_float(stats[0])
-        using_phone_sum = _to_float(stats[1])
-        sleeping_sum = _to_float(stats[2])
-        off_task_sum = _to_float(stats[3])
-        raw_total = (
-            (weights["on_task"] * on_task_sum)
-            - (weights["using_phone"] * using_phone_sum)
-            - (weights["sleeping"] * sleeping_sum)
-            - (weights["off_task"] * off_task_sum)
-        )
-        avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
+    avg_eng = _avg_engagement_from_snapshot_logs(db, session_id, session.students_present, weights)
 
     return {
         "session_id": session_id,
         "students_present": session.students_present,
         "total_logs": len(logs),
-        "average_engagement": round(avg_eng, 2),
+        "average_engagement": avg_eng,
         "recent_logs": logs,
         "alerts": alerts,
     }
@@ -165,44 +217,54 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     if not session:
         return
 
-    stats = db.query(
-        func.count(BehaviorLog.id),
-        func.sum(BehaviorLog.on_task),
-        func.sum(BehaviorLog.using_phone),
-        func.sum(BehaviorLog.sleeping),
-        func.sum(BehaviorLog.off_task),
-        func.sum(BehaviorLog.not_visible),
-        func.sum(BehaviorLog.total_detected),
-    ).filter(
-        BehaviorLog.session_id == session_id,
-        BehaviorLog.timestamp >= window_start,
-        BehaviorLog.timestamp < window_end,
-    ).first()
+    # Pull rows for this window including the snapshot column
+    window_rows = (
+        db.query(
+            BehaviorLog.on_task,
+            BehaviorLog.using_phone,
+            BehaviorLog.sleeping,
+            BehaviorLog.off_task,
+            BehaviorLog.not_visible,
+            BehaviorLog.total_detected,
+            BehaviorLog.students_present_snapshot,
+        )
+        .filter(
+            BehaviorLog.session_id == session_id,
+            BehaviorLog.timestamp >= window_start,
+            BehaviorLog.timestamp < window_end,
+        )
+        .all()
+    )
 
-    log_count = stats[0] or 0
+    log_count = len(window_rows)
     if log_count == 0:
         return
 
-    on_task_sum = _to_float(stats[1])
-    using_phone_sum = _to_float(stats[2])
-    sleeping_sum = _to_float(stats[3])
-    off_task_sum = _to_float(stats[4])
-    not_visible_sum = _to_float(stats[5])
-    total_detected = int(stats[6] or 0)
+    on_task_sum = sum(r[0] or 0 for r in window_rows)
+    using_phone_sum = sum(r[1] or 0 for r in window_rows)
+    sleeping_sum = sum(r[2] or 0 for r in window_rows)
+    off_task_sum = sum(r[3] or 0 for r in window_rows)
+    not_visible_sum = sum(r[4] or 0 for r in window_rows)
+    total_detected = sum(r[5] or 0 for r in window_rows)
 
     weights = settings_service.get_engagement_weights(db)
-    engagement_score = 0.0
-    if session.students_present > 0:
-        raw_total = (
-            (weights["on_task"] * on_task_sum)
-            - (weights["using_phone"] * using_phone_sum)
-            - (weights["sleeping"] * sleeping_sum)
-            - (weights["off_task"] * off_task_sum)
+
+    # Compute engagement by averaging per-log scores (using their individual snapshots)
+    window_engagement_sum = 0.0
+    for on_task, using_phone, sleeping, off_task, not_visible, _, snapshot in window_rows:
+        sp = snapshot if snapshot and snapshot > 0 else session.students_present
+        if sp <= 0:
+            continue
+        window_engagement_sum += _weighted_engagement_percent(
+            on_task=on_task or 0,
+            using_phone=using_phone or 0,
+            sleeping=sleeping or 0,
+            off_task=off_task or 0,
+            not_visible=not_visible or 0,
+            students_present=sp,
+            weights=weights,
         )
-        engagement_score = max(
-            0.0,
-            min(100.0, (raw_total / (session.students_present * log_count)) * 100),
-        )
+    engagement_score = round(window_engagement_sum / log_count, 2)
 
     metrics = db.query(SessionMetricsModel).filter(
         SessionMetricsModel.session_id == session_id,
@@ -224,4 +286,4 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     metrics.sleeping_avg = round(sleeping_sum / log_count, 2)
     metrics.off_task_avg = round(off_task_sum / log_count, 2)
     metrics.not_visible_avg = round(not_visible_sum / log_count, 2)
-    metrics.engagement_score = round(engagement_score, 2)
+    metrics.engagement_score = engagement_score

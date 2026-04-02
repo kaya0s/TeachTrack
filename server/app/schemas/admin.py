@@ -285,6 +285,43 @@ class AdminSectionSummary(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class AdminClassSectionRef(BaseModel):
+    id: int
+    name: str
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    year_level: Optional[int] = None
+    section_code: Optional[str] = None
+
+
+class AdminClassSubjectRef(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    major_id: Optional[int] = None
+    major_name: Optional[str] = None
+
+
+class AdminClassTeacherRef(BaseModel):
+    id: Optional[int] = None
+    fullname: Optional[str] = None
+    username: Optional[str] = None
+    department_id: Optional[int] = None
+    profile_picture_url: Optional[str] = None
+
+
+class AdminClassAssignment(BaseModel):
+    id: int
+    section: AdminClassSectionRef
+    subject: AdminClassSubjectRef
+    teacher: AdminClassTeacherRef
+    status: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 class AdminCollegeSummary(BaseModel):
     id: int
     name: str
@@ -426,6 +463,11 @@ class PaginatedSectionsResponse(BaseModel):
     items: list[AdminSectionSummary]
 
 
+class PaginatedClassAssignmentsResponse(BaseModel):
+    total: int
+    items: list[AdminClassAssignment]
+
+
 class AdminTeacherAssignment(BaseModel):
     teacher_id: int
     subject_id: Optional[int] = None
@@ -491,14 +533,21 @@ class AdminSectionUpdate(BaseModel):
 
 
 class AdminClassCreate(BaseModel):
+    section_id: Optional[int] = None
     subject_id: Optional[int] = None
     subject_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     subject_code: Optional[str] = Field(default=None, max_length=20)
     section_name: Optional[str] = None
+    teacher_id: Optional[int] = None
     major_id: Optional[int] = None
     year_level: Optional[int] = None
     section_code: Optional[str] = None
     section_letter: Optional[str] = None  # backward compat input alias
+
+
+class AdminClassUpdate(BaseModel):
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
 
 
 class AdminSettingsIntegrations(BaseModel):
@@ -532,6 +581,7 @@ class AdminSettingsEngagementWeights(BaseModel):
     using_phone: float
     sleeping: float
     off_task: float
+    not_visible: float
 
 
 class AdminSettingsAdminOps(BaseModel):

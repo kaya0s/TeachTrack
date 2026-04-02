@@ -15,6 +15,7 @@ from app.models.session import ClassSession
 from app.models.user import User
 from app.services import notification_service
 from app.services.admin.security_service import verify_admin_password_or_401
+from app.validators.session import validate_subject_name
 
 
 def _normalize_section_code(payload: dict[str, Any]) -> str:
@@ -101,6 +102,123 @@ def _serialize_section(row: ClassSection, assignment: Optional[SectionSubjectAss
     }
 
 
+def _class_status(assignment: SectionSubjectAssignment) -> str:
+    section = assignment.section
+    subject = assignment.subject
+    if not section or not subject:
+        return "invalid_mapping"
+    if section.major_id != subject.major_id:
+        return "invalid_mapping"
+
+    section_department_id = section.major.department_id if section.major else None
+    teacher = assignment.teacher
+    if assignment.teacher_id is None:
+        return "unassigned_teacher"
+    if section_department_id is not None and (not teacher or teacher.department_id != section_department_id):
+        return "invalid_mapping"
+    return "assigned"
+
+
+def _serialize_class_assignment(assignment: SectionSubjectAssignment) -> dict[str, Any]:
+    section = assignment.section
+    subject = assignment.subject
+    teacher = assignment.teacher
+    major = section.major if section else None
+    department = major.department if major else None
+    subject_major = subject.major if subject else None
+    return {
+        "id": assignment.id,
+        "section": {
+            "id": section.id if section else 0,
+            "name": section.name if section else "Unknown section",
+            "major_id": section.major_id if section else None,
+            "major_name": major.name if major else None,
+            "department_id": department.id if department else None,
+            "department_name": department.name if department else None,
+            "year_level": section.year_level if section else None,
+            "section_code": section.section_code if section else None,
+        },
+        "subject": {
+            "id": subject.id if subject else 0,
+            "name": subject.name if subject else "Unknown subject",
+            "code": subject.code if subject else None,
+            "major_id": subject.major_id if subject else None,
+            "major_name": subject_major.name if subject_major else None,
+        },
+        "teacher": {
+            "id": teacher.id if teacher else None,
+            "fullname": teacher.fullname if teacher else None,
+            "username": teacher.username if teacher else None,
+            "department_id": teacher.department_id if teacher else None,
+            "profile_picture_url": teacher.profile_picture_url if teacher else None,
+        },
+        "status": _class_status(assignment),
+        "created_at": assignment.created_at,
+        "updated_at": assignment.updated_at,
+    }
+
+
+def _ensure_section(db: Session, section_id: int) -> ClassSection:
+    section = (
+        db.query(ClassSection)
+        .options(
+            joinedload(ClassSection.major).joinedload(Major.department).joinedload(Department.college),
+            joinedload(ClassSection.subject_assignments).joinedload(SectionSubjectAssignment.subject).joinedload(Subject.major),
+            joinedload(ClassSection.subject_assignments).joinedload(SectionSubjectAssignment.teacher),
+        )
+        .filter(ClassSection.id == section_id)
+        .first()
+    )
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return section
+
+
+def _ensure_class_assignment(db: Session, assignment_id: int) -> SectionSubjectAssignment:
+    assignment = (
+        db.query(SectionSubjectAssignment)
+        .options(
+            joinedload(SectionSubjectAssignment.section)
+            .joinedload(ClassSection.major)
+            .joinedload(Major.department)
+            .joinedload(Department.college),
+            joinedload(SectionSubjectAssignment.subject).joinedload(Subject.major),
+            joinedload(SectionSubjectAssignment.teacher),
+        )
+        .filter(SectionSubjectAssignment.id == assignment_id)
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Class assignment not found")
+    return assignment
+
+
+def _ensure_teacher_for_section(db: Session, teacher_id: int, section: ClassSection) -> User:
+    teacher = _ensure_teacher(db, teacher_id)
+    section_department_id = section.major.department_id if section.major else None
+    if section_department_id is not None and teacher.department_id != section_department_id:
+        raise HTTPException(status_code=400, detail="Teacher must belong to the section's department.")
+    return teacher
+
+
+def _notify_teacher_assignment(db: Session, teacher: User, section: ClassSection, subject: Subject) -> None:
+    notification_service.create_notification(
+        db,
+        user_id=teacher.id,
+        title="New Class Assignment",
+        body=f"You were assigned to {subject.name} - {section.name}.",
+        type="CLASS_ASSIGNMENT",
+        metadata_json=json.dumps(
+            {
+                "section_id": section.id,
+                "subject_id": subject.id,
+                "section_name": section.name,
+                "subject_name": subject.name,
+            }
+        ),
+    )
+
+
 def list_sections(
     db: Session,
     skip: int = 0,
@@ -152,6 +270,80 @@ def list_sections(
 
     total = len(expanded)
     return {"total": total, "items": expanded[skip : skip + limit]}
+
+
+def list_classes(
+    db: Session,
+    skip: int = 0,
+    limit: int = DEFAULT_PAGE_SIZE,
+    q: Optional[str] = None,
+    college_id: Optional[int] = None,
+    department_id: Optional[int] = None,
+    major_id: Optional[int] = None,
+    teacher_id: Optional[int] = None,
+    status: Optional[str] = None,
+) -> dict[str, Any]:
+    skip, limit = clamp_pagination(skip, limit)
+    query = (
+        db.query(SectionSubjectAssignment)
+        .join(ClassSection, SectionSubjectAssignment.section_id == ClassSection.id)
+        .join(Major, ClassSection.major_id == Major.id)
+        .join(Department, Major.department_id == Department.id)
+        .options(
+            joinedload(SectionSubjectAssignment.section)
+            .joinedload(ClassSection.major)
+            .joinedload(Major.department)
+            .joinedload(Department.college),
+            joinedload(SectionSubjectAssignment.subject).joinedload(Subject.major),
+            joinedload(SectionSubjectAssignment.teacher),
+        )
+    )
+    if major_id is not None:
+        query = query.filter(ClassSection.major_id == major_id)
+    if department_id is not None:
+        query = query.filter(Major.department_id == department_id)
+    if college_id is not None:
+        query = query.filter(Department.college_id == college_id)
+    if teacher_id is not None:
+        query = query.filter(SectionSubjectAssignment.teacher_id == teacher_id)
+
+    rows = query.order_by(SectionSubjectAssignment.updated_at.desc(), SectionSubjectAssignment.id.desc()).all()
+    pattern = q.strip().lower() if q else ""
+    status_filter = (status or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        serialized = _serialize_class_assignment(row)
+        if pattern:
+            teacher = serialized["teacher"]
+            section = serialized["section"]
+            subject_item = serialized["subject"]
+            major_name = section.get("major_name") or ""
+            haystack = " ".join(
+                [
+                    section.get("name") or "",
+                    section.get("section_code") or "",
+                    subject_item.get("name") or "",
+                    subject_item.get("code") or "",
+                    teacher.get("username") or "",
+                    teacher.get("fullname") or "",
+                    major_name,
+                ]
+            ).lower()
+            if pattern not in haystack:
+                continue
+
+        if status_filter:
+            current_status = serialized["status"]
+            if status_filter == "needs_setup":
+                if current_status == "assigned":
+                    continue
+            elif current_status != status_filter:
+                continue
+
+        items.append(serialized)
+
+    total = len(items)
+    return {"total": total, "items": items[skip : skip + limit]}
 
 
 def create_section(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
@@ -385,31 +577,179 @@ def delete_section(db: Session, section_id: int, actor_user_id: int, confirm_pas
 
 
 def create_class(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    section_id = payload.get("section_id")
+    section: ClassSection | None = None
+    created_section = False
+
+    if section_id is not None:
+        section = _ensure_section(db, int(section_id))
+    else:
+        major = _ensure_major(db, payload.get("major_id"))
+        year_level = int(payload.get("year_level") or 0)
+        if year_level <= 0:
+            raise HTTPException(status_code=400, detail="year_level is required and must be > 0")
+
+        section_code = _normalize_section_code(payload)
+        if not section_code:
+            raise HTTPException(status_code=400, detail="section_code is required")
+
+        section_name = f"{major.code}-{year_level}{section_code}"
+        duplicate = (
+            db.query(ClassSection)
+            .filter(
+                ClassSection.major_id == major.id,
+                ClassSection.year_level == year_level,
+                func.upper(ClassSection.section_code) == section_code,
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=400, detail=f"Section '{section_name}' already exists.")
+
+        section = ClassSection(
+            name=section_name,
+            major_id=major.id,
+            year_level=year_level,
+            section_code=section_code,
+            teacher_id=None,
+        )
+        db.add(section)
+        db.flush()
+        created_section = True
+
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+
     subject_id = payload.get("subject_id")
-    subject = None
     if subject_id is not None:
-        subject = db.query(Subject).filter(Subject.id == int(subject_id)).first()
+        subject = _ensure_subject_for_major(db, int(subject_id), section.major_id)
     else:
         subject_name = str(payload.get("subject_name") or "").strip()
         if not subject_name:
             raise HTTPException(status_code=400, detail="Provide subject_id or subject_name")
-        major = _ensure_major(db, payload.get("major_id"))
+        valid, error = validate_subject_name(subject_name)
+        if not valid:
+            raise HTTPException(status_code=400, detail=error or "Invalid subject name")
+
+        duplicate_subject = (
+            db.query(Subject)
+            .filter(Subject.major_id == section.major_id, func.lower(Subject.name) == subject_name.lower())
+            .first()
+        )
+        if duplicate_subject:
+            raise HTTPException(status_code=400, detail="Subject already exists in this major. Use subject_id.")
+
         subject_code = payload.get("subject_code")
+        normalized_code = str(subject_code).strip() if isinstance(subject_code, str) and subject_code.strip() else None
+        if normalized_code:
+            duplicate_code = (
+                db.query(Subject)
+                .filter(Subject.major_id == section.major_id, Subject.code == normalized_code)
+                .first()
+            )
+            if duplicate_code:
+                raise HTTPException(status_code=400, detail="Subject code already exists in this major.")
+
         subject = Subject(
-            major_id=major.id,
+            major_id=section.major_id,
             name=subject_name,
-            code=(str(subject_code).strip() if isinstance(subject_code, str) and subject_code.strip() else None),
+            code=normalized_code,
         )
         db.add(subject)
         db.flush()
 
-    if not subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
+    existing_assignment = (
+        db.query(SectionSubjectAssignment)
+        .filter(
+            SectionSubjectAssignment.section_id == section.id,
+            SectionSubjectAssignment.subject_id == subject.id,
+        )
+        .first()
+    )
+    if existing_assignment:
+        raise HTTPException(status_code=400, detail="This section is already linked to the selected subject.")
 
-    payload_copy = dict(payload)
-    payload_copy["major_id"] = payload.get("major_id") or subject.major_id
-    payload_copy["subject_ids"] = [subject.id]
-    return create_section(db, payload_copy)
+    teacher: User | None = None
+    teacher_id = payload.get("teacher_id")
+    if teacher_id is not None:
+        teacher = _ensure_teacher_for_section(db, int(teacher_id), section)
+
+    assignment = SectionSubjectAssignment(
+        section_id=section.id,
+        subject_id=subject.id,
+        teacher_id=teacher.id if teacher else None,
+    )
+    db.add(assignment)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if created_section:
+            # Keep explicit rollback behavior clear when this function creates the section in-process.
+            pass
+        raise
+
+    assignment = _ensure_class_assignment(db, assignment.id)
+    if teacher:
+        _notify_teacher_assignment(db, teacher=teacher, section=assignment.section, subject=assignment.subject)
+        db.commit()
+        assignment = _ensure_class_assignment(db, assignment.id)
+    return _serialize_class_assignment(assignment)
+
+
+def update_class(db: Session, class_assignment_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    assignment = _ensure_class_assignment(db, class_assignment_id)
+    section = assignment.section
+    if not section:
+        raise HTTPException(status_code=400, detail="Class assignment has no linked section.")
+
+    if payload.get("subject_id") is not None:
+        next_subject = _ensure_subject_for_major(db, int(payload["subject_id"]), section.major_id)
+        duplicate = (
+            db.query(SectionSubjectAssignment)
+            .filter(
+                SectionSubjectAssignment.id != assignment.id,
+                SectionSubjectAssignment.section_id == section.id,
+                SectionSubjectAssignment.subject_id == next_subject.id,
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Section already linked to this subject.")
+        assignment.subject_id = next_subject.id
+
+    teacher_for_notification: User | None = None
+    if "teacher_id" in payload:
+        teacher_id = payload.get("teacher_id")
+        if teacher_id is None:
+            assignment.teacher_id = None
+        else:
+            teacher_for_notification = _ensure_teacher_for_section(db, int(teacher_id), section)
+            assignment.teacher_id = teacher_for_notification.id
+
+    db.add(assignment)
+    db.commit()
+    assignment = _ensure_class_assignment(db, assignment.id)
+    if teacher_for_notification:
+        _notify_teacher_assignment(
+            db,
+            teacher=teacher_for_notification,
+            section=assignment.section,
+            subject=assignment.subject,
+        )
+        db.commit()
+        assignment = _ensure_class_assignment(db, assignment.id)
+    return _serialize_class_assignment(assignment)
+
+
+def delete_class(db: Session, class_assignment_id: int) -> dict[str, Any]:
+    assignment = db.query(SectionSubjectAssignment).filter(SectionSubjectAssignment.id == class_assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Class assignment not found")
+    db.delete(assignment)
+    db.commit()
+    return {"message": "Class assignment removed"}
 
 
 def assign_section_teacher(

@@ -39,6 +39,34 @@ def read_colleges(db: Session):
     ]
 
 
+def read_departments(db: Session):
+    departments = ClassroomRepository.list_departments(db)
+    return [
+        {
+            "id": department.id,
+            "college_id": department.college_id,
+            "name": department.name,
+            "code": department.code,
+            "cover_image_url": department.cover_image_url,
+        }
+        for department in departments
+    ]
+
+
+def read_majors(db: Session):
+    majors = ClassroomRepository.list_majors(db)
+    return [
+        {
+            "id": major.id,
+            "department_id": major.department_id,
+            "name": major.name,
+            "code": major.code,
+            "cover_image_url": major.cover_image_url,
+        }
+        for major in majors
+    ]
+
+
 def _format_subject_for_teacher(subject: Subject, teacher_id: int) -> dict[str, Any]:
     visible_assignments = [
         assignment
@@ -81,10 +109,15 @@ def _format_subject_for_teacher(subject: Subject, teacher_id: int) -> dict[str, 
         "teacher_username": None,
         "major_id": subject.major_id,
         "major_name": major.name if major else None,
+        "major_code": major.code if major else None,
+        "major_cover_image_url": major.cover_image_url if major else None,
         "department_id": department.id if department else None,
         "department_name": department.name if department else None,
+        "department_code": department.code if department else None,
+        "department_cover_image_url": department.cover_image_url if department else None,
         "college_id": college.id if college else None,
         "college_name": college.name if college else None,
+        "college_acronym": college.acronym if college else None,
         "college_logo_path": college.logo_path if college else None,
         "code": subject.code,
         "description": subject.description,

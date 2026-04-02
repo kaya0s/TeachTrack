@@ -21,6 +21,7 @@ class ClassSession(Base):
     section_id = Column(Integer, ForeignKey("class_sections.id"))
     subject_id = Column(Integer, ForeignKey("subjects.id"))
     students_present = Column(Integer, nullable=False, default=1)
+    average_engagement = Column(DECIMAL(5, 2), nullable=False, default=0)
     
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
@@ -41,14 +42,15 @@ class BehaviorLog(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    
-    # Counts
+
+    students_present_snapshot = Column(Integer, nullable=True)
+
     on_task = Column(Integer, default=0)
     sleeping = Column(Integer, default=0)
     using_phone = Column(Integer, default=0)
     off_task = Column(Integer, default=0)
     not_visible = Column(Integer, default=0)
-    
+
     total_detected = Column(Integer, default=0)
 
     session = relationship("ClassSession", back_populates="logs")

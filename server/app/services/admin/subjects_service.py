@@ -175,6 +175,8 @@ def create_subject(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    print(f"DEBUG: Update subject payload received: {payload}")
+    
     row = (
         db.query(Subject)
         .options(
@@ -187,6 +189,8 @@ def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dic
     )
     if not row:
         raise HTTPException(status_code=404, detail="Subject not found")
+
+    print(f"DEBUG: Current subject cover_image_url: {row.cover_image_url}")
 
     target_major_id = row.major_id
     target_name = row.name
@@ -207,7 +211,9 @@ def update_subject(db: Session, subject_id: int, payload: dict[str, Any]) -> dic
         row.description = payload.get("description")
     if "cover_image_url" in payload:
         cover_image_url = payload.get("cover_image_url")
+        print(f"DEBUG: Processing cover_image_url: {cover_image_url}")
         row.cover_image_url = str(cover_image_url).strip() if isinstance(cover_image_url, str) and cover_image_url.strip() else None
+        print(f"DEBUG: Updated subject cover_image_url to: {row.cover_image_url}")
     if "major_id" in payload or "college_id" in payload:
         target_major_id = _resolve_major_id_from_payload(db, payload)
         row.major_id = target_major_id

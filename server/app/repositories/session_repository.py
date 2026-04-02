@@ -2,6 +2,7 @@ from typing import Iterable
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
+from app.models.classroom import ClassSection, Department, Major
 from app.models.session import ClassSession, BehaviorLog, Alert
 
 
@@ -24,7 +25,10 @@ class SessionRepository:
     def list_sessions(db: Session, teacher_id: int, include_active: bool, limit: int) -> list[ClassSession]:
         query = db.query(ClassSession).options(
             joinedload(ClassSession.subject),
-            joinedload(ClassSession.section),
+            joinedload(ClassSession.section)
+            .joinedload(ClassSection.major)
+            .joinedload(Major.department)
+            .joinedload(Department.college),
         ).filter(ClassSession.teacher_id == teacher_id)
 
         if not include_active:

@@ -50,10 +50,13 @@ delete_subject = _subjects.delete_subject
 
 # --- Sections / Classes ---
 list_sections = _sections.list_sections
+list_classes = _sections.list_classes
 create_section = _sections.create_section
 update_section = _sections.update_section
 delete_section = _sections.delete_section
 create_class = _sections.create_class
+update_class = _sections.update_class
+delete_class = _sections.delete_class
 assign_section_teacher = _sections.assign_section_teacher
 unassign_section_teacher = _sections.unassign_section_teacher
 
@@ -158,10 +161,13 @@ __all__ = [
     "delete_subject",
     # sections/classes
     "list_sections",
+    "list_classes",
     "create_section",
     "update_section",
     "delete_section",
     "create_class",
+    "update_class",
+    "delete_class",
     "assign_section_teacher",
     "unassign_section_teacher",
     # sessions/alerts/audit

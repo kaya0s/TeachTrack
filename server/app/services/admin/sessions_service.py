@@ -2,7 +2,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_, cast, String
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.session import (
@@ -56,6 +56,12 @@ def _teacher_name_fields(user: User | None) -> tuple[str, str | None]:
 
 
 def _avg_engagement_from_stats(stats_row: tuple, students_present: int, weights: dict[str, float]) -> float:
+    """Legacy fallback: compute engagement using aggregate sums.
+
+    Used only for sessions that pre-date the students_present_snapshot column
+    (all rows will have snapshot=NULL). For post-migration sessions use
+    _avg_engagement_from_logs instead.
+    """
     if not stats_row or students_present <= 0:
         return 0.0
     on_task_sum, using_phone_sum, sleeping_sum, off_task_sum, log_count = stats_row
@@ -68,6 +74,75 @@ def _avg_engagement_from_stats(stats_row: tuple, students_present: int, weights:
         - (weights["off_task"] * _to_float(off_task_sum))
     )
     return round(max(0.0, min(100.0, (raw_total / (students_present * log_count)) * 100)), 2)
+
+
+def _avg_engagement_from_logs(
+    db: Session,
+    session_id: int,
+    session_students_present: int,
+    weights: dict[str, float],
+) -> float:
+    """Accurate per-log engagement average that uses the headcount snapshot.
+
+    - Logs WITH a snapshot use their own snapshot as the normaliser (correct
+      even if the teacher changed headcount mid-session).
+    - Logs WITHOUT a snapshot (pre-migration rows) fall back to
+      session_students_present.
+    - Includes not_visible penalty if configured (default 0).
+    Returns a value clamped to [0, 100].
+    """
+    rows = (
+        db.query(
+            BehaviorLog.on_task,
+            BehaviorLog.using_phone,
+            BehaviorLog.sleeping,
+            BehaviorLog.off_task,
+            BehaviorLog.not_visible,
+            BehaviorLog.students_present_snapshot,
+        )
+        .filter(BehaviorLog.session_id == session_id)
+        .all()
+    )
+    if not rows:
+        return 0.0
+
+    total_score = 0.0
+    count = 0
+    w_not_visible = weights.get("not_visible", 0.0)
+    for on_task, using_phone, sleeping, off_task, not_visible, snapshot in rows:
+        sp = snapshot if snapshot and snapshot > 0 else session_students_present
+        if sp <= 0:
+            continue
+        raw_score = (
+            (weights["on_task"] * _to_float(on_task))
+            - (weights["using_phone"] * _to_float(using_phone))
+            - (weights["sleeping"] * _to_float(sleeping))
+            - (weights["off_task"] * _to_float(off_task))
+            - (w_not_visible * _to_float(not_visible))
+        )
+        total_score += max(0.0, min(100.0, (raw_score / sp) * 100))
+        count += 1
+
+    if count == 0:
+        return 0.0
+    return round(total_score / count, 2)
+
+
+def recalculate_all_sessions_engagement(db: Session) -> int:
+    """Updates the cached average_engagement for every session in the database.
+
+    Used when system-wide engagement weights are updated.
+    """
+    sessions = db.query(ClassSession).all()
+    weights = settings_service.get_engagement_weights(db)
+    count = 0
+    for s in sessions:
+        avg = _avg_engagement_from_logs(db, s.id, s.students_present, weights)
+        s.average_engagement = avg
+        db.add(s)
+        count += 1
+    db.commit()
+    return count
 
 
 def _apply_session_scope_filters(
@@ -198,24 +273,6 @@ def get_dashboard_data(
         .limit(10)
         .all()
     )
-    session_ids = list({*active_session_ids, *[row.id for row in recent_sessions_raw]})
-    behavior_rows = {}
-    if session_ids:
-        stats_rows = (
-            db.query(
-                BehaviorLog.session_id,
-                func.sum(BehaviorLog.on_task),
-                func.sum(BehaviorLog.using_phone),
-                func.sum(BehaviorLog.sleeping),
-                func.sum(BehaviorLog.off_task),
-                func.count(BehaviorLog.id),
-            )
-            .filter(BehaviorLog.session_id.in_(session_ids))
-            .group_by(BehaviorLog.session_id)
-            .all()
-        )
-        behavior_rows = {row[0]: row[1:] for row in stats_rows}
-
     def _serialize_session(row: ClassSession) -> dict[str, Any]:
         teacher_username, teacher_fullname = _teacher_name_fields(row.teacher)
         return {
@@ -238,10 +295,9 @@ def get_dashboard_data(
             "end_time": row.end_time,
             "is_active": row.is_active,
             "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
-            "average_engagement": _avg_engagement_from_stats(
-                behavior_rows.get(row.id),
-                row.students_present,
-                weights,
+            # Use snapshot-aware per-log average for accuracy
+            "average_engagement": _avg_engagement_from_logs(
+                db, row.id, row.students_present, weights
             ),
         }
 
@@ -299,11 +355,15 @@ def list_sessions(
     limit: int = DEFAULT_PAGE_SIZE,
     is_active: Optional[bool] = None,
     teacher_id: Optional[int] = None,
+    section_id: Optional[int] = None,
+    subject_id: Optional[int] = None,
     college_id: Optional[int] = None,
     department_id: Optional[int] = None,
     major_id: Optional[int] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    search: Optional[str] = None,
+    sort: Optional[str] = "newest",
 ) -> dict[str, Any]:
     skip, limit = clamp_pagination(skip, limit, default_limit=DEFAULT_PAGE_SIZE)
     query = db.query(ClassSession).options(
@@ -315,6 +375,10 @@ def list_sessions(
         query = query.filter(ClassSession.is_active == is_active)
     if teacher_id is not None:
         query = query.filter(ClassSession.teacher_id == teacher_id)
+    if section_id is not None:
+        query = query.filter(ClassSession.section_id == section_id)
+    if subject_id is not None:
+        query = query.filter(ClassSession.subject_id == subject_id)
     query = _apply_session_scope_filters(
         query,
         college_id=college_id,
@@ -324,30 +388,43 @@ def list_sessions(
         date_to=date_to,
     )
 
+    if search:
+        search_term = f"%{search}%"
+        # We need to ensure we've joined User, Subject, and ClassSection for the filter.
+        # They're already joinedloaded, but for filtering we might need explicit join if not already.
+        # joinedload doesn't always work for filtering in all SQLA versions without explicit join.
+        query = query.join(User, ClassSession.teacher_id == User.id) \
+                     .join(Subject, ClassSession.subject_id == Subject.id) \
+                     .join(ClassSection, ClassSession.section_id == ClassSection.id)
+        
+        query = query.filter(
+            or_(
+                cast(ClassSession.id, String).ilike(search_term),
+                User.username.ilike(search_term),
+                User.fullname.ilike(search_term),
+                Subject.name.ilike(search_term),
+                ClassSection.name.ilike(search_term),
+            )
+        )
+
+    # Sort logic
+    if sort == "oldest":
+        query = query.order_by(ClassSession.start_time.asc())
+    elif sort == "engagement-high":
+        query = query.order_by(ClassSession.average_engagement.desc())
+    elif sort == "engagement-low":
+        query = query.order_by(ClassSession.average_engagement.asc())
+    elif sort == "students-most":
+        query = query.order_by(ClassSession.students_present.desc())
+    else: # newest or default
+        query = query.order_by(ClassSession.start_time.desc())
+
     total = query.count()
     rows = (
-        query.order_by(ClassSession.start_time.desc())
-        .offset(skip)
+        query.offset(skip)
         .limit(limit)
         .all()
     )
-    session_ids = [r.id for r in rows]
-    behavior_map = {}
-    if session_ids:
-        behavior_rows = (
-            db.query(
-                BehaviorLog.session_id,
-                func.sum(BehaviorLog.on_task),
-                func.sum(BehaviorLog.using_phone),
-                func.sum(BehaviorLog.sleeping),
-                func.sum(BehaviorLog.off_task),
-                func.count(BehaviorLog.id),
-            )
-            .filter(BehaviorLog.session_id.in_(session_ids))
-            .group_by(BehaviorLog.session_id)
-            .all()
-        )
-        behavior_map = {row[0]: row[1:] for row in behavior_rows}
 
     weights = settings_service.get_engagement_weights(db)
     items = []
@@ -374,11 +451,7 @@ def list_sessions(
                 "end_time": row.end_time,
                 "is_active": row.is_active,
                 "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
-                "average_engagement": _avg_engagement_from_stats(
-                    behavior_map.get(row.id),
-                    row.students_present,
-                    weights,
-                ),
+                "average_engagement": float(row.average_engagement),
             }
         )
     return {"total": total, "items": items}
@@ -443,17 +516,7 @@ def get_session_detail(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    stats_row = (
-        db.query(
-            func.sum(BehaviorLog.on_task),
-            func.sum(BehaviorLog.using_phone),
-            func.sum(BehaviorLog.sleeping),
-            func.sum(BehaviorLog.off_task),
-            func.count(BehaviorLog.id),
-        )
-        .filter(BehaviorLog.session_id == session_id)
-        .first()
-    )
+    weights = settings_service.get_engagement_weights(db)
     summary = {
         "id": session.id,
         "teacher_id": session.teacher_id,
@@ -474,10 +537,9 @@ def get_session_detail(
         "end_time": session.end_time,
         "is_active": session.is_active,
         "teacher_profile_picture_url": session.teacher.profile_picture_url if session.teacher else None,
-        "average_engagement": _avg_engagement_from_stats(
-            stats_row,
-            session.students_present,
-            settings_service.get_engagement_weights(db),
+        # Snapshot-aware per-log average for accuracy across headcount changes
+        "average_engagement": _avg_engagement_from_logs(
+            db, session.id, session.students_present, weights
         ),
     }
 

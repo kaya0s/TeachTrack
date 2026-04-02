@@ -13,6 +13,28 @@ class College(BaseModel):
     class Config:
         from_attributes = True
 
+# --- Department ---
+class Department(BaseModel):
+    id: int
+    college_id: int
+    name: str
+    code: Optional[str] = None
+    cover_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+# --- Major ---
+class Major(BaseModel):
+    id: int
+    department_id: int
+    name: str
+    code: str
+    cover_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- Section ---
 class SectionBase(BaseModel):
     name: str
@@ -58,10 +80,15 @@ class Subject(SubjectBase):
     teacher_username: Optional[str] = None
     major_id: Optional[int] = None
     major_name: Optional[str] = None
+    major_code: Optional[str] = None
+    major_cover_image_url: Optional[str] = None
     department_id: Optional[int] = None
     department_name: Optional[str] = None
+    department_code: Optional[str] = None
+    department_cover_image_url: Optional[str] = None
     college_id: Optional[int] = None
     college_name: Optional[str] = None
+    college_acronym: Optional[str] = None
     college_logo_path: Optional[str] = None
     created_at: Optional[datetime]
     sections: List[Section] = Field(default_factory=list)

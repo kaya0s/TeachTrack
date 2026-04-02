@@ -7,6 +7,8 @@ from app.api.v1 import deps
 from app.db.database import get_db
 from app.schemas.classroom import (
     College as CollegeSchema,
+    Department as DepartmentSchema,
+    Major as MajorSchema,
     Section as SectionSchema,
     Subject as SubjectSchema,
     SubjectCoverUploadResponse,
@@ -24,6 +26,22 @@ def read_colleges(
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
     return classroom_service.read_colleges(db)
+
+
+@router.get("/departments", response_model=List[DepartmentSchema])
+def read_departments(
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    return classroom_service.read_departments(db)
+
+
+@router.get("/majors", response_model=List[MajorSchema])
+def read_majors(
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    return classroom_service.read_majors(db)
 
 
 @router.get("/subjects", response_model=List[SubjectSchema])
