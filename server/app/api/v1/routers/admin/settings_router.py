@@ -30,6 +30,7 @@ def get_admin_dashboard(
     major_id: Optional[int] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    activity_mode: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
@@ -40,6 +41,7 @@ def get_admin_dashboard(
         major_id=major_id,
         date_from=date_from,
         date_to=date_to,
+        activity_mode=activity_mode,
     )
 
 

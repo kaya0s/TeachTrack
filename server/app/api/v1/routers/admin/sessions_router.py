@@ -35,6 +35,7 @@ def list_admin_sessions(
     date_to: Optional[date] = None,
     search: Optional[str] = None,
     sort: Optional[str] = "newest",
+    activity_mode: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
@@ -53,6 +54,7 @@ def list_admin_sessions(
         date_to=date_to,
         search=search,
         sort=sort,
+        activity_mode=activity_mode,
     )
 
 
