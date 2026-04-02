@@ -371,29 +371,8 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
         include_active=include_active,
         limit=max(1, min(limit, 200)),
     )
-    session_ids = [s.id for s in sessions]
-    stats_map = SessionRepository.aggregate_behavior(db, session_ids)
-
     summaries = []
     for session in sessions:
-        stats = stats_map.get(session.id, (session.id, 0, 0, 0, 0, 0))
-
-        avg_eng = 0.0
-        log_count = stats[5] or 0
-        weights = settings_service.get_engagement_weights(db, mode=session.activity_mode)
-        if log_count > 0 and session.students_present > 0:
-            on_task_sum = _to_float(stats[1])
-            using_phone_sum = _to_float(stats[2])
-            sleeping_sum = _to_float(stats[3])
-            off_task_sum = _to_float(stats[4])
-            raw_total = (
-                (weights["on_task"] * on_task_sum)
-                - (weights["using_phone"] * using_phone_sum)
-                - (weights["sleeping"] * sleeping_sum)
-                - (weights["off_task"] * off_task_sum)
-            )
-            avg_eng = max(0.0, min(100.0, (raw_total / (session.students_present * log_count)) * 100))
-
         summaries.append(
             {
                 "id": session.id,
@@ -444,7 +423,7 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
                 "end_time": session.end_time,
                 "is_active": session.is_active,
                 "activity_mode": session.activity_mode,
-                "average_engagement": round(avg_eng, 2),
+                "average_engagement": round(float(session.average_engagement), 2) if session.average_engagement else 0.0,
             }
         )
     return summaries

@@ -139,7 +139,7 @@ def delete_admin_class(
     return admin_service.delete_class(db, class_assignment_id=class_assignment_id)
 
 
-@router.api_route("/sections/{section_id}/assign-teacher", methods=["PUT", "POST"], response_model=AdminSectionSummary)
+@router.put("/sections/{section_id}/assign-teacher", response_model=AdminSectionSummary)
 def assign_admin_section_teacher(
     section_id: int,
     payload: AdminTeacherAssignment,
@@ -154,7 +154,7 @@ def assign_admin_section_teacher(
     )
 
 
-@router.api_route("/sections/{section_id}/unassign-teacher", methods=["PUT", "POST"], response_model=AdminSectionSummary)
+@router.put("/sections/{section_id}/unassign-teacher", response_model=AdminSectionSummary)
 def unassign_admin_section_teacher(
     section_id: int,
     subject_id: Optional[int] = None,
