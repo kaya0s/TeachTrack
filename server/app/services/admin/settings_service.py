@@ -99,6 +99,23 @@ def _integration_status() -> dict[str, bool]:
     }
 
 
+def _sanitize_overrides(payload: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize and validate settings payload"""
+    sanitized = {}
+    for key, value in (payload or {}).items():
+        if key in _ALLOWED_KEYS:
+            if isinstance(value, dict) and key in _ALLOWED_KEYS:
+                # Filter nested dict keys
+                allowed_subkeys = _ALLOWED_KEYS[key]
+                if isinstance(allowed_subkeys, set):
+                    sanitized[key] = {k: v for k, v in value.items() if k in allowed_subkeys}
+                else:
+                    sanitized[key] = value
+            else:
+                sanitized[key] = value
+    return sanitized
+
+
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     merged = deepcopy(base)
     for key, value in (overrides or {}).items():
