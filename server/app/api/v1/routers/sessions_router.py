@@ -1,4 +1,5 @@
 from typing import Any, List, Optional
+import os
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -20,6 +21,13 @@ from app.schemas.session import (
 )
 from app.services import alert_service, detector_service, engagement_service, session_lifecycle_service
 from app.constants import MAX_PAGE_SIZE
+
+# Import demo detector service for demo branch
+try:
+    from app.services.demo_detector_service import start_demo_video_detector
+    DEMO_MODE = True
+except ImportError:
+    DEMO_MODE = False
 
 router = APIRouter()
 models_router = APIRouter()
@@ -102,7 +110,11 @@ def start_webcam_detector(
 ) -> Any:
     session_lifecycle_service.get_active_session_or_404(db, session_id, current_user.id)
     try:
-        status = detector_service.start_webcam_detector(session_id, engagement_service.process_behavior_log)
+        # Use demo detector if available (demo branch), otherwise use webcam detector
+        if DEMO_MODE:
+            status = start_demo_video_detector(session_id, engagement_service.process_behavior_log)
+        else:
+            status = detector_service.start_webcam_detector(session_id, engagement_service.process_behavior_log)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"status": status}
