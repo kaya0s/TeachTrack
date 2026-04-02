@@ -13,6 +13,12 @@ class AlertSeverity(str, enum.Enum):
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
 
+class ActivityMode(str, enum.Enum):
+    LECTURE = "LECTURE"
+    STUDY = "STUDY"
+    COLLABORATION = "COLLABORATION"
+    EXAM = "EXAM"
+
 class ClassSession(Base):
     __tablename__ = "class_sessions"
 
@@ -22,6 +28,7 @@ class ClassSession(Base):
     subject_id = Column(Integer, ForeignKey("subjects.id"))
     students_present = Column(Integer, nullable=False, default=1)
     average_engagement = Column(DECIMAL(5, 2), nullable=False, default=0)
+    activity_mode = Column(String(20), nullable=False, default=ActivityMode.LECTURE.value)
     
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
@@ -35,6 +42,8 @@ class ClassSession(Base):
     
     logs = relationship("BehaviorLog", back_populates="session", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="session", cascade="all, delete-orphan")
+    metrics = relationship("SessionMetrics", back_populates="session", cascade="all, delete-orphan")
+    history = relationship("SessionHistory", back_populates="session", cascade="all, delete-orphan")
 
 class BehaviorLog(Base):
     __tablename__ = "behavior_logs"
@@ -66,6 +75,7 @@ class Alert(Base):
     triggered_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     severity = Column(String(20), default=AlertSeverity.WARNING.value, index=True)
     is_read = Column(Boolean, default=False, index=True)
+    snapshot_url = Column(String(512), nullable=True) # URL to detection screenshot
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     session = relationship("ClassSession", back_populates="alerts")
@@ -88,7 +98,7 @@ class SessionMetrics(Base):
     engagement_score = Column(DECIMAL(5, 2), nullable=False, default=0)
     computed_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    session = relationship("ClassSession")
+    session = relationship("ClassSession", back_populates="metrics")
 
 class SessionHistory(Base):
     __tablename__ = "session_history"
@@ -102,7 +112,7 @@ class SessionHistory(Base):
     prev_end_time = Column(DateTime(timezone=True), nullable=True)
     prev_is_active = Column(Boolean, nullable=True)
 
-    session = relationship("ClassSession")
+    session = relationship("ClassSession", back_populates="history")
 
 class AlertHistory(Base):
     __tablename__ = "alerts_history"
