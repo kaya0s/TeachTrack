@@ -103,6 +103,10 @@ def process_behavior_log(
     teacher_id: int | None = None,
 ) -> None:
     session = session_lifecycle_service.get_active_session_or_404(db, session_id, teacher_id)
+    
+    # Extract snapshot URL if available (added by detector service)
+    snapshot_url = getattr(log_in, '_snapshot_url', None)
+    
     observed = (
         log_in.on_task
         + log_in.using_phone
@@ -127,23 +131,49 @@ def process_behavior_log(
     db.add(log)
     db.flush()
 
-    # --- Alert: high sleeping rate ---
-    # Require total >= 5 for sleeping (same consistent guard as engagement_drop).
+    weights = settings_service.get_engagement_weights(db, mode=session.activity_mode)
+    
+    # --- Mode-Aware Alerts ---
+    
+    if session.activity_mode == "EXAM":
+        # Proctoring Mode: Focused only on phone usage (current limitation)
+        proctor_configs = settings_service.get_proctoring_settings(db)
+        
+        # Strict Phone Count Check - ONLY phone alerts for exam mode
+        if log_in.using_phone >= proctor_configs["phone_count_threshold"]:
+            msg = f"EXAM ALERT: Phone usage detected! {log_in.using_phone} student(s)."
+            alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.CRITICAL, snapshot_url=snapshot_url)
+            
+        # For EXAM mode, we don't save engagement averages. Keep at zero.
+        session.average_engagement = 0.0
+        db.add(session)
+        db.commit()
+        return  # End processing for exams (No permanent engagement saved)
+
+    # Standard Mode Logic (Lecture, Study, Collaboration)
+    
+    # High sleeping rate: Require total >= 5 for sleeping.
+    sleeping_threshold = 0.5 if session.activity_mode == "COLLABORATION" else 0.3
     if total > 0 and total >= 5 and log_in.sleeping > 0:
         ratio = log_in.sleeping / total
-        if ratio > 0.3:
-            msg = f"High sleeping detected: {log_in.sleeping} students ({int(ratio*100)}%)."
-            alert_service.trigger_alert(db, session_id, AlertType.SLEEPING, msg, AlertSeverity.WARNING)
+        if ratio > sleeping_threshold:
+            msg = f"High sleeping detected [{session.activity_mode}]: {log_in.sleeping} students ({int(ratio*100)}%)."
+            alert_service.trigger_alert(db, session_id, AlertType.SLEEPING, msg, AlertSeverity.WARNING, snapshot_url=None)
 
-    # --- Alert: phone usage spike ---
-    # Apply the same total >= 5 guard for consistency.
+    # Phone usage spike:
     if total > 0 and total >= 5 and log_in.using_phone > 0:
         ratio = log_in.using_phone / total
         if ratio > 0.2:
             msg = f"Phone usage spike: {log_in.using_phone} students ({int(ratio*100)}%)."
-            alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING)
+            alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING, snapshot_url=snapshot_url)
 
-    weights = settings_service.get_engagement_weights(db)
+    # Off-task alerts:
+    if session.activity_mode != "COLLABORATION" and total >= 5 and log_in.off_task > 0:
+        ratio = log_in.off_task / total
+        if ratio > 0.4:
+            msg = f"High off-task/talking detected [{session.activity_mode}]: {log_in.off_task} students ({int(ratio*100)}%)."
+            # Triggering alert
+    
     weighted_engagement = _weighted_engagement_percent(
         on_task=log_in.on_task,
         using_phone=log_in.using_phone,
@@ -155,8 +185,8 @@ def process_behavior_log(
     )
     if total >= 5 and weighted_engagement < 40:
         severity = AlertSeverity.CRITICAL if weighted_engagement < 25 else AlertSeverity.WARNING
-        msg = f"Engagement drop: {int(weighted_engagement)}% weighted engagement."
-        alert_service.trigger_alert(db, session_id, AlertType.ENGAGEMENT_DROP, msg, severity)
+        msg = f"Engagement drop [{session.activity_mode}]: {int(weighted_engagement)}% weighted engagement."
+        alert_service.trigger_alert(db, session_id, AlertType.ENGAGEMENT_DROP, msg, severity, snapshot_url=None)
 
     _update_session_metrics(db, session_id, log.timestamp)
     
@@ -175,7 +205,7 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
 
     alerts = db.query(Alert).filter(Alert.session_id == session_id, Alert.is_read == False).all()
 
-    weights = settings_service.get_engagement_weights(db)
+    weights = settings_service.get_engagement_weights(db, mode=session.activity_mode)
     avg_eng = _avg_engagement_from_snapshot_logs(db, session_id, session.students_present, weights)
 
     return {
@@ -247,7 +277,7 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     not_visible_sum = sum(r[4] or 0 for r in window_rows)
     total_detected = sum(r[5] or 0 for r in window_rows)
 
-    weights = settings_service.get_engagement_weights(db)
+    weights = settings_service.get_engagement_weights(db, mode=session.activity_mode)
 
     # Compute engagement by averaging per-log scores (using their individual snapshots)
     window_engagement_sum = 0.0
