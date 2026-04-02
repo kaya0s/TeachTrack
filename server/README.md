@@ -49,6 +49,15 @@ uvicorn app.main:app --reload
 - Export session summaries to PDF/CSV from the app.
 - View available ML models (read-only; model switching is admin-only).
 
+## Engagement Methodology (Backend)
+
+The scoring engine implements **Visibility-Based Normalization** to handle non-uniform classroom environments.
+
+1.  **Normalization Base**: `Total Detected Students` (sum of behaviors in a single YOLO frame).
+2.  **Weighted Formula**: Scoring uses dynamic weights (Lecture, Collaboration, etc.) retrieved from system settings. 
+3.  **Aggregation**: 1-minute metrics rollups (`SessionMetricsModel`) compute time-weighted averages of these normalized snapshot scores.
+4.  **Zero-Detection Handling**: Log frames with `total_detected == 0` are excluded from the session average to prevent hardware warmup or FOV obstructions from biasing metrics.
+
 ## Notes
 - Runtime table auto-creation is disabled by design. Use migrations only.
 - `migrate_engagement.py` is legacy and should not be used for new deployments.

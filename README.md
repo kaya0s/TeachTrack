@@ -72,12 +72,22 @@ The system is built using modern technologies focused on high performance and sc
 - **Database**: MySQL for structured storage of academic data and behavior logs.
 - **Media Hosting**: Cloudinary integration for handling subject covers and profile images.
 
-## Core Features
+## Engagement Methodology
 
-- **Real-time Detection**: Automatic classification of student behaviors (On-task, Sleeping, Phone Usage, etc.).
-- **Engagement Scoring**: Proprietary weighted algorithms for calculating individual and class-wide engagement percentages.
-- **Administrative Hub**: Granular control over the academic hierarchy, teacher assignments, and system-wide audit logging.
-- **Session Summaries**: Visual analytics and historical rollups of engagement trends over time.
+TeachTrack uses a **Visibility-Based Normalization** model to calculate classroom engagement. This approach provides fair metrics even in environments where the camera's field-of-view (FOV) cannot capture the entire classroom.
+
+### The Formula
+Engagement is calculated for every AI snapshot and then averaged over the session duration:
+
+$$\text{Engagement \%} = \left( \frac{\sum (\text{Behavior} \times \text{Weight})}{\text{Total Detected Students}} \right) \times 100$$
+
+### Key Logic
+*   **Visibility-Based Normalization**: Unlike traditional models that divide by total class size, TeachTrack divides by the number of students **actually seen** by the AI. This ensures the score reflects the behavior of the "Observed Sample" rather than penalizing the teacher for students sitting in camera blind spots.
+*   **Weighted Scoring**: Different behaviors (On-Task, Sleeping, Phone Usage) have configurable weights. On-task behavior contributes positively, while distractions subtract from the potential score.
+*   **FOV Adaptive**: The system automatically adjusts its baseline as students move in and out of the camera's frame, maintaining a consistent 0-100% scale regardless of detection count.
+*   **Real-time Rollups**: Individual snapshots are aggregated into 1-minute "Metrics Windows" to show trend lines while smoothing out momentary detection jitters.
+
+## Core Features
 
 ---
 
