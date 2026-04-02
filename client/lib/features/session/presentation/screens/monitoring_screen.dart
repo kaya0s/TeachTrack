@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
@@ -80,95 +81,102 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
   void _showAlertPopup(BuildContext context, AlertModel alert) {
     if (!mounted) return;
-    final theme = Theme.of(context);
     final size = MediaQuery.of(context).size;
-    final topMargin = MediaQuery.of(context).viewPadding.top + 10;
+    final topPadding = MediaQuery.of(context).viewPadding.top;
     
+    // Clear previous snackbars to avoid stacking
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 4),
         margin: EdgeInsets.only(
-          bottom: size.height - 200, 
+          bottom: size.height - topPadding - 120,
           left: 16,
           right: 16,
         ),
         padding: EdgeInsets.zero,
-        content: Container(
-          decoration: BoxDecoration(
-            color: Colors.red.shade900,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.red.withOpacity(0.3),
-                blurRadius: 15,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
               ),
-            ],
-            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.security_rounded, color: Colors.white, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            alert.alertType.replaceAll('_', ' ').toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              letterSpacing: 1.0,
-                            ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            alert.message,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "AI DETECTION ALERT",
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 10,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                alert.message,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                alert.alertType.replaceAll('_', ' ').toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
-                    ),
-                  ],
-                ),
-              ),
-              if (alert.snapshotUrl != null)
-                Container(
-                  height: 4,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Colors.white30,
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
         ),
       ),
