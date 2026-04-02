@@ -134,9 +134,11 @@ def recalculate_all_sessions_engagement(db: Session) -> int:
     Used when system-wide engagement weights are updated.
     """
     sessions = db.query(ClassSession).all()
-    weights = settings_service.get_engagement_weights(db)
     count = 0
     for s in sessions:
+        if s.activity_mode == "EXAM":
+            continue
+        weights = settings_service.get_engagement_weights(db, mode=s.activity_mode)
         avg = _avg_engagement_from_logs(db, s.id, s.students_present, weights)
         s.average_engagement = avg
         db.add(s)
@@ -152,6 +154,7 @@ def _apply_session_scope_filters(
     major_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    activity_mode: str | None = None,
 ):
     if major_id is not None or department_id is not None or college_id is not None:
         query = query.join(ClassSection, ClassSession.section_id == ClassSection.id)
@@ -167,6 +170,13 @@ def _apply_session_scope_filters(
         query = query.filter(ClassSession.start_time >= datetime.combine(date_from, time.min))
     if date_to is not None:
         query = query.filter(ClassSession.start_time < datetime.combine(date_to + timedelta(days=1), time.min))
+    
+    if activity_mode and activity_mode != "all":
+        query = query.filter(ClassSession.activity_mode == activity_mode)
+    else:
+        # Exclude EXAM sessions from general admin oversight/reports unless requested
+        query = query.filter(ClassSession.activity_mode != "EXAM")
+    
     return query
 
 
@@ -177,6 +187,7 @@ def get_dashboard_data(
     major_id: Optional[int] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    activity_mode: Optional[str] = None,
 ) -> dict[str, Any]:
     weights = settings_service.get_engagement_weights(db)
     total_users = db.query(func.count(User.id)).scalar() or 0
@@ -188,6 +199,7 @@ def get_dashboard_data(
         major_id=major_id,
         date_from=date_from,
         date_to=date_to,
+        activity_mode=activity_mode,
     )
     total_subjects = session_scope_query.with_entities(func.count(func.distinct(ClassSession.subject_id))).scalar() or 0
     total_sections = session_scope_query.with_entities(func.count(func.distinct(ClassSession.section_id))).scalar() or 0
@@ -202,12 +214,17 @@ def get_dashboard_data(
             major_id=major_id,
             date_from=date_from,
             date_to=date_to,
+            activity_mode=activity_mode,
         )
         .subquery()
     )
     unread_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.is_read == False, Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)))
+        .filter(
+            Alert.is_read == False, 
+            Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)),
+            Alert.alert_type.in_(["SLEEPING", "PHONE", "ENGAGEMENT_DROP"])
+        )
         .scalar()
         or 0
     )
@@ -217,6 +234,7 @@ def get_dashboard_data(
             Alert.is_read == False,
             Alert.severity == AlertSeverity.CRITICAL.value,
             Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)),
+            Alert.alert_type.in_(["SLEEPING", "PHONE", "ENGAGEMENT_DROP"])
         )
         .scalar()
         or 0
@@ -229,6 +247,7 @@ def get_dashboard_data(
             major_id=major_id,
             date_from=date_from,
             date_to=date_to,
+            activity_mode=activity_mode,
         )
         .distinct()
         .count()
@@ -242,6 +261,7 @@ def get_dashboard_data(
             major_id=major_id,
             date_from=date_from,
             date_to=date_to,
+            activity_mode=activity_mode,
         )
         .options(
             joinedload(ClassSession.subject),
@@ -263,6 +283,7 @@ def get_dashboard_data(
             major_id=major_id,
             date_from=date_from,
             date_to=date_to,
+            activity_mode=activity_mode,
         )
         .options(
             joinedload(ClassSession.subject),
@@ -291,13 +312,14 @@ def get_dashboard_data(
             "major_id": row.section.major_id if row.section else None,
             "major_name": row.section.major.name if row.section and row.section.major else None,
             "students_present": row.students_present,
+            "activity_mode": row.activity_mode,
             "start_time": row.start_time,
             "end_time": row.end_time,
             "is_active": row.is_active,
             "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
             # Use snapshot-aware per-log average for accuracy
             "average_engagement": _avg_engagement_from_logs(
-                db, row.id, row.students_present, weights
+                db, row.id, row.students_present, settings_service.get_engagement_weights(db, mode=row.activity_mode)
             ),
         }
 
@@ -308,7 +330,10 @@ def get_dashboard_data(
         db.query(Alert, ClassSession, User)
         .join(ClassSession, Alert.session_id == ClassSession.id)
         .join(User, User.id == ClassSession.teacher_id)
-        .filter(Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)))
+        .filter(
+            Alert.session_id.in_(db.query(scoped_session_ids_subquery.c.id)),
+            Alert.alert_type.in_(["SLEEPING", "PHONE", "ENGAGEMENT_DROP"])
+        )
         .order_by(Alert.triggered_at.desc())
         .limit(10)
         .all()
@@ -364,6 +389,7 @@ def list_sessions(
     date_to: Optional[date] = None,
     search: Optional[str] = None,
     sort: Optional[str] = "newest",
+    activity_mode: Optional[str] = None,
 ) -> dict[str, Any]:
     skip, limit = clamp_pagination(skip, limit, default_limit=DEFAULT_PAGE_SIZE)
     query = db.query(ClassSession).options(
@@ -386,6 +412,7 @@ def list_sessions(
         major_id=major_id,
         date_from=date_from,
         date_to=date_to,
+        activity_mode=activity_mode,
     )
 
     if search:
@@ -427,9 +454,41 @@ def list_sessions(
     )
 
     weights = settings_service.get_engagement_weights(db)
+    session_ids = [row.id for row in rows]
+    behavior_avgs = {}
+    if session_ids:
+        avg_query = (
+            db.query(
+                BehaviorLog.session_id,
+                func.avg(BehaviorLog.on_task).label("on_task"),
+                func.avg(BehaviorLog.sleeping).label("sleeping"),
+                func.avg(BehaviorLog.using_phone).label("using_phone"),
+                func.avg(BehaviorLog.off_task).label("off_task"),
+                func.avg(BehaviorLog.not_visible).label("not_visible"),
+            )
+            .filter(BehaviorLog.session_id.in_(session_ids))
+            .group_by(BehaviorLog.session_id)
+            .all()
+        )
+        for res in avg_query:
+            behavior_avgs[res.session_id] = {
+                "on_task": float(res.on_task or 0),
+                "sleeping": float(res.sleeping or 0),
+                "using_phone": float(res.using_phone or 0),
+                "off_task": float(res.off_task or 0),
+                "not_visible": float(res.not_visible or 0),
+            }
+
     items = []
     for row in rows:
         teacher_username, teacher_fullname = _teacher_name_fields(row.teacher)
+        avgs = behavior_avgs.get(row.id, {
+            "on_task": 0.0,
+            "sleeping": 0.0,
+            "using_phone": 0.0,
+            "off_task": 0.0,
+            "not_visible": 0.0,
+        })
         items.append(
             {
                 "id": row.id,
@@ -450,8 +509,10 @@ def list_sessions(
                 "start_time": row.start_time,
                 "end_time": row.end_time,
                 "is_active": row.is_active,
+                "activity_mode": row.activity_mode,
                 "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
                 "average_engagement": float(row.average_engagement),
+                **avgs,
             }
         )
     return {"total": total, "items": items}
@@ -533,13 +594,14 @@ def get_session_detail(
         "major_id": session.section.major_id if session.section else None,
         "major_name": session.section.major.name if session.section and session.section.major else None,
         "students_present": session.students_present,
+        "activity_mode": session.activity_mode,
         "start_time": session.start_time,
         "end_time": session.end_time,
         "is_active": session.is_active,
         "teacher_profile_picture_url": session.teacher.profile_picture_url if session.teacher else None,
         # Snapshot-aware per-log average for accuracy across headcount changes
         "average_engagement": _avg_engagement_from_logs(
-            db, session.id, session.students_present, weights
+            db, session.id, session.students_present, settings_service.get_engagement_weights(db, mode=session.activity_mode)
         ),
     }
 
@@ -637,6 +699,9 @@ def list_alerts(
         query = query.filter(Alert.severity == severity)
     if session_id is not None:
         query = query.filter(Alert.session_id == session_id)
+    
+    # Filter only behavioral alerts for admin feed
+    query = query.filter(Alert.alert_type.in_(["SLEEPING", "PHONE", "ENGAGEMENT_DROP"]))
 
     total = query.count()
     rows = (

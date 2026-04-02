@@ -27,27 +27,53 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         "alert_cooldown_minutes": getattr(env_settings, "ALERT_COOLDOWN_MINUTES", 5),
     },
     "engagement_weights": {
-        "on_task": env_settings.W_ON_TASK,
-        "using_phone": env_settings.W_USING_PHONE,
-        "sleeping": env_settings.W_SLEEPING,
-        "off_task": env_settings.W_OFF_TASK,
-        # not_visible defaults to 0 (neutral) — fully backward-compatible.
-        # Set > 0 to penalize students the detector cannot see.
-        "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
+        "LECTURE": {
+            "on_task": env_settings.W_ON_TASK,
+            "using_phone": env_settings.W_USING_PHONE,
+            "sleeping": env_settings.W_SLEEPING,
+            "off_task": env_settings.W_OFF_TASK,
+            "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
+        },
+        "STUDY": {
+            "on_task": env_settings.W_ON_TASK,
+            "using_phone": env_settings.W_USING_PHONE,
+            "sleeping": env_settings.W_SLEEPING,
+            "off_task": env_settings.W_OFF_TASK * 0.5, 
+            "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
+        },
+        "COLLABORATION": {
+            "on_task": env_settings.W_ON_TASK,
+            "using_phone": env_settings.W_USING_PHONE,
+            "sleeping": env_settings.W_SLEEPING,
+            "off_task": 0.0, # Zero off_task penalty
+            "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
+        },
+        "EXAM": {
+            "on_task": env_settings.W_ON_TASK,
+            "using_phone": env_settings.W_USING_PHONE * 2.0, # Double phone penalty
+            "sleeping": env_settings.W_SLEEPING,
+            "off_task": env_settings.W_OFF_TASK * 2.0, # Double off_task penalty
+            "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
+        },
     },
-    "admin_ops": {
-        "enable_admin_log_stream": env_settings.ENABLE_ADMIN_LOG_STREAM,
+    "exam_proctoring": {
+        "phone_count_threshold": 1,
+        "off_task_count_threshold": 2,
     },
     "security": {
         "access_token_expire_minutes": env_settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    },
+    "admin_ops": {
+        "enable_admin_log_stream": getattr(env_settings, "ENABLE_ADMIN_LOG_STREAM", False),
     },
 }
 
 
 _ALLOWED_KEYS = {
     "detection": set(_DEFAULT_SETTINGS["detection"].keys()),
-    "engagement_weights": set(_DEFAULT_SETTINGS["engagement_weights"].keys()),  # includes not_visible
+    "engagement_weights": {"LECTURE", "STUDY", "COLLABORATION", "EXAM"},
     "admin_ops": set(_DEFAULT_SETTINGS["admin_ops"].keys()),
+    "exam_proctoring": set(_DEFAULT_SETTINGS["exam_proctoring"].keys()),
     "security": set(_DEFAULT_SETTINGS["security"].keys()),
 }
 
@@ -83,11 +109,21 @@ def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, An
     return merged
 
 
-def _sanitize_overrides(payload: dict[str, Any]) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for section, allowed_keys in _ALLOWED_KEYS.items():
         if section not in payload or not isinstance(payload[section], dict):
             continue
+        
+        if section == "engagement_weights":
+            # For engagement_weights, we allow keys for each ActivityMode
+            sanitized[section] = {}
+            for mode in allowed_keys:
+                if mode in payload[section] and isinstance(payload[section][mode], dict):
+                    # Sanitize individual behavior keys within the mode
+                    behavior_keys = {"on_task", "using_phone", "sleeping", "off_task", "not_visible"}
+                    sanitized[section][mode] = {k: payload[section][mode][k] for k in behavior_keys if k in payload[section][mode]}
+            continue
+
         sanitized[section] = {k: payload[section][k] for k in allowed_keys if k in payload[section]}
     return sanitized
 
@@ -107,22 +143,32 @@ def _validate_effective(effective: dict[str, Any]) -> None:
     if not (1 <= int(detection["alert_cooldown_minutes"]) <= 120):
         raise ValueError("alert_cooldown_minutes must be between 1 and 120.")
 
-    weights = effective["engagement_weights"]
-    for key in ("on_task", "using_phone", "sleeping", "off_task", "not_visible"):
-        value = float(weights.get(key, 0.0))
-        if key == "on_task":
-            if value <= 0 or value > 5:
-                raise ValueError(f"engagement weight 'on_task' must be between 0 (exclusive) and 5.")
-        else:
-            if value < 0 or value > 5:
-                raise ValueError(f"engagement weight '{key}' must be between 0 and 5.")
-    
-    if float(weights["on_task"]) <= 0:
-        raise ValueError("engagement weight 'on_task' must be greater than 0 — otherwise engagement can never be positive.")
+    weights_by_mode = effective["engagement_weights"]
+    for mode, weights in weights_by_mode.items():
+        if mode not in ("LECTURE", "STUDY", "COLLABORATION", "EXAM"):
+            continue
+        
+        for key in ("on_task", "using_phone", "sleeping", "off_task", "not_visible"):
+            value = float(weights.get(key, 0.0))
+            if key == "on_task":
+                if value <= 0 or value > 10:
+                    raise ValueError(f"engagement weight 'on_task' in mode {mode} must be between 0 (exclusive) and 10.")
+            else:
+                if value < 0 or value > 10:
+                    raise ValueError(f"engagement weight '{key}' in mode {mode} must be between 0 and 10.")
+        
+        if float(weights["on_task"]) <= 0:
+            raise ValueError(f"engagement weight 'on_task' in mode {mode} must be greater than 0.")
 
     admin_ops = effective["admin_ops"]
     if not isinstance(admin_ops["enable_admin_log_stream"], bool):
         raise ValueError("enable_admin_log_stream must be true or false.")
+
+    exam_proctoring = effective["exam_proctoring"]
+    if not (1 <= int(exam_proctoring["phone_count_threshold"]) <= 50):
+        raise ValueError("phone_count_threshold must be between 1 and 50.")
+    if not (1 <= int(exam_proctoring["off_task_count_threshold"]) <= 50):
+        raise ValueError("off_task_count_threshold must be between 1 and 50.")
 
     security = effective["security"]
     if not (5 <= int(security["access_token_expire_minutes"]) <= 43200):
@@ -226,10 +272,15 @@ def get_cached_effective_settings() -> dict[str, Any]:
     return deepcopy(_cached_effective)
 
 
-def get_engagement_weights(db: Session | None = None) -> dict[str, float]:
-    if db is None:
-        return get_cached_effective_settings()["engagement_weights"]
-    return get_effective_settings(db)["engagement_weights"]
+def get_engagement_weights(db: Session | None = None, mode: str = "LECTURE") -> dict[str, float]:
+    effective = get_cached_effective_settings() if db is None else get_effective_settings(db)
+    all_weights = effective["engagement_weights"]
+    
+    # Fallback logic if mode is missing or invalid
+    if mode not in all_weights:
+        mode = "LECTURE"
+    
+    return all_weights[mode]
 
 
 def get_detection_settings(db: Session | None = None) -> dict[str, Any]:
@@ -242,6 +293,12 @@ def get_admin_ops_settings(db: Session | None = None) -> dict[str, Any]:
     if db is None:
         return get_cached_effective_settings()["admin_ops"]
     return get_effective_settings(db)["admin_ops"]
+
+
+def get_proctoring_settings(db: Session | None = None) -> dict[str, Any]:
+    if db is None:
+        return get_cached_effective_settings()["exam_proctoring"]
+    return get_effective_settings(db)["exam_proctoring"]
 
 
 def get_security_settings(db: Session | None = None) -> dict[str, Any]:

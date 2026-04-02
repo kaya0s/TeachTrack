@@ -91,6 +91,7 @@ def get_dashboard(
     major_id: int | None = None,
     date_from=None,
     date_to=None,
+    activity_mode: str | None = None,
 ):
     return get_dashboard_data(
         db,
@@ -99,6 +100,7 @@ def get_dashboard(
         major_id=major_id,
         date_from=date_from,
         date_to=date_to,
+        activity_mode=activity_mode,
     )
 
 
