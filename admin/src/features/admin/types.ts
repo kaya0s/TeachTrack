@@ -126,6 +126,7 @@ export type AdminAcademicFilters = {
   date_from?: string | null; // YYYY-MM-DD
   date_to?: string | null; // YYYY-MM-DD
   date_preset?: AdminAcademicDatePreset | null;
+  activity_mode?: string | null;
 };
 
 export type AdminSection = {
@@ -201,6 +202,12 @@ export type AdminSession = {
   is_active: boolean;
   teacher_profile_picture_url: string | null;
   average_engagement: number;
+  activity_mode: string;
+  on_task: number;
+  sleeping: number;
+  using_phone: number;
+  off_task: number;
+  not_visible: number;
   college_id?: number | null;
   college_name?: string | null;
   department_id?: number | null;
@@ -315,6 +322,14 @@ export type PaginatedResponse<T> = {
   items: T[];
 };
 
+export type AdminWeightsSet = {
+  on_task: number;
+  using_phone: number;
+  sleeping: number;
+  off_task: number;
+  not_visible: number;
+};
+
 export type AdminSettings = {
   detection: {
     detect_interval_seconds: number;
@@ -327,11 +342,14 @@ export type AdminSettings = {
     alert_cooldown_minutes: number;
   };
   engagement_weights: {
-    on_task: number;
-    using_phone: number;
-    sleeping: number;
-    off_task: number;
-    not_visible: number;
+    LECTURE: AdminWeightsSet;
+    STUDY: AdminWeightsSet;
+    COLLABORATION: AdminWeightsSet;
+    EXAM: AdminWeightsSet;
+  };
+  exam_proctoring: {
+    phone_count_threshold: number;
+    off_task_count_threshold: number;
   };
   admin_ops: {
     enable_admin_log_stream: boolean;
@@ -349,6 +367,7 @@ export type AdminSettingsUpdate = {
   detection?: Partial<AdminSettings["detection"]>;
   engagement_weights?: Partial<AdminSettings["engagement_weights"]>;
   admin_ops?: Partial<AdminSettings["admin_ops"]>;
+  exam_proctoring?: Partial<AdminSettings["exam_proctoring"]>;
   security?: Partial<AdminSettings["security"]>;
   reset?: boolean;
   confirm_password?: string;

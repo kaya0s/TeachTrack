@@ -74,6 +74,7 @@ export function buildAcademicFilterQuery(filters: AdminAcademicFilters = {}): st
     subject_id: filters.subject_id ?? undefined,
     date_from: filters.date_from ?? undefined,
     date_to: filters.date_to ?? undefined,
+    activity_mode: filters.activity_mode ?? undefined,
   });
 }
 

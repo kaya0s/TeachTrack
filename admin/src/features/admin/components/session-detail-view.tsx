@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { FileDown, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SessionTrendChart } from "@/components/session-trend-chart";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { AdminSessionDetail } from "../types";
@@ -23,6 +25,90 @@ type BehaviorPieSlice = {
 export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
     const [hoveredLogRow, setHoveredLogRow] = useState<BehaviorLogChartRow | null>(null);
     const teacherDisplayName = detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
+
+    const exportSingleSessionPDF = () => {
+        const { jsPDF } = require("jspdf");
+        const autoTable = require("jspdf-autotable").default;
+        const doc = new jsPDF({ orientation: "landscape" });
+        const logoUrl = "/brand/logo.png";
+        const title = `SESSION INTELLIGENCE REPORT - #${detail.session.id}`;
+        const dateStr = `Generated on: ${new Date().toLocaleString()}`;
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const centerX = pageWidth / 2;
+
+        // Function to get color based on engagement percentage
+        const getEngagementColor = (engagement: number) => {
+            if (engagement >= 80) return [34, 197, 94]; // green-500
+            if (engagement >= 60) return [251, 191, 36]; // amber-500
+            if (engagement >= 40) return [249, 115, 22]; // orange-500
+            return [239, 68, 68]; // red-500
+        };
+
+        const img = new Image();
+        img.src = logoUrl;
+        img.onload = () => {
+            // Square logo (40x40)
+            doc.addImage(img, "PNG", centerX - 20, 10, 40, 40);
+            doc.setFontSize(16);
+            doc.text(title, centerX, 60, { align: "center" });
+            doc.setFontSize(10);
+            doc.text(dateStr, centerX, 67, { align: "center" });
+
+            const engagementValue = detail.session.average_engagement.toFixed(2);
+            const engagementColor = getEngagementColor(detail.session.average_engagement);
+
+            const sessionInfo = [
+                ["Teacher", teacherDisplayName],
+                ["Subject", detail.session.subject_name],
+                ["Section", detail.session.section_name],
+                ["Mode", detail.session.activity_mode],
+                ["Start Time", new Date(detail.session.start_time).toLocaleString()],
+                ["Total Logs", detail.total_logs.toString()],
+                ["Overall Engagement", `${engagementValue}%`],
+            ];
+
+            autoTable(doc, {
+                head: [["Summary Field", "Value"]],
+                body: sessionInfo,
+                startY: 75,
+                theme: "grid",
+                headStyles: { fillColor: [34, 197, 94] }, // Green header
+                margin: { left: centerX - 60, right: centerX - 60 },
+                didDrawCell: (data: any) => {
+                    // Color code the engagement row
+                    if (data.row.index === 6 && data.column.index === 1) {
+                        doc.setTextColor(engagementColor[0], engagementColor[1], engagementColor[2]);
+                        doc.setFont('helvetica', 'bold');
+                    }
+                }
+            });
+
+            const behaviorData = [
+                ["On Task", detail.session.on_task.toFixed(2)],
+                ["Sleeping", detail.session.sleeping.toFixed(2)],
+                ["Using Phone", detail.session.using_phone.toFixed(2)],
+                ["Off Task", detail.session.off_task.toFixed(2)],
+                ["Not Visible", detail.session.not_visible.toFixed(2)],
+            ];
+
+            autoTable(doc, {
+                head: [["Behavior Type", "Average detections"]],
+                body: behaviorData,
+                startY: doc.lastAutoTable.finalY + 10,
+                theme: "striped",
+                headStyles: { fillColor: [34, 197, 94] }, // Green header
+                margin: { left: centerX - 60, right: centerX - 60 }
+            });
+
+            doc.save(`session_${detail.session.id}_report.pdf`);
+        };
+        img.onerror = () => {
+            doc.setFontSize(18);
+            doc.text(title, centerX, 20, { align: "center" });
+            doc.save(`session_${detail.session.id}_report.pdf`);
+        };
+    };
 
     const detailDurationLabel = useMemo(() => {
         const start = new Date(detail.session.start_time).getTime();
@@ -89,6 +175,18 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
 
     return (
         <div className="space-y-6">
+            <div className="flex items-center justify-between gap-4 px-1">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Intelligence Snapshot</h3>
+                <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8 gap-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm"
+                    onClick={exportSingleSessionPDF}
+                >
+                    <FileDown className="h-4 w-4" />
+                    Download PDF Report
+                </Button>
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3">
                     <p className="text-xs text-muted-foreground">Teacher</p>
@@ -112,7 +210,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Students present</p><p className="font-medium">{detail.session.students_present}</p></div>
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Overall engagement</p><p className="font-medium">{detail.session.average_engagement.toFixed(2)}%</p></div>
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Total behavior logs</p><p className="font-medium">{detail.total_logs}</p></div>
-                <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Metrics windows</p><p className="font-medium">{detail.metrics_rollup.length}</p></div>
+                <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Activity mode</p><p className="font-medium font-bold text-primary uppercase">{detail.session.activity_mode}</p></div>
                 <div className="rounded-lg border border-border/70 bg-card/70 p-3"><p className="text-xs text-muted-foreground">Alerts (unread)</p><p className="font-medium font-semibold text-warning">{detail.total_alerts} ({detail.unread_alerts})</p></div>
             </div>
 
