@@ -812,12 +812,22 @@ export default function DashboardPage() {
       )}
 
       {/* Analytics Section Label */}
-      <div className="flex items-center gap-2 px-1">
-        <CircleAlert className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-bold tracking-tight">Reports & Analytics</h3>
-        <p className="text-xs text-muted-foreground">
-          — Computed from live + recent sessions.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-1">
+        <div className="flex items-center gap-2">
+          <CircleAlert className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-bold tracking-tight">Reports & Analytics</h3>
+          <p className="text-[10px] text-muted-foreground font-medium hidden sm:block">
+            — Computed from live + recent sessions.
+          </p>
+        </div>
+        
+        {!loading && (
+          <div className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 shadow-sm transition-all hover:bg-primary/20">
+            <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">
+              {filteredAnalyticsSessions.length} sessions analyzed
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Search & Filter Bar */}

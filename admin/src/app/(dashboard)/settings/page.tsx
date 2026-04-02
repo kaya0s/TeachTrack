@@ -64,6 +64,9 @@ const validateSettings = (settings: AdminSettings | null): ValidationResult => {
   if (weights.off_task < 0 || weights.off_task > 5) {
     errors["engagement_weights.off_task"] = "Must be between 0 and 5.";
   }
+  if (weights.not_visible < 0 || weights.not_visible > 5) {
+    errors["engagement_weights.not_visible"] = "Must be between 0 and 5.";
+  }
 
   if (settings.security.access_token_expire_minutes < 5 || settings.security.access_token_expire_minutes > 43200) {
     errors["security.access_token_expire_minutes"] = "Must be between 5 and 43200 minutes.";
@@ -103,7 +106,7 @@ function SettingsSection({
           />
           <div>
             <p className={cn("text-sm font-semibold", tone === "danger" ? "text-danger" : "text-foreground")}>
-            {title}
+              {title}
             </p>
             {description ? (
               <p className={cn("text-xs", tone === "danger" ? "text-danger/80" : "text-muted-foreground")}>
@@ -265,10 +268,10 @@ function DetectionThresholdPreview({
                 if (!imageRef.current) return null;
                 const detectionColor = getDetectionColor(det);
                 const labelText = formatBehaviorLabel(detKey);
-                
+
                 const naturalW = imageRef.current.naturalWidth || 1;
                 const naturalH = imageRef.current.naturalHeight || 1;
-                
+
                 const [x1, y1, x2, y2] = det.box;
                 const left = (x1 / naturalW) * 100;
                 const top = (y1 / naturalH) * 100;
@@ -311,7 +314,7 @@ function DetectionThresholdPreview({
               <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px]">
                 <div className="flex flex-col items-center gap-3 text-white">
                   <div className="p-3 rounded-full bg-primary/20 border border-primary/30 shadow-2xl">
-                     <Loader2 className="h-6 w-6 animate-spin text-primary-foreground" />
+                    <Loader2 className="h-6 w-6 animate-spin text-primary-foreground" />
                   </div>
                   <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/90">Processing Neural Nets</span>
                 </div>
@@ -330,18 +333,18 @@ function DetectionThresholdPreview({
                   <Upload className="mr-1.5 h-3.5 w-3.5" /> Change Image
                 </Button>
                 <Button
-                size="sm"
-                disabled={loading}
-                onClick={runDetection}
-                className="h-9 rounded-full border px-3 text-sm font-medium flex items-center gap-1.5"
-              >
-                {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-                {loading ? "Analyzing" : "Run Test Detection"}
-              </Button>
+                  size="sm"
+                  disabled={loading}
+                  onClick={runDetection}
+                  className="h-9 rounded-full border px-3 text-sm font-medium flex items-center gap-1.5"
+                >
+                  {loading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                  {loading ? "Analyzing" : "Run Test Detection"}
+                </Button>
               </div>
             </div>
           </div>
@@ -614,260 +617,278 @@ export default function SettingsPage() {
           </aside>
 
           <div className="space-y-3">
-        <SettingsSection
-          title="Detection Intelligence"
-          description="AI calibration, timing, and camera controls."
-          defaultOpen
-        >
-          <div className="space-y-8">
-            <div className="rounded-2xl border border-border/40 bg-slate-500/5 p-6 shadow-sm">
-              <div className="mb-6">
-                <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-primary">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px]">1</span>
-                  Confidence Threshold Calibration
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Detections below this threshold are discarded. Higher values reduce false positives but may miss subtle behaviors.
-                </p>
+            <SettingsSection
+              title="Detection Intelligence"
+              description="AI calibration, timing, and camera controls."
+              defaultOpen
+            >
+              <div className="space-y-8">
+                <div className="rounded-2xl border border-border/40 bg-slate-500/5 p-6 shadow-sm">
+                  <div className="mb-6">
+                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-primary">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px]">1</span>
+                      Confidence Threshold Calibration
+                    </h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Detections below this threshold are discarded. Higher values reduce false positives but may miss subtle behaviors.
+                    </p>
+                  </div>
+
+                  <DetectionThresholdPreview
+                    threshold={settings.detection.detection_confidence_threshold}
+                    onThresholdChange={(val: number) => updateDetection("detection_confidence_threshold", val)}
+                    onReset={() => updateDetection("detection_confidence_threshold", 0.5)}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Detect interval (seconds)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={settings.detection.detect_interval_seconds}
+                      onChange={(e) => updateDetection("detect_interval_seconds", Number(e.target.value || 0))}
+                    />
+                    {errors["detection.detect_interval_seconds"] ? (
+                      <p className="text-xs text-danger">{errors["detection.detect_interval_seconds"]}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Heartbeat timeout (seconds)</label>
+                    <Input
+                      type="number"
+                      min={5}
+                      max={300}
+                      value={settings.detection.detector_heartbeat_timeout_seconds}
+                      onChange={(e) => updateDetection("detector_heartbeat_timeout_seconds", Number(e.target.value || 0))}
+                    />
+                    {errors["detection.detector_heartbeat_timeout_seconds"] ? (
+                      <p className="text-xs text-danger">{errors["detection.detector_heartbeat_timeout_seconds"]}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Alert cooldown (minutes)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={settings.detection.alert_cooldown_minutes}
+                      onChange={(e) => updateDetection("alert_cooldown_minutes", Number(e.target.value || 0))}
+                    />
+                    {errors["detection.alert_cooldown_minutes"] ? (
+                      <p className="text-xs text-danger">{errors["detection.alert_cooldown_minutes"]}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Camera index</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={settings.detection.server_camera_index}
+                      onChange={(e) => updateDetection("server_camera_index", Number(e.target.value || 0))}
+                    />
+                    {errors["detection.server_camera_index"] ? (
+                      <p className="text-xs text-danger">{errors["detection.server_camera_index"]}</p>
+                    ) : null}
+                  </div>
+
+                  <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Enable server camera</p>
+                      <p className="text-xs text-muted-foreground">Allow server-side webcam detections.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      checked={settings.detection.server_camera_enabled}
+                      onChange={(e) => updateDetection("server_camera_enabled", e.target.checked)}
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Enable camera preview</p>
+                      <p className="text-xs text-muted-foreground">Show annotated frames on the server.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      checked={settings.detection.server_camera_preview}
+                      onChange={(e) => updateDetection("server_camera_preview", e.target.checked)}
+                    />
+                  </label>
+                </div>
               </div>
-              
-              <DetectionThresholdPreview 
-                threshold={settings.detection.detection_confidence_threshold}
-                onThresholdChange={(val: number) => updateDetection("detection_confidence_threshold", val)}
-                onReset={() => updateDetection("detection_confidence_threshold", 0.5)}
-              />
-            </div>
+            </SettingsSection>
 
-            <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Detect interval (seconds)</label>
-              <Input
-                type="number"
-                min={1}
-                max={60}
-                value={settings.detection.detect_interval_seconds}
-                onChange={(e) => updateDetection("detect_interval_seconds", Number(e.target.value || 0))}
-              />
-              {errors["detection.detect_interval_seconds"] ? (
-                <p className="text-xs text-danger">{errors["detection.detect_interval_seconds"]}</p>
-              ) : null}
-            </div>
+            <SettingsSection
+              title="Engagement Weights"
+              description="Tune how each behavior impacts engagement scoring."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">On-task weight</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    value={settings.engagement_weights.on_task}
+                    onChange={(e) => updateWeights("on_task", Number(e.target.value || 0))}
+                  />
+                  {errors["engagement_weights.on_task"] ? (
+                    <p className="text-xs text-danger">{errors["engagement_weights.on_task"]}</p>
+                  ) : null}
+                </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Heartbeat timeout (seconds)</label>
-              <Input
-                type="number"
-                min={5}
-                max={300}
-                value={settings.detection.detector_heartbeat_timeout_seconds}
-                onChange={(e) => updateDetection("detector_heartbeat_timeout_seconds", Number(e.target.value || 0))}
-              />
-              {errors["detection.detector_heartbeat_timeout_seconds"] ? (
-                <p className="text-xs text-danger">{errors["detection.detector_heartbeat_timeout_seconds"]}</p>
-              ) : null}
-            </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Using phone weight</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    value={settings.engagement_weights.using_phone}
+                    onChange={(e) => updateWeights("using_phone", Number(e.target.value || 0))}
+                  />
+                  {errors["engagement_weights.using_phone"] ? (
+                    <p className="text-xs text-danger">{errors["engagement_weights.using_phone"]}</p>
+                  ) : null}
+                </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Alert cooldown (minutes)</label>
-              <Input
-                type="number"
-                min={1}
-                max={120}
-                value={settings.detection.alert_cooldown_minutes}
-                onChange={(e) => updateDetection("alert_cooldown_minutes", Number(e.target.value || 0))}
-              />
-              {errors["detection.alert_cooldown_minutes"] ? (
-                <p className="text-xs text-danger">{errors["detection.alert_cooldown_minutes"]}</p>
-              ) : null}
-            </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Sleeping weight</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    value={settings.engagement_weights.sleeping}
+                    onChange={(e) => updateWeights("sleeping", Number(e.target.value || 0))}
+                  />
+                  {errors["engagement_weights.sleeping"] ? (
+                    <p className="text-xs text-danger">{errors["engagement_weights.sleeping"]}</p>
+                  ) : null}
+                </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Camera index</label>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={settings.detection.server_camera_index}
-                onChange={(e) => updateDetection("server_camera_index", Number(e.target.value || 0))}
-              />
-              {errors["detection.server_camera_index"] ? (
-                <p className="text-xs text-danger">{errors["detection.server_camera_index"]}</p>
-              ) : null}
-            </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Off-task weight</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    value={settings.engagement_weights.off_task}
+                    onChange={(e) => updateWeights("off_task", Number(e.target.value || 0))}
+                  />
+                  {errors["engagement_weights.off_task"] ? (
+                    <p className="text-xs text-danger">{errors["engagement_weights.off_task"]}</p>
+                  ) : null}
+                </div>
 
-            <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Enable server camera</p>
-                <p className="text-xs text-muted-foreground">Allow server-side webcam detections.</p>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Not visible weight (penalty)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    value={settings.engagement_weights.not_visible}
+                    onChange={(e) => updateWeights("not_visible", Number(e.target.value || 0))}
+                  />
+                  {errors["engagement_weights.not_visible"] ? (
+                    <p className="text-xs text-danger">{errors["engagement_weights.not_visible"]}</p>
+                  ) : null}
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                    Penalty for students present in class but not detected by YOLO. Set to 0 to ignore them.
+                  </p>
+                </div>
               </div>
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                checked={settings.detection.server_camera_enabled}
-                onChange={(e) => updateDetection("server_camera_enabled", e.target.checked)}
-              />
-            </label>
+            </SettingsSection>
 
-            <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Enable camera preview</p>
-                <p className="text-xs text-muted-foreground">Show annotated frames on the server.</p>
+            <SettingsSection title="Admin Ops" description="Operational toggles for admin tooling.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Enable admin log stream</p>
+                    <p className="text-xs text-muted-foreground">Toggle real-time server log buffering.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    checked={settings.admin_ops.enable_admin_log_stream}
+                    onChange={(e) => updateAdminOps("enable_admin_log_stream", e.target.checked)}
+                  />
+                </label>
               </div>
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                checked={settings.detection.server_camera_preview}
-                onChange={(e) => updateDetection("server_camera_preview", e.target.checked)}
-              />
-            </label>
-          </div>
-        </div>
-      </SettingsSection>
+            </SettingsSection>
 
-      <SettingsSection
-        title="Engagement Weights"
-          description="Tune how each behavior impacts engagement scoring."
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">On-task weight</label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                step="0.1"
-                value={settings.engagement_weights.on_task}
-                onChange={(e) => updateWeights("on_task", Number(e.target.value || 0))}
-              />
-              {errors["engagement_weights.on_task"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.on_task"]}</p>
-              ) : null}
-            </div>
+            <SettingsSection
+              title="Danger Zone"
+              description="Security-sensitive updates require confirmation."
+              tone="danger"
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-danger">Access token TTL (minutes)</label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={43200}
+                    value={settings.security.access_token_expire_minutes}
+                    onChange={(e) => updateSecurity("access_token_expire_minutes", Number(e.target.value || 0))}
+                  />
+                  {errors["security.access_token_expire_minutes"] ? (
+                    <p className="text-xs text-danger">{errors["security.access_token_expire_minutes"]}</p>
+                  ) : (
+                    <p className="text-xs text-danger/80">Applies to new logins only.</p>
+                  )}
+                </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Using phone weight</label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                step="0.1"
-                value={settings.engagement_weights.using_phone}
-                onChange={(e) => updateWeights("using_phone", Number(e.target.value || 0))}
-              />
-              {errors["engagement_weights.using_phone"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.using_phone"]}</p>
-              ) : null}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Sleeping weight</label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                step="0.1"
-                value={settings.engagement_weights.sleeping}
-                onChange={(e) => updateWeights("sleeping", Number(e.target.value || 0))}
-              />
-              {errors["engagement_weights.sleeping"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.sleeping"]}</p>
-              ) : null}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Off-task weight</label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                step="0.1"
-                value={settings.engagement_weights.off_task}
-                onChange={(e) => updateWeights("off_task", Number(e.target.value || 0))}
-              />
-              {errors["engagement_weights.off_task"] ? (
-                <p className="text-xs text-danger">{errors["engagement_weights.off_task"]}</p>
-              ) : null}
-            </div>
-          </div>
-        </SettingsSection>
-
-        <SettingsSection title="Admin Ops" description="Operational toggles for admin tooling.">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Enable admin log stream</p>
-                <p className="text-xs text-muted-foreground">Toggle real-time server log buffering.</p>
+                <div className="space-y-2 rounded-lg border border-danger/30 bg-danger/5 p-3">
+                  <p className="text-sm font-semibold text-danger">Reset all overrides</p>
+                  <p className="text-xs text-danger/80">Reverts to environment defaults immediately.</p>
+                  <Button
+                    variant="outline"
+                    className="border-danger/40 text-danger"
+                    onClick={onResetButtonClick}
+                    disabled={saving || !dirty}
+                  >
+                    Reset to defaults
+                  </Button>
+                </div>
               </div>
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                checked={settings.admin_ops.enable_admin_log_stream}
-                onChange={(e) => updateAdminOps("enable_admin_log_stream", e.target.checked)}
-              />
-            </label>
-          </div>
-        </SettingsSection>
+            </SettingsSection>
 
-        <SettingsSection
-          title="Danger Zone"
-          description="Security-sensitive updates require confirmation."
-          tone="danger"
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-danger">Access token TTL (minutes)</label>
-              <Input
-                type="number"
-                min={5}
-                max={43200}
-                value={settings.security.access_token_expire_minutes}
-                onChange={(e) => updateSecurity("access_token_expire_minutes", Number(e.target.value || 0))}
-              />
-              {errors["security.access_token_expire_minutes"] ? (
-                <p className="text-xs text-danger">{errors["security.access_token_expire_minutes"]}</p>
-              ) : (
-                <p className="text-xs text-danger/80">Applies to new logins only.</p>
-              )}
-            </div>
+            <SettingsSection title="Integrations" description="Environment-managed integrations status.">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Cloudinary</p>
+                    <p className="text-xs text-muted-foreground">Subject cover uploads and teacher avatars.</p>
+                  </div>
+                  <Badge tone={settings.integrations.cloudinary_configured ? "default" : "warning"}>
+                    {settings.integrations.cloudinary_configured ? "Configured" : "Missing"}
+                  </Badge>
+                </div>
 
-            <div className="space-y-2 rounded-lg border border-danger/30 bg-danger/5 p-3">
-              <p className="text-sm font-semibold text-danger">Reset all overrides</p>
-              <p className="text-xs text-danger/80">Reverts to environment defaults immediately.</p>
-              <Button
-                variant="outline"
-                className="border-danger/40 text-danger"
-                onClick={onResetButtonClick}
-                disabled={saving || !dirty}
-              >
-                Reset to defaults
-              </Button>
-            </div>
-          </div>
-        </SettingsSection>
-
-        <SettingsSection title="Integrations" description="Environment-managed integrations status.">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Cloudinary</p>
-                <p className="text-xs text-muted-foreground">Subject cover uploads and teacher avatars.</p>
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Email (SMTP)</p>
+                    <p className="text-xs text-muted-foreground">Password reset and verification emails.</p>
+                  </div>
+                  <Badge tone={settings.integrations.mail_configured ? "default" : "warning"}>
+                    {settings.integrations.mail_configured ? "Configured" : "Missing"}
+                  </Badge>
+                </div>
               </div>
-              <Badge tone={settings.integrations.cloudinary_configured ? "default" : "warning"}>
-                {settings.integrations.cloudinary_configured ? "Configured" : "Missing"}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Email (SMTP)</p>
-                <p className="text-xs text-muted-foreground">Password reset and verification emails.</p>
-              </div>
-              <Badge tone={settings.integrations.mail_configured ? "default" : "warning"}>
-                {settings.integrations.mail_configured ? "Configured" : "Missing"}
-              </Badge>
-            </div>
-          </div>
-        </SettingsSection>
+            </SettingsSection>
           </div>
         </div>
       </div>
@@ -875,14 +896,93 @@ export default function SettingsPage() {
       <Modal
         open={confirmOpen}
         onClose={onCancelConfirm}
-        title={confirmMode === "save" ? "Confirm Settings Update" : "Confirm Reset to Defaults"}
+        title={confirmMode === "save" ? "Review & Confirm Changes" : "Confirm Reset to Defaults"}
         description={
           confirmMode === "save"
-            ? "Enter your password to apply the updated settings."
-            : "Enter your password to reset settings to environment defaults."
+            ? "Please review the modifications below before confirming with your administrator password."
+            : "Enter your password to reset all system configuration to environment defaults."
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {confirmMode === "save" && dirty && (
+             <div className="rounded-xl border border-warning/20 bg-warning/5 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-warning mb-3">Pending Modifications</p>
+                <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    {(() => {
+                        const current = settings;
+                        const initial = initialSettings;
+                        if (!current || !initial) return null;
+                        
+                        const changes: React.ReactNode[] = [];
+                        
+                        // Check Detection
+                        Object.keys(current.detection).forEach((k) => {
+                            const key = k as keyof AdminSettings["detection"];
+                            if (current.detection[key] !== initial.detection[key]) {
+                                changes.push(
+                                    <div key={`det-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-muted-foreground/60 line-through">{String(initial.detection[key])}</span>
+                                            <span className="text-warning font-bold">{String(current.detection[key])}</span>
+                                        </span>
+                                    </div>
+                                );
+                            }
+                        });
+
+                        // Check Weights
+                        Object.keys(current.engagement_weights).forEach((k) => {
+                            const key = k as keyof AdminSettings["engagement_weights"];
+                            if (current.engagement_weights[key] !== initial.engagement_weights[key]) {
+                                changes.push(
+                                    <div key={`weight-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')} Weight</span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-muted-foreground/60 line-through">{initial.engagement_weights[key]}</span>
+                                            <span className="text-warning font-bold">{current.engagement_weights[key]}</span>
+                                        </span>
+                                    </div>
+                                );
+                            }
+                        });
+
+                        // Check Ops
+                        Object.keys(current.admin_ops).forEach((k) => {
+                            const key = k as keyof AdminSettings["admin_ops"];
+                            if (current.admin_ops[key] !== initial.admin_ops[key]) {
+                                changes.push(
+                                    <div key={`ops-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                        <span className="text-warning font-bold">{current.admin_ops[key] ? "Enabled" : "Disabled"}</span>
+                                    </div>
+                                );
+                            }
+                        });
+
+                        // Check Security
+                        Object.keys(current.security).forEach((k) => {
+                            const key = k as keyof AdminSettings["security"];
+                            if (current.security[key] !== initial.security[key]) {
+                                changes.push(
+                                    <div key={`sec-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-muted-foreground/60 line-through">{initial.security[key]}m</span>
+                                            <span className="text-warning font-bold">{current.security[key]}m</span>
+                                        </span>
+                                    </div>
+                                );
+                            }
+                        });
+
+                        return changes;
+                    })()}
+                </div>
+             </div>
+          )}
+
+          <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium text-danger">Admin password</label>
             <Input
@@ -910,9 +1010,10 @@ export default function SettingsPage() {
               {saving ? "Confirming..." : "Confirm"}
             </Button>
           </div>
+          </div>
         </div>
       </Modal>
     </>
   );
 }
-  
+

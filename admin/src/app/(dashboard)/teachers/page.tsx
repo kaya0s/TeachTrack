@@ -1,13 +1,13 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BookMarked, KeyRound, Search, ShieldCheck, ShieldOff, UserPlus, Users } from "lucide-react";
+import { BookMarked, Building2, ChevronDown, GraduationCap, KeyRound, Mail, Search, ShieldCheck, ShieldOff, User, UserPlus, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CriticalActionModal } from "@/components/ui/critical-action-modal";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -15,25 +15,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import {
-  assignSectionTeacher,
   createTeacher,
+  getClasses,
   getColleges,
   getDepartments,
   getMajors,
-  getSections,
-  getSubjects,
+  getSessions,
+  getSessionDetail,
   getTeachers,
   patchUser,
   resetPassword,
-  unassignSectionTeacher,
+  updateClass,
 } from "@/features/admin/api";
-import type { AdminCollege, AdminDepartment, AdminMajor, AdminSection, AdminSubject, AdminTeacher } from "@/features/admin/types";
+import type { AdminClassAssignment, AdminCollege, AdminDepartment, AdminMajor, AdminSession, AdminSessionDetail, AdminTeacher } from "@/features/admin/types";
 import { getCurrentActorUserId } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
+import { Drawer } from "@/components/ui/drawer";
+import { SessionDetailView } from "@/features/admin/components/session-detail-view";
 
-function teacherName(teacher: AdminTeacher | null): string {
+function teacherName(teacher: { fullname?: string | null; username?: string | null } | null): string {
   if (!teacher) return "Teacher";
-  return teacher.fullname?.trim() || teacher.username;
+  return teacher.fullname?.trim() || teacher.username || "Unassigned";
 }
 
 function teacherInitials(teacher: AdminTeacher): string {
@@ -53,8 +55,7 @@ export default function TeachersPage() {
 
   const [items, setItems] = useState<AdminTeacher[]>([]);
   const [colleges, setColleges] = useState<AdminCollege[]>([]);
-  const [subjects, setSubjects] = useState<AdminSubject[]>([]);
-  const [sections, setSections] = useState<AdminSection[]>([]);
+  const [classes, setClasses] = useState<AdminClassAssignment[]>([]);
   const [departments, setDepartments] = useState<AdminDepartment[]>([]);
   const [majors, setMajors] = useState<AdminMajor[]>([]);
 
@@ -68,6 +69,13 @@ export default function TeachersPage() {
 
   const [activeTeacher, setActiveTeacher] = useState<AdminTeacher | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [teacherSessions, setTeacherSessions] = useState<AdminSession[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  // Session Detail Drawer State
+  const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false);
+  const [selectedSessionDetail, setSelectedSessionDetail] = useState<AdminSessionDetail | null>(null);
+  const [loadingSessionDetail, setLoadingSessionDetail] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -91,59 +99,50 @@ export default function TeachersPage() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const assignmentMaps = useMemo(() => {
-    const subjectMap = new Map<number, AdminSubject[]>();
-    const sectionMap = new Map<number, AdminSection[]>();
+    const classMap = new Map<number, AdminClassAssignment[]>();
     const majorMap = new Map<number, Set<number>>();
 
-    for (const subject of subjects) {
-      if (!subject.teacher_id) continue;
-      subjectMap.set(subject.teacher_id, [...(subjectMap.get(subject.teacher_id) ?? []), subject]);
-      if (subject.major_id) {
-        const set = majorMap.get(subject.teacher_id) ?? new Set<number>();
-        set.add(subject.major_id);
-        majorMap.set(subject.teacher_id, set);
-      }
-    }
-    for (const section of sections) {
-      if (!section.teacher_id) continue;
-      sectionMap.set(section.teacher_id, [...(sectionMap.get(section.teacher_id) ?? []), section]);
-      if (section.major_id) {
-        const set = majorMap.get(section.teacher_id) ?? new Set<number>();
-        set.add(section.major_id);
-        majorMap.set(section.teacher_id, set);
+    for (const assignment of classes) {
+      const teacherId = assignment.teacher.id;
+      if (!teacherId) continue;
+      classMap.set(teacherId, [...(classMap.get(teacherId) ?? []), assignment]);
+      if (assignment.section.major_id) {
+        const set = majorMap.get(teacherId) ?? new Set<number>();
+        set.add(assignment.section.major_id);
+        majorMap.set(teacherId, set);
       }
     }
 
-    return { subjectMap, sectionMap, majorMap };
-  }, [sections, subjects]);
+    return { classMap, majorMap };
+  }, [classes]);
 
   const filteredDepartments = useMemo(() => {
     if (!createCollegeId) return [];
     return departments.filter((department) => department.college_id === Number(createCollegeId));
   }, [createCollegeId, departments]);
 
-  const candidateSections = useMemo(() => {
+  const candidateClasses = useMemo(() => {
     if (!activeTeacher) return [];
     const q = assignmentQuery.trim().toLowerCase();
-    return sections
-      .filter((row) => (activeTeacher.department_id ? row.department_id === activeTeacher.department_id : true))
+    return classes
+      .filter((row) => (activeTeacher.department_id ? row.section.department_id === activeTeacher.department_id : true))
       .filter((row) => {
         if (!q) return true;
         return (
-          row.name.toLowerCase().includes(q) ||
-          row.subject_name.toLowerCase().includes(q) ||
-          (row.major_name ?? "").toLowerCase().includes(q) ||
-          (row.teacher_fullname ?? "").toLowerCase().includes(q)
+          row.section.name.toLowerCase().includes(q) ||
+          row.subject.name.toLowerCase().includes(q) ||
+          (row.section.major_name ?? "").toLowerCase().includes(q) ||
+          teacherName(row.teacher).toLowerCase().includes(q)
         );
       })
       .sort((a, b) => {
-        const aUnassigned = !a.teacher_id;
-        const bUnassigned = !b.teacher_id;
+        const aUnassigned = !a.teacher.id;
+        const bUnassigned = !b.teacher.id;
         if (aUnassigned !== bUnassigned) return aUnassigned ? -1 : 1;
-        return a.name.localeCompare(b.name);
+        return a.section.name.localeCompare(b.section.name);
       })
       .slice(0, 80);
-  }, [activeTeacher, assignmentQuery, sections]);
+  }, [activeTeacher, assignmentQuery, classes]);
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -165,26 +164,24 @@ export default function TeachersPage() {
       })
       .filter((teacher) => {
         if (assignmentFilter === "all") return true;
-        const count = (assignmentMaps.subjectMap.get(teacher.id)?.length ?? 0) + (assignmentMaps.sectionMap.get(teacher.id)?.length ?? 0);
+        const count = assignmentMaps.classMap.get(teacher.id)?.length ?? 0;
         return assignmentFilter === "assigned" ? count > 0 : count === 0;
       });
-  }, [activeFilter, assignmentFilter, assignmentMaps.majorMap, assignmentMaps.sectionMap, assignmentMaps.subjectMap, collegeFilter, departmentFilter, items, majorFilter, query]);
+  }, [activeFilter, assignmentFilter, assignmentMaps.classMap, assignmentMaps.majorMap, collegeFilter, departmentFilter, items, majorFilter, query]);
 
   async function load() {
     setLoading(true);
     try {
       const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}&limit=600` : "?limit=600";
-      const [teachersRes, subjectsRes, sectionsRes, collegesRes, departmentsRes, majorsRes] = await Promise.all([
+      const [teachersRes, classesRes, collegesRes, departmentsRes, majorsRes] = await Promise.all([
         getTeachers(params),
-        getSubjects("?limit=1200"),
-        getSections("?limit=1200"),
+        getClasses("?limit=1200"),
         getColleges("?limit=500"),
         getDepartments(undefined, "?limit=1000"),
         getMajors(undefined, "?limit=1000"),
       ]);
       setItems(teachersRes.items ?? []);
-      setSubjects(subjectsRes.items ?? []);
-      setSections(sectionsRes.items ?? []);
+      setClasses(classesRes.items ?? []);
       setColleges(collegesRes.items ?? []);
       setDepartments(departmentsRes.items ?? []);
       setMajors(majorsRes.items ?? []);
@@ -245,22 +242,41 @@ export default function TeachersPage() {
     }
   }
 
-  function openDetails(row: AdminTeacher) {
+  async function openDetails(row: AdminTeacher) {
     setActiveTeacher(row);
     setDetailsOpen(true);
     setAssignmentQuery("");
+    setTeacherSessions([]);
+    setLoadingStats(true);
+    try {
+      const res = await getSessions(`?teacher_id=${row.id}&limit=100`);
+      setTeacherSessions(res.items ?? []);
+    } catch (err) {
+      console.error("Failed to load teacher sessions", err);
+    } finally {
+      setLoadingStats(false);
+    }
   }
 
-  async function handleAssignment(row: AdminSection) {
+  async function handleSessionClick(sessionId: number) {
+    setIsSessionDrawerOpen(true);
+    setLoadingSessionDetail(true);
+    try {
+      const res = await getSessionDetail(sessionId, "?minutes=180&logs_limit=200");
+      setSelectedSessionDetail(res);
+    } catch (err) {
+      notify({ tone: "danger", title: "Failed to load session details", description: getErrorMessage(err, "Unable to load session details.") });
+    } finally {
+      setLoadingSessionDetail(false);
+    }
+  }
+
+  async function handleAssignment(row: AdminClassAssignment) {
     if (!activeTeacher) return;
-    const key = `${row.id}-${row.subject_id ?? "none"}`;
+    const key = String(row.id);
     setBusyAssign(key);
     try {
-      if (row.teacher_id === activeTeacher.id) {
-        await unassignSectionTeacher(row.id, row.subject_id ?? undefined);
-      } else {
-        await assignSectionTeacher(row.id, activeTeacher.id, row.subject_id ?? undefined);
-      }
+      await updateClass(row.id, { teacher_id: row.teacher.id === activeTeacher.id ? null : activeTeacher.id });
       await load();
     } catch (err) {
       notify({ tone: "danger", title: "Assignment failed", description: getErrorMessage(err, "Unable to update assignment.") });
@@ -313,6 +329,25 @@ export default function TeachersPage() {
         </div>
 
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0 text-primary">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Users className="h-4 w-4" /> Faculty Directory
+              </CardTitle>
+              {!loading && (
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                  Records of all registered educators
+                </p>
+              )}
+            </div>
+            {!loading && (
+              <div className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shadow-sm transition-all hover:bg-primary/15">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">
+                  {filteredItems.length} {filteredItems.length === 1 ? 'Teacher' : 'Teachers'} Found
+                </p>
+              </div>
+            )}
+          </CardHeader>
           <CardContent className="space-y-3 pt-4">
             <form onSubmit={(event) => { event.preventDefault(); void load(); }} className="grid gap-3 lg:grid-cols-[1fr_auto]">
               <div className="relative">
@@ -351,18 +386,19 @@ export default function TeachersPage() {
                 <option value="active">Active</option>
                 <option value="disabled">Disabled</option>
               </select>
-              <Button variant="ghost" onClick={() => { setCollegeFilter("all"); setDepartmentFilter("all"); setMajorFilter("all"); setActiveFilter("all"); setAssignmentFilter("all"); }}>Clear</Button>
+              <div className="flex items-center justify-between col-span-1 md:col-span-2 lg:col-span-6">
+                <Button variant="ghost" className="text-xs h-8 px-2" onClick={() => { setCollegeFilter("all"); setDepartmentFilter("all"); setMajorFilter("all"); setActiveFilter("all"); setAssignmentFilter("all"); }}>Clear filters</Button>
+              </div>
             </div>
 
             {loading ? (
               <div className="space-y-2">{[1, 2, 3, 4].map((index) => <Skeleton key={index} className="h-11 w-full" />)}</div>
             ) : (
               <Table>
-                <THead><TR><TH>ID</TH><TH>Name</TH><TH>Email</TH><TH>College</TH><TH>Department</TH><TH>Assignments</TH><TH>Status</TH></TR></THead>
+                <THead><TR><TH>ID</TH><TH><User className="h-4 w-4 mr-2 inline" />Name</TH><TH><Mail className="h-4 w-4 mr-2 inline" />Email</TH><TH><Building2 className="h-4 w-4 mr-2 inline" />College</TH><TH><GraduationCap className="h-4 w-4 mr-2 inline" />Department</TH><TH><BookMarked className="h-4 w-4 mr-2 inline" />Assignments</TH><TH><ShieldCheck className="h-4 w-4 mr-2 inline" />Status</TH></TR></THead>
                 <TBody>
                   {filteredItems.map((row) => {
-                    const subjectCount = assignmentMaps.subjectMap.get(row.id)?.length ?? 0;
-                    const sectionCount = assignmentMaps.sectionMap.get(row.id)?.length ?? 0;
+                    const classCount = assignmentMaps.classMap.get(row.id)?.length ?? 0;
                     return (
                       <TR key={row.id} className="cursor-pointer" onClick={() => openDetails(row)}>
                         <TD>{row.id}</TD>
@@ -386,7 +422,7 @@ export default function TeachersPage() {
                         <TD>{row.email}</TD>
                         <TD>{row.college_name ?? "-"}</TD>
                         <TD>{row.department_name ?? "-"}</TD>
-                        <TD><Badge tone={subjectCount + sectionCount > 0 ? "success" : "default"}>{subjectCount + sectionCount}</Badge></TD>
+                        <TD><Badge tone={classCount > 0 ? "success" : "default"}>{classCount}</Badge></TD>
                         <TD><Badge tone={row.is_active ? "success" : "danger"}>{row.is_active ? "Active" : "Disabled"}</Badge></TD>
                       </TR>
                     );
@@ -430,58 +466,127 @@ export default function TeachersPage() {
               </div>
 
               <div className="mt-4 rounded-xl border border-border/60 bg-card/70 p-3">
-                <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Assigned Sections</p>
+                <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Assigned Classes</p>
                 <div className="mt-2 flex max-h-48 flex-wrap gap-2 overflow-y-auto">
-                  {(assignmentMaps.sectionMap.get(activeTeacher.id) ?? []).slice(0, 10).map((section) => (
+                  {(assignmentMaps.classMap.get(activeTeacher.id) ?? []).slice(0, 10).map((assignment) => (
                     <Link
-                      key={`${section.id}-${section.subject_id ?? "none"}`}
-                      href={`/sections?q=${encodeURIComponent(section.name)}`}
+                      key={assignment.id}
+                      href={`/classes?teacher_id=${activeTeacher.id}&q=${encodeURIComponent(assignment.section.name)}`}
                       className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold"
                     >
                       <BookMarked className="mr-1 h-3 w-3" />
-                      {section.subject_name} • {section.name}
+                      {assignment.subject.name} - {assignment.section.name}
                     </Link>
                   ))}
-                  {(assignmentMaps.sectionMap.get(activeTeacher.id)?.length ?? 0) === 0 ? (
-                    <p className="text-xs text-muted-foreground">No current section assignments.</p>
+                  {(assignmentMaps.classMap.get(activeTeacher.id)?.length ?? 0) === 0 ? (
+                    <p className="text-xs text-muted-foreground">No current class assignments.</p>
                   ) : null}
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="rounded-2xl border border-border/70 bg-background/60 p-5">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold">Assignment Console</p>
-                  <p className="text-xs text-muted-foreground">Search sections and quickly assign or reassign this teacher.</p>
+                  <h4 className="text-lg font-bold tracking-tight text-foreground">Teacher Performance Analytics</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Historical session data and engagement metrics.</p>
                 </div>
-                <Badge tone="default">{candidateSections.length} results</Badge>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm border border-primary/20">
+                  <Users className="h-5 w-5" />
+                </div>
               </div>
 
-              <Input value={assignmentQuery} onChange={(event) => setAssignmentQuery(event.target.value)} placeholder="Search sections, subjects, or major..." />
-
-              <div className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
-                {candidateSections.map((row) => {
-                  const key = `${row.id}-${row.subject_id ?? "none"}`;
-                  const isOwned = row.teacher_id === activeTeacher.id;
-                  return (
-                    <div key={key} className="rounded-lg border border-border/60 bg-card/80 p-3 transition-colors hover:border-primary/40">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold">{row.subject_name} • {row.name}</p>
-                          <p className="text-xs text-muted-foreground">{row.major_name ?? "-"} • {row.teacher_fullname ?? row.teacher_username}</p>
-                        </div>
-                        <Button size="sm" variant={isOwned ? "outline" : "default"} disabled={busyAssign === key} onClick={() => void handleAssignment(row)}>
-                          {isOwned ? "Unassign" : row.teacher_id ? "Reassign" : "Assign"}
-                        </Button>
-                      </div>
+              {loadingStats ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+                  </div>
+                  <Skeleton className="h-48 rounded-xl" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total Sessions</p>
+                      <p className="mt-2 text-2xl font-black text-primary leading-none">{teacherSessions.length}</p>
+                      <p className="mt-1.5 text-[10px] font-medium text-muted-foreground/60 italic">Total classes monitored</p>
                     </div>
-                  );
-                })}
-                {candidateSections.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">No matching sections found.</p>
-                ) : null}
-              </div>
+                    <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm border-l-4 border-l-success">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Avg Engagement</p>
+                      <p className="mt-2 text-2xl font-black text-success leading-none">
+                        {teacherSessions.length > 0
+                          ? (teacherSessions.reduce((acc: number, s: AdminSession) => acc + s.average_engagement, 0) / teacherSessions.length).toFixed(1)
+                          : "0.0"}%
+                      </p>
+                      <p className="mt-1.5 text-[10px] font-medium text-muted-foreground/60 italic">Weighted performance</p>
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Students Mentored</p>
+                      <p className="mt-2 text-2xl font-black text-foreground leading-none">
+                        {teacherSessions.reduce((acc: number, s: AdminSession) => acc + (s.students_present || 0), 0)}
+                      </p>
+                      <p className="mt-1.5 text-[10px] font-medium text-muted-foreground/60 italic">Accumulated reach</p>
+                    </div>
+                  </div>
+
+                  {/* Integrated Activity List */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                      <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80 flex items-center gap-2">
+                        Activity Stream
+                        <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                        Last 5 Sessions
+                      </h5>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
+                      {teacherSessions.slice(0, 5).map(session => {
+                        const engagement = session.average_engagement;
+                        const colorClass = engagement >= 85 ? "text-success bg-success/10 border-success/20" 
+                                         : engagement >= 65 ? "text-primary bg-primary/10 border-primary/20"
+                                         : "text-warning bg-warning/10 border-warning/20";
+                        
+                        return (
+                          <div 
+                             key={session.id} 
+                             onClick={() => handleSessionClick(session.id)}
+                             className="block group cursor-pointer"
+                          >
+                             <div className="flex items-center justify-between p-3 rounded-2xl border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all duration-200">
+                                <div className="flex items-center gap-4 min-w-0">
+                                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-transparent transition-colors ${colorClass}`}>
+                                      <BookMarked className="h-5 w-5" />
+                                   </div>
+                                   <div className="min-w-0">
+                                      <p className="text-sm font-bold truncate text-foreground group-hover:text-primary transition-colors">{session.subject_name}</p>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                         <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/70">{session.section_name}</span>
+                                         <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/50" />
+                                         <span className="text-[9px] font-bold text-muted-foreground/60">{new Date(session.start_time).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                      </div>
+                                   </div>
+                                </div>
+                                <div className="flex items-center gap-4 pl-4 border-l border-border/10 ml-4 shrink-0">
+                                   <div className="text-right">
+                                     <div className={`text-xs font-black tabular-nums ${engagement >= 85 ? 'text-success' : engagement >= 65 ? 'text-primary' : 'text-warning'}`}>{engagement.toFixed(1)}%</div>
+                                     <div className="text-[8px] text-muted-foreground uppercase font-black tracking-tight">{session.students_present} Detected</div>
+                                   </div>
+                                   <ChevronDown className="-rotate-90 h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
+                                </div>
+                             </div>
+                          </div>
+                        );
+                      })}
+                      {teacherSessions.length === 0 && (
+                        <div className="py-16 text-center border-2 border-dashed border-border/40 rounded-3xl bg-muted/5">
+                          <p className="text-sm text-muted-foreground font-semibold italic">Teacher has not initiated any behavior monitoring sessions yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -542,7 +647,26 @@ export default function TeachersPage() {
         description="This action immediately overrides the teacher's current password."
         confirmText="Reset Password"
       />
+
+      <Drawer
+        open={isSessionDrawerOpen}
+        onClose={() => setIsSessionDrawerOpen(false)}
+        title="Session Intelligence View"
+        description="Detailed behavior analytics and historical trends."
+        widthClassName="max-w-5xl"
+      >
+        {loadingSessionDetail ? (
+          <div className="space-y-3">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        ) : selectedSessionDetail ? (
+          <SessionDetailView detail={selectedSessionDetail} />
+        ) : (
+          <p className="text-sm text-muted-foreground">No detail available.</p>
+        )}
+      </Drawer>
     </>
   );
 }
-

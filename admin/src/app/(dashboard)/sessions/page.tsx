@@ -17,6 +17,7 @@ import {
   UserRound,
   Users,
   X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -148,7 +149,9 @@ export default function SessionsPage() {
   const { notify } = useToast();
   const [items, setItems] = useState<AdminSession[]>([]);
   const [activeItems, setActiveItems] = useState<AdminSession[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -156,35 +159,75 @@ export default function SessionsPage() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"teachers" | "sections">("teachers");
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "ended">("all");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "engagement-high" | "engagement-low" | "students-most">("engagement-high");
-  const [engagementPreset, setEngagementPreset] = useState<"all" | "high" | "low">("all");
-  const [minEngagement, setMinEngagement] = useState("");
-  const [maxEngagement, setMaxEngagement] = useState("");
-
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "engagement-high" | "engagement-low" | "students-most">("newest");
   const [teacherFilter, setTeacherFilter] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [colleges, setColleges] = useState<AdminCollege[]>([]);
   const [majors, setMajors] = useState<AdminMajor[]>([]);
   const [collegeFilter, setCollegeFilter] = useState<number | null>(null);
   const [majorFilter, setMajorFilter] = useState<number | null>(null);
+  const [minEngagement, setMinEngagement] = useState("");
+  const [maxEngagement, setMaxEngagement] = useState("");
 
+  const PAGE_SIZE = 50;
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const buildQueryString = useCallback((skip: number, limit: number) => {
+    const params = new URLSearchParams();
+    params.set("skip", skip.toString());
+    params.set("limit", limit.toString());
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (statusFilter !== "all") params.set("is_active", statusFilter === "live" ? "true" : "false");
+    if (teacherFilter) params.set("teacher_id", teacherFilter.toString());
+    if (collegeFilter) params.set("college_id", collegeFilter.toString());
+    if (majorFilter) params.set("major_id", majorFilter.toString());
+    if (sortBy) params.set("sort", sortBy);
+    if (minEngagement) params.set("min_engagement", minEngagement);
+    if (maxEngagement) params.set("max_engagement", maxEngagement);
+    return `?${params.toString()}`;
+  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement]);
+
+  const load = useCallback(async (reset = false) => {
+    if (reset) {
+        setLoading(true);
+    } else {
+        setLoadingMore(true);
+    }
+
     try {
-      const [allRes, activeRes, teachersRes, collegesRes] = await Promise.all([
-        getSessions("?limit=500"),
-        getSessions("?is_active=true&limit=50"),
+      const skip = reset ? 0 : items.length;
+      const query = buildQueryString(skip, PAGE_SIZE);
+      
+      const [sessionsRes, teachersRes, collegesRes] = await Promise.all([
+        getSessions(query),
         getTeachers("?limit=300"),
         getColleges("?limit=100"),
       ]);
-      setItems(allRes.items);
-      setActiveItems(activeRes.items);
+
+      if (reset) {
+        setItems(sessionsRes.items);
+      } else {
+        setItems(prev => [...prev, ...sessionsRes.items]);
+      }
+      setTotalItems(sessionsRes.total);
       setTeachers(teachersRes.items);
       setColleges(collegesRes.items);
+
+      // Also get active sessions for the top card (always latest 50)
+      if (reset) {
+        const activeRes = await getSessions("?is_active=true&limit=50");
+        setActiveItems(activeRes.items);
+      }
+
     } catch (error) {
       notify({
         tone: "danger",
@@ -193,12 +236,32 @@ export default function SessionsPage() {
       });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [notify]);
+  }, [notify, buildQueryString, items.length]);
 
+  // Initial load or on filter change
   useEffect(() => {
-    load();
-  }, [load]);
+    load(true);
+  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement]);
+
+  // Auto-refresh active sessions only (every 30s)
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+        try {
+            const activeRes = await getSessions("?is_active=true&limit=50");
+            setActiveItems(activeRes.items);
+            // Also refresh current items to update live engagement scores in the list
+            const currentQuery = buildQueryString(0, items.length || PAGE_SIZE);
+            const refreshRes = await getSessions(currentQuery);
+            setItems(refreshRes.items);
+            setTotalItems(refreshRes.total);
+        } catch (e) {
+            console.error("Polling failed", e);
+        }
+    }, 30000);
+    return () => clearInterval(intervalId);
+  }, [buildQueryString, items.length]);
 
   useEffect(() => {
     if (collegeFilter) {
@@ -211,102 +274,19 @@ export default function SessionsPage() {
     }
   }, [collegeFilter]);
 
-  const applyFilters = useCallback(
-    (source: AdminSession[]) => {
-      let result = [...source];
+  const statusOptions = [
+    { value: "all", label: "All Sessions" },
+    { value: "live", label: "Live Only" },
+    { value: "ended", label: "Ended Only" },
+  ];
 
-      const query = searchQuery.trim().toLowerCase();
-      if (query) {
-        result = result.filter((s) => {
-          const teacherFields = `${s.teacher_username} ${(s.teacher_fullname ?? "")}`.toLowerCase();
-          const sectionFields = `${s.subject_name} ${s.section_name}`.toLowerCase();
-          const scopeMatch = viewMode === "teachers" ? teacherFields.includes(query) : sectionFields.includes(query);
-          return scopeMatch || teacherFields.includes(query) || sectionFields.includes(query) || s.id.toString().includes(query);
-        });
-      }
-
-      if (statusFilter !== "all") {
-        result = result.filter((s) => (statusFilter === "live" ? s.is_active : !s.is_active));
-      }
-
-      if (teacherFilter) {
-        result = result.filter((s) => s.teacher_id === teacherFilter);
-      }
-
-      if (collegeFilter) {
-        result = result.filter((s) => s.college_id === collegeFilter);
-      }
-
-      if (majorFilter) {
-        result = result.filter((s) => s.major_id === majorFilter);
-      }
-
-      if (engagementPreset === "high") {
-        result = result.filter((s) => s.average_engagement >= 80);
-      }
-      if (engagementPreset === "low") {
-        result = result.filter((s) => s.average_engagement < 50);
-      }
-
-      const min = minEngagement.trim() ? Number(minEngagement) : null;
-      const max = maxEngagement.trim() ? Number(maxEngagement) : null;
-      if (min !== null && Number.isFinite(min)) {
-        result = result.filter((s) => s.average_engagement >= min);
-      }
-      if (max !== null && Number.isFinite(max)) {
-        result = result.filter((s) => s.average_engagement <= max);
-      }
-
-      result.sort((a, b) => {
-        switch (sortBy) {
-          case "newest":
-            return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-          case "oldest":
-            return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-          case "engagement-high":
-            return b.average_engagement - a.average_engagement;
-          case "engagement-low":
-            return a.average_engagement - b.average_engagement;
-          case "students-most":
-            return b.students_present - a.students_present;
-          default:
-            return 0;
-        }
-      });
-
-      return result;
-    },
-    [searchQuery, viewMode, statusFilter, teacherFilter, collegeFilter, majorFilter, engagementPreset, minEngagement, maxEngagement, sortBy],
-  );
-
-  const filteredAndSortedItems = useMemo(() => applyFilters(items), [items, applyFilters]);
-
-  const filteredActiveItems = useMemo(
-    () => applyFilters(activeItems).filter((row) => row.is_active).slice(0, 8),
-    [activeItems, applyFilters],
-  );
-
-  const statusOptions = useMemo(
-    () =>
-      [
-        { value: "all", label: "All Sessions" },
-        { value: "live", label: "Live Only" },
-        { value: "ended", label: "Ended Only" },
-      ],
-    [],
-  );
-
-  const sortOptions = useMemo(
-    () =>
-      [
-        { value: "engagement-high", label: "High -> Low" },
-        { value: "engagement-low", label: "Low -> High" },
-        { value: "newest", label: "Newest First" },
-        { value: "oldest", label: "Oldest First" },
-        { value: "students-most", label: "Most Students" },
-      ],
-    [],
-  );
+  const sortOptions = [
+    { value: "newest", label: "Newest First" },
+    { value: "oldest", label: "Oldest First" },
+    { value: "engagement-high", label: "High -> Low" },
+    { value: "engagement-low", label: "Low -> High" },
+    { value: "students-most", label: "Most Students" },
+  ];
 
   const collegeOptions = useMemo(
     () => [{ value: "all" as const, label: "All Colleges" }, ...colleges.map((college) => ({ value: college.id, label: college.name }))],
@@ -324,11 +304,9 @@ export default function SessionsPage() {
     setTeacherFilter(null);
     setCollegeFilter(null);
     setMajorFilter(null);
-    setSortBy("engagement-high");
-    setEngagementPreset("all");
+    setSortBy("newest");
     setMinEngagement("");
     setMaxEngagement("");
-    setViewMode("teachers");
   };
 
   const openDetail = useCallback(
@@ -354,7 +332,7 @@ export default function SessionsPage() {
 
   const exportCSV = () => {
     const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Start Time", "End Time", "Engagement"];
-    const rows = filteredAndSortedItems.map((s) => [
+    const rows = items.map((s) => [
       s.id,
       currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
       s.subject_name,
@@ -390,16 +368,14 @@ export default function SessionsPage() {
     img.onload = () => {
       try {
         doc.addImage(img, "PNG", 85, 10, 40, 15);
-
         doc.setFontSize(16);
         doc.setTextColor(40, 40, 40);
         doc.text(title, 105, 35, { align: "center" });
-
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
         doc.text(dateStr, 105, 42, { align: "center" });
 
-        const tableData = filteredAndSortedItems.map((s) => [
+        const tableData = items.map((s) => [
           s.id,
           currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
           `${s.subject_name}\n(${s.section_name})`,
@@ -451,10 +427,11 @@ export default function SessionsPage() {
           description="Monitor live sessions and view intelligence details."
         />
 
-        {!loading && filteredActiveItems.length ? (
+        {activeItems.length ? (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Active sessions</CardTitle>
+              <div className="flex h-2 w-2 rounded-full bg-success animate-pulse" />
             </CardHeader>
             <CardContent>
               <Table>
@@ -469,19 +446,13 @@ export default function SessionsPage() {
                   </TR>
                 </THead>
                 <TBody>
-                  {filteredActiveItems.map((s) => (
+                  {activeItems.map((s) => (
                     <TR
                       key={`active-${s.id}`}
                       className="cursor-pointer"
                       role="button"
                       tabIndex={0}
                       onClick={() => openDetail(s.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openDetail(s.id);
-                        }
-                      }}
                     >
                       <TD>{s.id}</TD>
                       <TD>
@@ -499,7 +470,7 @@ export default function SessionsPage() {
                       <TD>{s.subject_name}</TD>
                       <TD>{s.section_name}</TD>
                       <TD>{s.students_present}</TD>
-                      <TD>{s.average_engagement}%</TD>
+                      <TD className="font-bold text-primary">{s.average_engagement}%</TD>
                     </TR>
                   ))}
                 </TBody>
@@ -509,12 +480,29 @@ export default function SessionsPage() {
         ) : null}
 
         <Card className="overflow-visible border-border/70 bg-card/40">
-          <div className="space-y-3 p-4">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" /> Session Intelligence
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                Monitoring patterns & behaviors
+              </p>
+            </div>
+            {!loading && (
+              <div className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shadow-sm transition-all hover:bg-primary/15">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">
+                  {totalItems} {totalItems === 1 ? 'Session' : 'Sessions'} Found
+                </p>
+              </div>
+            )}
+          </CardHeader>
+          <div className="space-y-3 p-4 pt-0">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative w-full max-w-xl">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder={viewMode === "teachers" ? "Search teacher / subject / section..." : "Search section / subject / teacher..."}
+                  placeholder="Search teacher, subject, section, or ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-10 rounded-xl border-border/60 bg-background pl-9"
@@ -561,29 +549,6 @@ export default function SessionsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Engagement</span>
-              {(["all", "high", "low"] as const).map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setEngagementPreset(preset)}
-                  className={cn(
-                    "h-7 rounded-full border px-3 text-[11px] font-semibold transition-all",
-                    engagementPreset === preset
-                      ? preset === "high"
-                        ? "border-success/40 bg-success/10 text-success"
-                        : preset === "low"
-                          ? "border-danger/40 bg-danger/10 text-danger"
-                          : "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border/60 bg-background text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {preset === "all" ? "All" : preset === "high" ? "High >=80%" : "Low <50%"}
-                </button>
-              ))}
-
-              <div className="mx-1 hidden h-4 w-px bg-border/60 sm:block" />
-
               <PillDropdown
                 icon={<List className="h-3.5 w-3.5" />}
                 label="Status"
@@ -639,7 +604,7 @@ export default function SessionsPage() {
                 <Input
                   value={minEngagement}
                   onChange={(e) => setMinEngagement(e.target.value)}
-                  placeholder="Min"
+                  placeholder="Min %"
                   inputMode="numeric"
                   className="h-6 w-14 border-none bg-transparent p-0 text-xs font-semibold focus-visible:ring-0"
                 />
@@ -647,43 +612,15 @@ export default function SessionsPage() {
                 <Input
                   value={maxEngagement}
                   onChange={(e) => setMaxEngagement(e.target.value)}
-                  placeholder="Max"
+                  placeholder="Max %"
                   inputMode="numeric"
                   className="h-6 w-14 border-none bg-transparent p-0 text-xs font-semibold focus-visible:ring-0"
                 />
-                <span className="text-xs text-muted-foreground">%</span>
               </div>
 
               <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAllFilters}>
                 Clear all
               </Button>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {collegeFilter ? (
-                <Badge tone="default" className="gap-1">
-                  {colleges.find((c) => c.id === collegeFilter)?.name ?? "College"}
-                  <button type="button" onClick={() => setCollegeFilter(null)}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ) : null}
-              {majorFilter ? (
-                <Badge tone="default" className="gap-1">
-                  {majors.find((m) => m.id === majorFilter)?.code ?? "Major"}
-                  <button type="button" onClick={() => setMajorFilter(null)}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ) : null}
-              {teacherFilter ? (
-                <Badge tone="default" className="gap-1">
-                  {teachers.find((t) => t.id === teacherFilter)?.fullname ?? "Teacher"}
-                  <button type="button" onClick={() => setTeacherFilter(null)}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ) : null}
             </div>
           </div>
         </Card>
@@ -696,92 +633,113 @@ export default function SessionsPage() {
                   <Skeleton key={i} className="h-14 w-full" />
                 ))}
               </div>
-            ) : filteredAndSortedItems.length ? (
-              <div className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <Table>
-                  <THead className="bg-muted/30">
-                    <TR>
-                      <TH className="py-4">Session</TH>
-                      <TH>Teacher</TH>
-                      <TH>Subject & Section</TH>
-                      <TH className="text-center">Students</TH>
-                      <TH>Time Range</TH>
-                      <TH className="pr-6 text-right">Engagement</TH>
-                      <TH>Status</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {filteredAndSortedItems.map((s) => (
-                      <TR
-                        key={s.id}
-                        className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/40"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openDetail(s.id)}
-                      >
-                        <TD className="py-4">
-                          <span className="rounded bg-muted px-2 py-1 font-mono text-xs font-bold">#{s.id}</span>
-                        </TD>
-                        <TD>
-                          <div className="flex items-center gap-3">
-                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
-                              {s.teacher_profile_picture_url ? (
-                                <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
-                              ) : (
-                                <span className="text-sm font-bold uppercase text-muted-foreground">{teacherName(s).charAt(0)}</span>
-                              )}
-                            </div>
-                            <span className="text-sm font-semibold">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
-                          </div>
-                        </TD>
-                        <TD>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{s.subject_name}</span>
-                            <span className="text-xs text-muted-foreground">{s.section_name}</span>
-                          </div>
-                        </TD>
-                        <TD className="text-center">
-                          <span className="inline-flex items-center gap-1 text-sm font-medium">
-                            {s.students_present}
-                            <span className="text-[10px] font-normal text-muted-foreground">studs</span>
-                          </span>
-                        </TD>
-                        <TD>
-                          <div className="flex flex-col gap-0.5 text-[11px]">
-                            <span className="text-muted-foreground">
-                              Start: <span className="font-medium text-foreground">{fmt(s.start_time)}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              End: <span className="font-medium text-foreground">{fmt(s.end_time)}</span>
-                            </span>
-                          </div>
-                        </TD>
-                        <TD className="pr-6 text-right">
-                          <div
-                            className={cn(
-                              "inline-flex flex-col items-end rounded-lg border px-3 py-1.5",
-                              s.average_engagement >= 85
-                                ? "border-success/40 bg-success/10 text-success"
-                                : s.average_engagement >= 60
-                                  ? "border-primary/40 bg-primary/10 text-primary"
-                                  : s.average_engagement >= 40
-                                    ? "border-warning/40 bg-warning/10 text-warning"
-                                    : "border-danger/40 bg-danger/10 text-danger",
-                            )}
-                          >
-                            <span className="text-sm font-black leading-none tracking-tighter">{s.average_engagement.toFixed(1)}%</span>
-                            <span className="mt-0.5 text-[9px] font-bold uppercase opacity-80">Engagement</span>
-                          </div>
-                        </TD>
-                        <TD>
-                          <Badge tone={s.is_active ? "success" : "default"} className="text-[9px] font-bold uppercase tracking-wider">
-                            {s.is_active ? "Live" : "Ended"}
-                          </Badge>
-                        </TD>
+            ) : items.length ? (
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                  <Table>
+                    <THead className="bg-muted/30">
+                      <TR>
+                        <TH className="py-4">Session</TH>
+                        <TH>Teacher</TH>
+                        <TH>Subject & Section</TH>
+                        <TH className="text-center">Students</TH>
+                        <TH>Time Range</TH>
+                        <TH className="pr-6 text-right">Engagement</TH>
+                        <TH>Status</TH>
                       </TR>
-                    ))}
-                  </TBody>
-                </Table>
+                    </THead>
+                    <TBody>
+                      {items.map((s) => (
+                        <TR
+                          key={s.id}
+                          className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/40"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openDetail(s.id)}
+                        >
+                          <TD className="py-4">
+                            <span className="rounded bg-muted px-2 py-1 font-mono text-xs font-bold">#{s.id}</span>
+                          </TD>
+                          <TD>
+                            <div className="flex items-center gap-3">
+                              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
+                                {s.teacher_profile_picture_url ? (
+                                  <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
+                                ) : (
+                                  <span className="text-sm font-bold uppercase text-muted-foreground">{teacherName(s).charAt(0)}</span>
+                                )}
+                              </div>
+                              <span className="text-sm font-semibold">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
+                            </div>
+                          </TD>
+                          <TD>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">{s.subject_name}</span>
+                              <span className="text-xs text-muted-foreground">{s.section_name}</span>
+                            </div>
+                          </TD>
+                          <TD className="text-center">
+                            <span className="inline-flex items-center gap-1 text-sm font-medium">
+                              {s.students_present}
+                              <span className="text-[10px] font-normal text-muted-foreground">studs</span>
+                            </span>
+                          </TD>
+                          <TD>
+                            <div className="flex flex-col gap-0.5 text-[11px]">
+                              <span className="text-muted-foreground">
+                                Start: <span className="font-medium text-foreground">{fmt(s.start_time)}</span>
+                              </span>
+                              <span className="text-muted-foreground">
+                                End: <span className="font-medium text-foreground">{fmt(s.end_time)}</span>
+                              </span>
+                            </div>
+                          </TD>
+                          <TD className="pr-6 text-right">
+                            <div
+                              className={cn(
+                                "inline-flex flex-col items-end rounded-lg border px-3 py-1.5",
+                                s.average_engagement >= 85
+                                  ? "border-success/40 bg-success/10 text-success"
+                                  : s.average_engagement >= 60
+                                    ? "border-primary/40 bg-primary/10 text-primary"
+                                    : s.average_engagement >= 40
+                                      ? "border-warning/40 bg-warning/10 text-warning"
+                                      : "border-danger/40 bg-danger/10 text-danger",
+                              )}
+                            >
+                              <span className="text-sm font-black leading-none tracking-tighter">{s.average_engagement.toFixed(1)}%</span>
+                              <span className="mt-0.5 text-[9px] font-bold uppercase opacity-80">Engagement</span>
+                            </div>
+                          </TD>
+                          <TD>
+                            <Badge tone={s.is_active ? "success" : "default"} className="text-[9px] font-bold uppercase tracking-wider gap-1.5 flex items-center w-fit">
+                              {s.is_active && (
+                                <span className="relative flex h-1.5 w-1.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
+                                </span>
+                              )}
+                              {s.is_active ? "Live" : "Ended"}
+                            </Badge>
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </div>
+
+                {items.length < totalItems && (
+                  <div className="flex justify-center py-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => load(false)}
+                      disabled={loadingMore}
+                      className="min-w-[200px] gap-2 rounded-xl"
+                    >
+                      {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load More Sessions"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-20">
@@ -850,4 +808,3 @@ export default function SessionsPage() {
     </>
   );
 }
-
