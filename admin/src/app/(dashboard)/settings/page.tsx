@@ -25,6 +25,7 @@ const editablePayload = (settings: AdminSettings | null): AdminSettingsUpdate | 
   return {
     detection: { ...settings.detection },
     engagement_weights: { ...settings.engagement_weights },
+    exam_proctoring: { ...settings.exam_proctoring },
     admin_ops: { ...settings.admin_ops },
     security: { ...settings.security },
   };
@@ -51,21 +52,31 @@ const validateSettings = (settings: AdminSettings | null): ValidationResult => {
     errors["detection.detection_confidence_threshold"] = "Threshold must be between 0 and 1.";
   }
 
-  const weights = settings.engagement_weights;
-  if (weights.on_task < 0 || weights.on_task > 5) {
-    errors["engagement_weights.on_task"] = "Must be between 0 and 5.";
+  const weights_by_mode = settings.engagement_weights;
+  Object.entries(weights_by_mode).forEach(([mode, weights]) => {
+    if (weights.on_task < 0 || weights.on_task > 10) {
+      errors[`engagement_weights.${mode}.on_task`] = "Must be between 0 and 10.";
+    }
+    if (weights.using_phone < 0 || weights.using_phone > 10) {
+      errors[`engagement_weights.${mode}.using_phone`] = "Must be between 0 and 10.";
+    }
+    if (weights.sleeping < 0 || weights.sleeping > 10) {
+      errors[`engagement_weights.${mode}.sleeping`] = "Must be between 0 and 10.";
+    }
+    if (weights.off_task < 0 || weights.off_task > 10) {
+      errors[`engagement_weights.${mode}.off_task`] = "Must be between 0 and 10.";
+    }
+    if (weights.not_visible < 0 || weights.not_visible > 10) {
+      errors[`engagement_weights.${mode}.not_visible`] = "Must be between 0 and 10.";
+    }
+  });
+
+  const proctoring = settings.exam_proctoring;
+  if (proctoring.phone_count_threshold < 1 || proctoring.phone_count_threshold > 50) {
+    errors["exam_proctoring.phone_count_threshold"] = "Must be between 1 and 50.";
   }
-  if (weights.using_phone < 0 || weights.using_phone > 5) {
-    errors["engagement_weights.using_phone"] = "Must be between 0 and 5.";
-  }
-  if (weights.sleeping < 0 || weights.sleeping > 5) {
-    errors["engagement_weights.sleeping"] = "Must be between 0 and 5.";
-  }
-  if (weights.off_task < 0 || weights.off_task > 5) {
-    errors["engagement_weights.off_task"] = "Must be between 0 and 5.";
-  }
-  if (weights.not_visible < 0 || weights.not_visible > 5) {
-    errors["engagement_weights.not_visible"] = "Must be between 0 and 5.";
+  if (proctoring.off_task_count_threshold < 1 || proctoring.off_task_count_threshold > 50) {
+    errors["exam_proctoring.off_task_count_threshold"] = "Must be between 1 and 50.";
   }
 
   if (settings.security.access_token_expire_minutes < 5 || settings.security.access_token_expire_minutes > 43200) {
@@ -374,6 +385,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState<"save" | "reset">("save");
+  const [activeWeightMode, setActiveWeightMode] = useState<"LECTURE" | "STUDY" | "COLLABORATION">("LECTURE");
 
   const { errors, isValid } = useMemo(() => validateSettings(settings), [settings]);
 
@@ -524,8 +536,21 @@ export default function SettingsPage() {
     setSettings((prev) => (prev ? { ...prev, detection: { ...prev.detection, [key]: value } } : prev));
   };
 
-  const updateWeights = (key: keyof AdminSettings["engagement_weights"], value: number) => {
-    setSettings((prev) => (prev ? { ...prev, engagement_weights: { ...prev.engagement_weights, [key]: value } } : prev));
+  const updateWeights = (mode: keyof AdminSettings["engagement_weights"], key: keyof AdminWeightsSet, value: number) => {
+    setSettings((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        engagement_weights: {
+          ...prev.engagement_weights,
+          [mode]: { ...prev.engagement_weights[mode], [key]: value },
+        },
+      };
+    });
+  };
+
+  const updateProctoring = (key: keyof AdminSettings["exam_proctoring"], value: number) => {
+    setSettings((prev) => (prev ? { ...prev, exam_proctoring: { ...prev.exam_proctoring, [key]: value } } : prev));
   };
 
   const updateAdminOps = (key: keyof AdminSettings["admin_ops"], value: boolean) => {
@@ -728,86 +753,91 @@ export default function SettingsPage() {
             </SettingsSection>
 
             <SettingsSection
-              title="Engagement Weights"
-              description="Tune how each behavior impacts engagement scoring."
+              title="Engagement Weight Profiles"
+              description="Calibrate how behaviors impact scoring per activity mode."
+            >
+              <div className="space-y-6">
+                <div className="flex flex-wrap gap-2 rounded-xl border border-border/40 bg-slate-500/5 p-1">
+                  {(["LECTURE", "STUDY", "COLLABORATION"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setActiveWeightMode(m)}
+                      className={cn(
+                        "rounded-lg px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all",
+                        activeWeightMode === m
+                          ? "bg-primary text-white shadow-lg"
+                          : "text-muted-foreground hover:bg-slate-500/10 hover:text-foreground"
+                      )}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-border/40 bg-slate-500/5 p-6 space-y-6">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {(["on_task", "using_phone", "sleeping", "off_task", "not_visible"] as const).map((wKey) => (
+                      <div key={wKey} className="space-y-1">
+                        <label className="text-sm font-medium capitalize">
+                          {wKey.replace(/_/g, " ")} Weight
+                        </label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          step="0.1"
+                          value={settings.engagement_weights[activeWeightMode][wKey]}
+                          onChange={(e) => updateWeights(activeWeightMode, wKey, Number(e.target.value || 0))}
+                        />
+                        {errors[`engagement_weights.${activeWeightMode}.${wKey}`] ? (
+                          <p className="text-xs text-danger">
+                            {errors[`engagement_weights.${activeWeightMode}.${wKey}`]}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-[10px] text-muted-foreground text-center uppercase font-medium">
+                    Profile tip: These weights define the engagement baseline for {activeWeightMode.toLowerCase()} sessions.
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
+              title="Exam Proctoring Thresholds"
+              description="Set strict counts for real-time cheating alerts."
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">On-task weight</label>
+                  <label className="text-sm font-medium">Phone count threshold</label>
                   <Input
                     type="number"
-                    min={0}
-                    max={5}
-                    step="0.1"
-                    value={settings.engagement_weights.on_task}
-                    onChange={(e) => updateWeights("on_task", Number(e.target.value || 0))}
+                    min={1}
+                    max={50}
+                    value={settings.exam_proctoring.phone_count_threshold}
+                    onChange={(e) => updateProctoring("phone_count_threshold", Number(e.target.value || 0))}
                   />
-                  {errors["engagement_weights.on_task"] ? (
-                    <p className="text-xs text-danger">{errors["engagement_weights.on_task"]}</p>
+                  <p className="text-[10px] text-muted-foreground">Alert teacher if student(s) $\ge$ count.</p>
+                  {errors["exam_proctoring.phone_count_threshold"] ? (
+                    <p className="text-xs text-danger">{errors["exam_proctoring.phone_count_threshold"]}</p>
                   ) : null}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Using phone weight</label>
+                  <label className="text-sm font-medium">Off-task count threshold</label>
                   <Input
                     type="number"
-                    min={0}
-                    max={5}
-                    step="0.1"
-                    value={settings.engagement_weights.using_phone}
-                    onChange={(e) => updateWeights("using_phone", Number(e.target.value || 0))}
+                    min={1}
+                    max={50}
+                    value={settings.exam_proctoring.off_task_count_threshold}
+                    onChange={(e) => updateProctoring("off_task_count_threshold", Number(e.target.value || 0))}
                   />
-                  {errors["engagement_weights.using_phone"] ? (
-                    <p className="text-xs text-danger">{errors["engagement_weights.using_phone"]}</p>
+                  <p className="text-[10px] text-muted-foreground">Applies to looking around/talking during exams.</p>
+                  {errors["exam_proctoring.off_task_count_threshold"] ? (
+                    <p className="text-xs text-danger">{errors["exam_proctoring.off_task_count_threshold"]}</p>
                   ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Sleeping weight</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={5}
-                    step="0.1"
-                    value={settings.engagement_weights.sleeping}
-                    onChange={(e) => updateWeights("sleeping", Number(e.target.value || 0))}
-                  />
-                  {errors["engagement_weights.sleeping"] ? (
-                    <p className="text-xs text-danger">{errors["engagement_weights.sleeping"]}</p>
-                  ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Off-task weight</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={5}
-                    step="0.1"
-                    value={settings.engagement_weights.off_task}
-                    onChange={(e) => updateWeights("off_task", Number(e.target.value || 0))}
-                  />
-                  {errors["engagement_weights.off_task"] ? (
-                    <p className="text-xs text-danger">{errors["engagement_weights.off_task"]}</p>
-                  ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Not visible weight (penalty)</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={5}
-                    step="0.1"
-                    value={settings.engagement_weights.not_visible}
-                    onChange={(e) => updateWeights("not_visible", Number(e.target.value || 0))}
-                  />
-                  {errors["engagement_weights.not_visible"] ? (
-                    <p className="text-xs text-danger">{errors["engagement_weights.not_visible"]}</p>
-                  ) : null}
-                  <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                    Penalty for students present in class but not detected by YOLO. Set to 0 to ignore them.
-                  </p>
                 </div>
               </div>
             </SettingsSection>
@@ -905,111 +935,111 @@ export default function SettingsPage() {
       >
         <div className="space-y-6">
           {confirmMode === "save" && dirty && (
-             <div className="rounded-xl border border-warning/20 bg-warning/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-warning mb-3">Pending Modifications</p>
-                <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    {(() => {
-                        const current = settings;
-                        const initial = initialSettings;
-                        if (!current || !initial) return null;
-                        
-                        const changes: React.ReactNode[] = [];
-                        
-                        // Check Detection
-                        Object.keys(current.detection).forEach((k) => {
-                            const key = k as keyof AdminSettings["detection"];
-                            if (current.detection[key] !== initial.detection[key]) {
-                                changes.push(
-                                    <div key={`det-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
-                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                        <span className="flex items-center gap-2">
-                                            <span className="text-muted-foreground/60 line-through">{String(initial.detection[key])}</span>
-                                            <span className="text-warning font-bold">{String(current.detection[key])}</span>
-                                        </span>
-                                    </div>
-                                );
-                            }
-                        });
+            <div className="rounded-xl border border-warning/20 bg-warning/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-warning mb-3">Pending Modifications</p>
+              <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {(() => {
+                  const current = settings;
+                  const initial = initialSettings;
+                  if (!current || !initial) return null;
 
-                        // Check Weights
-                        Object.keys(current.engagement_weights).forEach((k) => {
-                            const key = k as keyof AdminSettings["engagement_weights"];
-                            if (current.engagement_weights[key] !== initial.engagement_weights[key]) {
-                                changes.push(
-                                    <div key={`weight-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
-                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')} Weight</span>
-                                        <span className="flex items-center gap-2">
-                                            <span className="text-muted-foreground/60 line-through">{initial.engagement_weights[key]}</span>
-                                            <span className="text-warning font-bold">{current.engagement_weights[key]}</span>
-                                        </span>
-                                    </div>
-                                );
-                            }
-                        });
+                  const changes: React.ReactNode[] = [];
 
-                        // Check Ops
-                        Object.keys(current.admin_ops).forEach((k) => {
-                            const key = k as keyof AdminSettings["admin_ops"];
-                            if (current.admin_ops[key] !== initial.admin_ops[key]) {
-                                changes.push(
-                                    <div key={`ops-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
-                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                        <span className="text-warning font-bold">{current.admin_ops[key] ? "Enabled" : "Disabled"}</span>
-                                    </div>
-                                );
-                            }
-                        });
+                  // Check Detection
+                  Object.keys(current.detection).forEach((k) => {
+                    const key = k as keyof AdminSettings["detection"];
+                    if (current.detection[key] !== initial.detection[key]) {
+                      changes.push(
+                        <div key={`det-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                          <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-muted-foreground/60 line-through">{String(initial.detection[key])}</span>
+                            <span className="text-warning font-bold">{String(current.detection[key])}</span>
+                          </span>
+                        </div>
+                      );
+                    }
+                  });
 
-                        // Check Security
-                        Object.keys(current.security).forEach((k) => {
-                            const key = k as keyof AdminSettings["security"];
-                            if (current.security[key] !== initial.security[key]) {
-                                changes.push(
-                                    <div key={`sec-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
-                                        <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                        <span className="flex items-center gap-2">
-                                            <span className="text-muted-foreground/60 line-through">{initial.security[key]}m</span>
-                                            <span className="text-warning font-bold">{current.security[key]}m</span>
-                                        </span>
-                                    </div>
-                                );
-                            }
-                        });
+                  // Check Weights
+                  Object.keys(current.engagement_weights).forEach((k) => {
+                    const key = k as keyof AdminSettings["engagement_weights"];
+                    if (current.engagement_weights[key] !== initial.engagement_weights[key]) {
+                      changes.push(
+                        <div key={`weight-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                          <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')} Weight</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-muted-foreground/60 line-through">{initial.engagement_weights[key]}</span>
+                            <span className="text-warning font-bold">{current.engagement_weights[key]}</span>
+                          </span>
+                        </div>
+                      );
+                    }
+                  });
 
-                        return changes;
-                    })()}
-                </div>
-             </div>
+                  // Check Ops
+                  Object.keys(current.admin_ops).forEach((k) => {
+                    const key = k as keyof AdminSettings["admin_ops"];
+                    if (current.admin_ops[key] !== initial.admin_ops[key]) {
+                      changes.push(
+                        <div key={`ops-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                          <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                          <span className="text-warning font-bold">{current.admin_ops[key] ? "Enabled" : "Disabled"}</span>
+                        </div>
+                      );
+                    }
+                  });
+
+                  // Check Security
+                  Object.keys(current.security).forEach((k) => {
+                    const key = k as keyof AdminSettings["security"];
+                    if (current.security[key] !== initial.security[key]) {
+                      changes.push(
+                        <div key={`sec-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                          <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-muted-foreground/60 line-through">{initial.security[key]}m</span>
+                            <span className="text-warning font-bold">{current.security[key]}m</span>
+                          </span>
+                        </div>
+                      );
+                    }
+                  });
+
+                  return changes;
+                })()}
+              </div>
+            </div>
           )}
 
           <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-danger">Admin password</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-danger">Confirm password</label>
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter your password"
-            />
-          </div>
-          {passwordError ? <p className="text-xs text-danger">{passwordError}</p> : null}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onCancelConfirm} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={onConfirmSubmit} disabled={!!passwordError || saving}>
-              {saving ? "Confirming..." : "Confirm"}
-            </Button>
-          </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-danger">Admin password</label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-danger">Confirm password</label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+              />
+            </div>
+            {passwordError ? <p className="text-xs text-danger">{passwordError}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onCancelConfirm} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={onConfirmSubmit} disabled={!!passwordError || saving}>
+                {saving ? "Confirming..." : "Confirm"}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

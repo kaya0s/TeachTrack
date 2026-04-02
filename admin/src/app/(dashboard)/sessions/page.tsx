@@ -18,6 +18,7 @@ import {
   Users,
   X,
   Loader2,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -171,6 +172,7 @@ export default function SessionsPage() {
   const [majorFilter, setMajorFilter] = useState<number | null>(null);
   const [minEngagement, setMinEngagement] = useState("");
   const [maxEngagement, setMaxEngagement] = useState("");
+  const [activityModeFilter, setActivityModeFilter] = useState<string>("all");
 
   const PAGE_SIZE = 50;
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
@@ -193,8 +195,9 @@ export default function SessionsPage() {
     if (sortBy) params.set("sort", sortBy);
     if (minEngagement) params.set("min_engagement", minEngagement);
     if (maxEngagement) params.set("max_engagement", maxEngagement);
+    if (activityModeFilter !== "all") params.set("activity_mode", activityModeFilter);
     return `?${params.toString()}`;
-  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement]);
+  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement, activityModeFilter]);
 
   const load = useCallback(async (reset = false) => {
     if (reset) {
@@ -243,7 +246,7 @@ export default function SessionsPage() {
   // Initial load or on filter change
   useEffect(() => {
     load(true);
-  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement]);
+  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement, activityModeFilter]);
 
   // Auto-refresh active sessions only (every 30s)
   useEffect(() => {
@@ -307,6 +310,7 @@ export default function SessionsPage() {
     setSortBy("newest");
     setMinEngagement("");
     setMaxEngagement("");
+    setActivityModeFilter("all");
   };
 
   const openDetail = useCallback(
@@ -330,17 +334,112 @@ export default function SessionsPage() {
     [notify],
   );
 
+  const exportPDF = () => {
+    if (typeof window === "undefined") return;
+    const doc = new jsPDF({ orientation: "landscape" });
+    const logoUrl = "/brand/logo.png";
+    const title = "TEACHTRACK SESSION INTELLIGENCE REPORT";
+    const dateStr = `Generated on: ${new Date().toLocaleString()}`;
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const centerX = pageWidth / 2;
+
+    // Function to get color based on engagement percentage
+    const getEngagementColor = (engagement: number) => {
+        if (engagement >= 80) return [34, 197, 94]; // green-500
+        if (engagement >= 60) return [251, 191, 36]; // amber-500
+        if (engagement >= 40) return [249, 115, 22]; // orange-500
+        return [239, 68, 68]; // red-500
+    };
+
+    const img = new Image();
+    img.src = logoUrl;
+    img.onload = () => {
+      try {
+        // Square logo (40x40)
+        doc.addImage(img, "PNG", centerX - 20, 10, 40, 40);
+        doc.setFontSize(16);
+        doc.setTextColor(40, 40, 40);
+        doc.text(title, centerX, 60, { align: "center" });
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(dateStr, centerX, 67, { align: "center" });
+
+        // Reorder table data to put engagement last
+        const tableData = items.map((s) => [
+          s.id,
+          currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
+          `${s.subject_name} (${s.section_name})`,
+          s.students_present,
+          s.activity_mode,
+          s.on_task.toFixed(1),
+          s.sleeping.toFixed(1),
+          s.using_phone.toFixed(1),
+          s.off_task.toFixed(1),
+          s.not_visible.toFixed(1),
+          `${s.average_engagement.toFixed(1)}%`,
+        ]);
+
+        autoTable(doc, {
+          head: [["ID", "Teacher", "Subject & Section", "Studs", "Mode", "Task", "Sleep", "Phone", "Off", "Invis", "Eng%"]],
+          body: tableData,
+          startY: 75,
+          theme: "striped",
+          headStyles: { fillColor: [34, 197, 94], textColor: 255, fontSize: 9, fontStyle: "bold" }, // Green header
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          columnStyles: {
+            10: { fontStyle: "bold", halign: "right" }, // Engagement column (now last)
+            5: { halign: "center" },
+            6: { halign: "center" },
+            7: { halign: "center" },
+            8: { halign: "center" },
+            9: { halign: "center" },
+          },
+          didDrawCell: (data: any) => {
+            // Color code the engagement column (now index 10)
+            if (data.column.index === 10 && data.section === 'body') {
+                const engagementValue = parseFloat(data.cell.text);
+                if (!isNaN(engagementValue)) {
+                    const engagementColor = getEngagementColor(engagementValue);
+                    doc.setTextColor(engagementColor[0], engagementColor[1], engagementColor[2]);
+                    doc.setFont('helvetica', 'bold');
+                }
+            }
+          }
+        });
+
+        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
+        setIsExportModalOpen(false);
+      } catch {
+        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
+        setIsExportModalOpen(false);
+      }
+    };
+    img.onerror = () => {
+      doc.setFontSize(18);
+      doc.text(title, centerX, 20, { align: "center" });
+      doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
+    };
+  };
+
   const exportCSV = () => {
-    const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Start Time", "End Time", "Engagement"];
+    const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Mode", "Start Time", "End Time", "Engagement%", "On Task Avg", "Sleeping Avg", "Phone Avg", "Off Task Avg", "Not Visible Avg"];
     const rows = items.map((s) => [
       s.id,
       currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
-      s.subject_name,
-      s.section_name,
+      s.subject_name.replace(/,/g, " "),
+      s.section_name.replace(/,/g, " "),
       s.students_present,
-      s.start_time ? new Date(s.start_time).toLocaleString() : "-",
-      s.end_time ? new Date(s.end_time).toLocaleString() : "-",
-      `${s.average_engagement}%`,
+      s.activity_mode,
+      s.start_time ? new Date(s.start_time).toISOString() : "-",
+      s.end_time ? new Date(s.end_time).toISOString() : "-",
+      s.average_engagement.toFixed(2),
+      s.on_task.toFixed(2),
+      s.sleeping.toFixed(2),
+      s.using_phone.toFixed(2),
+      s.off_task.toFixed(2),
+      s.not_visible.toFixed(2),
     ]);
 
     const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -354,64 +453,6 @@ export default function SessionsPage() {
     link.click();
     document.body.removeChild(link);
     setIsExportModalOpen(false);
-  };
-
-  const exportPDF = () => {
-    if (typeof window === "undefined") return;
-    const doc = new jsPDF();
-    const logoUrl = "/brand/logo.png";
-    const title = "TEACHTRACK SESSION INTELLIGENCE REPORT";
-    const dateStr = `Generated on: ${new Date().toLocaleString()}`;
-
-    const img = new Image();
-    img.src = logoUrl;
-    img.onload = () => {
-      try {
-        doc.addImage(img, "PNG", 85, 10, 40, 15);
-        doc.setFontSize(16);
-        doc.setTextColor(40, 40, 40);
-        doc.text(title, 105, 35, { align: "center" });
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text(dateStr, 105, 42, { align: "center" });
-
-        const tableData = items.map((s) => [
-          s.id,
-          currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
-          `${s.subject_name}\n(${s.section_name})`,
-          s.students_present,
-          `${new Date(s.start_time).toLocaleDateString()}\n${new Date(s.start_time).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}`,
-          `${s.average_engagement.toFixed(1)}%`,
-        ]);
-
-        autoTable(doc, {
-          head: [["ID", "Teacher", "Subject & Section", "Studs", "Start Time", "Engagement"]],
-          body: tableData,
-          startY: 50,
-          theme: "striped",
-          headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 10, fontStyle: "bold" },
-          bodyStyles: { fontSize: 9 },
-          alternateRowStyles: { fillColor: [245, 247, 250] },
-          columnStyles: {
-            5: { fontStyle: "bold", halign: "right" },
-          },
-        });
-
-        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
-        setIsExportModalOpen(false);
-      } catch {
-        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
-        setIsExportModalOpen(false);
-      }
-    };
-    img.onerror = () => {
-      doc.setFontSize(18);
-      doc.text(title, 105, 20, { align: "center" });
-      doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
-    };
   };
 
   return (
@@ -442,6 +483,7 @@ export default function SessionsPage() {
                     <TH>Subject</TH>
                     <TH>Section</TH>
                     <TH>Students</TH>
+                    <TH>Mode</TH>
                     <TH>Engagement</TH>
                   </TR>
                 </THead>
@@ -470,6 +512,11 @@ export default function SessionsPage() {
                       <TD>{s.subject_name}</TD>
                       <TD>{s.section_name}</TD>
                       <TD>{s.students_present}</TD>
+                      <TD>
+                        <Badge tone="default" className="bg-primary/10 text-primary border-primary/20 text-[9px] uppercase font-bold py-0.5">
+                          {s.activity_mode}
+                        </Badge>
+                      </TD>
                       <TD className="font-bold text-primary">{s.average_engagement}%</TD>
                     </TR>
                   ))}
@@ -618,6 +665,21 @@ export default function SessionsPage() {
                 />
               </div>
 
+              <PillDropdown
+                icon={<Activity className="h-3.5 w-3.5" />}
+                label="Mode"
+                value={activityModeFilter}
+                options={[
+                  { value: "all", label: "All Modes" },
+                  { value: "LECTURE", label: "Lecture" },
+                  { value: "STUDY", label: "Study" },
+                  { value: "COLLABORATION", label: "Collaboration" },
+                  { value: "EXAM", label: "Exam" },
+                ]}
+                onChange={(value) => setActivityModeFilter(value as string)}
+                widthClassName="min-w-[170px]"
+              />
+
               <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAllFilters}>
                 Clear all
               </Button>
@@ -642,6 +704,7 @@ export default function SessionsPage() {
                         <TH className="py-4">Session</TH>
                         <TH>Teacher</TH>
                         <TH>Subject & Section</TH>
+                        <TH className="text-center">Mode</TH>
                         <TH className="text-center">Students</TH>
                         <TH>Time Range</TH>
                         <TH className="pr-6 text-right">Engagement</TH>
@@ -677,6 +740,11 @@ export default function SessionsPage() {
                               <span className="text-sm font-medium">{s.subject_name}</span>
                               <span className="text-xs text-muted-foreground">{s.section_name}</span>
                             </div>
+                          </TD>
+                           <TD className="text-center">
+                            <Badge tone="default" className="text-[10px] uppercase font-bold border-border/60">
+                              {s.activity_mode}
+                            </Badge>
                           </TD>
                           <TD className="text-center">
                             <span className="inline-flex items-center gap-1 text-sm font-medium">

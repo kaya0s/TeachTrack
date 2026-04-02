@@ -93,6 +93,7 @@ export default function DashboardPage() {
   const [departments, setDepartments] = useState<AdminDepartment[]>([]);
   const [selectedCollegeId, setSelectedCollegeId] = useState<string>("all");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("all");
+  const [activityModeFilter, setActivityModeFilter] = useState<string>("all");
 
 
   const currentActorUserId = useMemo(() => getCurrentActorUserId(), []);
@@ -106,7 +107,14 @@ export default function DashboardPage() {
           setLoading(true);
         }
       }
-      await getDashboard()
+
+      const filters = {
+        college_id: selectedCollegeId !== "all" ? Number(selectedCollegeId) : undefined,
+        department_id: selectedDepartmentId !== "all" ? Number(selectedDepartmentId) : undefined,
+        activity_mode: activityModeFilter !== "all" ? activityModeFilter : undefined,
+      };
+
+      await getDashboard(filters)
         .then(setData)
         .catch((err: unknown) => {
           if (!autoPoll) {
@@ -121,7 +129,7 @@ export default function DashboardPage() {
           }
         });
     },
-    []
+    [selectedCollegeId, selectedDepartmentId, activityModeFilter]
   );
 
   useEffect(() => {
@@ -223,10 +231,11 @@ export default function DashboardPage() {
 
       if (selectedCollegeId !== "all" && s.college_id !== Number(selectedCollegeId)) return false;
       if (selectedDepartmentId !== "all" && s.department_id !== Number(selectedDepartmentId)) return false;
+      if (activityModeFilter !== "all" && s.activity_mode !== activityModeFilter) return false;
 
       return true;
     });
-  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement, selectedCollegeId, selectedDepartmentId]);
+  }, [analyticsSessions, engagementPreset, minEngagement, maxEngagement, selectedCollegeId, selectedDepartmentId, activityModeFilter]);
 
   const teacherAnalytics = useMemo(() => {
     const q = analyticsQuery.trim().toLowerCase();
@@ -710,6 +719,7 @@ export default function DashboardPage() {
                     <TH className="py-3">Teacher</TH>
                     <TH className="py-3">Subject & Section</TH>
                     <TH className="py-3 text-center">Students</TH>
+                    <TH className="py-3 text-center">Mode</TH>
                     <TH className="py-3">Engagement</TH>
                     <TH className="py-3 text-right pr-6 px-4">Stream</TH>
                   </TR>
@@ -759,6 +769,11 @@ export default function DashboardPage() {
                       </TD>
                       <TD className="font-semibold text-sm font-mono text-center">
                         {s.students_present}
+                      </TD>
+                      <TD className="text-center">
+                        <Badge tone="default" className="text-[10px] uppercase font-bold border-border/60">
+                          {s.activity_mode}
+                        </Badge>
                       </TD>
                       <TD>
                         <div className="flex items-center gap-3">
@@ -820,7 +835,7 @@ export default function DashboardPage() {
             — Computed from live + recent sessions.
           </p>
         </div>
-        
+
         {!loading && (
           <div className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 shadow-sm transition-all hover:bg-primary/20">
             <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">
@@ -887,11 +902,11 @@ export default function DashboardPage() {
               onClick={() =>
                 analyticsView === "teachers"
                   ? setTeacherSort((prev) =>
-                      prev === "avg_desc" ? "avg_asc" : "avg_desc"
-                    )
+                    prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                  )
                   : setSectionSort((prev) =>
-                      prev === "avg_desc" ? "avg_asc" : "avg_desc"
-                    )
+                    prev === "avg_desc" ? "avg_asc" : "avg_desc"
+                  )
               }
             >
               <ArrowDownUp className="h-3.5 w-3.5" />
@@ -975,6 +990,25 @@ export default function DashboardPage() {
 
           <div className="h-4 w-px bg-border/50 hidden sm:block" />
 
+          {/* Activity Mode filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-0.5">
+              Type
+            </span>
+            <select
+              className="h-7 rounded-lg border border-border/60 bg-background px-2 text-[11px] font-medium outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
+              value={activityModeFilter}
+              onChange={(e) => setActivityModeFilter(e.target.value)}
+            >
+              <option value="all">All Modes</option>
+              <option value="LECTURE">Lecture</option>
+              <option value="STUDY">Study</option>
+              <option value="COLLABORATION">Collaboration</option>
+            </select>
+          </div>
+
+          <div className="h-4 w-px bg-border/50 hidden sm:block" />
+
           {/* Engagement range */}
           <div className="flex items-center gap-2">
             <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -1016,7 +1050,7 @@ export default function DashboardPage() {
                     Top Teachers — Avg Engagement
                   </p>
                 </div>
-                <Badge className="text-[10px]">{teacherAnalytics.length}</Badge>
+                <Badge tone="default" className="text-[10px]">{teacherAnalytics.length}</Badge>
               </div>
               <Table>
                 <THead className="bg-muted/20">
@@ -1094,7 +1128,7 @@ export default function DashboardPage() {
                     Top Sections — Avg Engagement
                   </p>
                 </div>
-                <Badge className="text-[10px]">{sectionAnalytics.length}</Badge>
+                <Badge tone="default" className="text-[10px]">{sectionAnalytics.length}</Badge>
               </div>
               <Table>
                 <THead className="bg-muted/20">
@@ -1232,7 +1266,7 @@ export default function DashboardPage() {
                       <TD className="text-right pr-6">
                         <Badge
                           tone={s.is_active ? "success" : "default"}
-                          className="h-4 text-[9px] px-1.5 uppercase font-bold tracking-wider"
+                          className={cn("h-4 text-[9px] px-1.5 uppercase font-bold tracking-wider", s.is_active && "bg-success text-white")}
                         >
                           {s.is_active ? "Live" : "Ended"}
                         </Badge>
@@ -1318,62 +1352,62 @@ export default function DashboardPage() {
       >
         <div className="space-y-6">
           <div className="p-6">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-                <div className="relative">
-                  <div className="h-20 w-20 overflow-hidden rounded-xl border border-border bg-muted">
-                    {activeTeacherRow?.profile_picture_url ? (
-                      <img
-                        src={activeTeacherRow.profile_picture_url}
-                        alt={activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
-                        {(activeTeacherRow?.teacher_fullname ?? activeTeacherRow?.teacher_username ?? "?").charAt(0)}
-                      </div>
-                    )}
-                  </div>
-                  <span className="absolute -bottom-2 -right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card shadow-sm">
-                    <CheckCircle className="h-4 w-4 text-success" />
-                  </span>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+              <div className="relative">
+                <div className="h-20 w-20 overflow-hidden rounded-xl border border-border bg-muted">
+                  {activeTeacherRow?.profile_picture_url ? (
+                    <img
+                      src={activeTeacherRow.profile_picture_url}
+                      alt={activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
+                      {(activeTeacherRow?.teacher_fullname ?? activeTeacherRow?.teacher_username ?? "?").charAt(0)}
+                    </div>
+                  )}
                 </div>
+                <span className="absolute -bottom-2 -right-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card shadow-sm">
+                  <CheckCircle className="h-4 w-4 text-success" />
+                </span>
+              </div>
 
-                <div className="flex-1 space-y-3">
-                  <h2 className="text-2xl font-semibold tracking-tight">
-                    {activeTeacherRow
-                      ? currentActorUserId !== null &&
-                        activeTeacherRow.teacher_id === currentActorUserId
-                        ? "You"
-                        : (activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username)
-                      : "Teacher"}
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="default" className="gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {activeTeacherStats.sessions} session
-                      {activeTeacherStats.sessions === 1 ? "" : "s"}
-                    </Badge>
-                    <Badge tone="default" className="gap-1.5">
-                      <Users className="h-3.5 w-3.5" />
-                      {activeTeacherStats.students} students
-                    </Badge>
-                    <Badge tone="default" className="gap-1.5">
-                      <Award className="h-3.5 w-3.5" />
-                      {activeTeacherStats.avgEngagement.toFixed(1)}% avg engagement
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="lg:text-right">
-                  <p className="text-3xl font-semibold">
-                    {activeTeacherStats.avgEngagement.toFixed(0)}%
-                  </p>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Overall Score
-                  </p>
+              <div className="flex-1 space-y-3">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {activeTeacherRow
+                    ? currentActorUserId !== null &&
+                      activeTeacherRow.teacher_id === currentActorUserId
+                      ? "You"
+                      : (activeTeacherRow.teacher_fullname ?? activeTeacherRow.teacher_username)
+                    : "Teacher"}
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="default" className="gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {activeTeacherStats.sessions} session
+                    {activeTeacherStats.sessions === 1 ? "" : "s"}
+                  </Badge>
+                  <Badge tone="default" className="gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    {activeTeacherStats.students} students
+                  </Badge>
+                  <Badge tone="default" className="gap-1.5">
+                    <Award className="h-3.5 w-3.5" />
+                    {activeTeacherStats.avgEngagement.toFixed(1)}% avg engagement
+                  </Badge>
                 </div>
               </div>
+
+              <div className="lg:text-right">
+                <p className="text-3xl font-semibold">
+                  {activeTeacherStats.avgEngagement.toFixed(0)}%
+                </p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Overall Score
+                </p>
+              </div>
             </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Card>
@@ -1486,115 +1520,115 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Top Performing Classes</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Classes with most sessions and highest engagement
-                  </p>
-                </div>
-                <Badge tone="default" className="text-xs">
-                  {activeTeacherStats.topSections.length}
-                </Badge>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Top Performing Classes</h3>
+                <p className="text-sm text-muted-foreground">
+                  Classes with most sessions and highest engagement
+                </p>
               </div>
-              {activeTeacherStats.topSections.length ? (
-                activeTeacherStats.topSections.map((row, index) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between rounded-xl border border-border bg-background p-4"
-                  >
+              <Badge tone="default" className="text-xs">
+                {activeTeacherStats.topSections.length}
+              </Badge>
+            </div>
+            {activeTeacherStats.topSections.length ? (
+              activeTeacherStats.topSections.map((row, index) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between rounded-xl border border-border bg-background p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                      <span className="text-sm font-semibold text-primary">{index + 1}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{row.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {row.sessions} session{row.sessions === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold">{row.avg.toFixed(0)}%</p>
+                    <p className="text-xs text-muted-foreground">avg engagement</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <BookOpen className="mx-auto mb-3 h-12 w-12 opacity-50" />
+                <p className="text-sm">No sessions match your current filters.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Recent Sessions</h3>
+                <p className="text-sm text-muted-foreground">
+                  Latest teaching activities and performance
+                </p>
+              </div>
+              <Badge tone="default" className="text-xs">
+                {activeTeacherSessions.slice(0, 6).length}
+              </Badge>
+            </div>
+            {activeTeacherSessions.slice(0, 6).length ? (
+              activeTeacherSessions.slice(0, 6).map((s) => (
+                <button
+                  key={`t-s-${s.id}`}
+                  type="button"
+                  onClick={() => openSessionDetail(s)}
+                  className="group w-full rounded-xl border border-border bg-background p-4 text-left transition-colors hover:bg-accent/40"
+                >
+                  <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                        {index + 1}
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="font-medium">{row.label}</p>
+                        <p className="font-medium">
+                          {s.subject_name} - {s.section_name}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {row.sessions} session{row.sessions === 1 ? "" : "s"}
+                          Session #{s.id} - {s.students_present ?? 0} students
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-semibold">{row.avg.toFixed(0)}%</p>
-                      <p className="text-xs text-muted-foreground">avg engagement</p>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                          s.average_engagement >= 85
+                            ? "border-success/35 bg-success/10 text-success"
+                            : s.average_engagement >= 60
+                              ? "border-primary/35 bg-primary/10 text-primary"
+                              : s.average_engagement >= 40
+                                ? "border-warning/35 bg-warning/10 text-warning"
+                                : "border-danger/35 bg-danger/10 text-danger"
+                        )}
+                      >
+                        {s.average_engagement.toFixed(0)}%
+                      </span>
+                      {s.is_active ? (
+                        <Badge tone="success" className="gap-1 text-[10px] uppercase">
+                          <Zap className="h-3 w-3" />
+                          Live
+                        </Badge>
+                      ) : null}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  <BookOpen className="mx-auto mb-3 h-12 w-12 opacity-50" />
-                  <p className="text-sm">No sessions match your current filters.</p>
-                </div>
-              )}
-            </div>
-
-          <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Recent Sessions</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Latest teaching activities and performance
-                  </p>
-                </div>
-                <Badge tone="default" className="text-xs">
-                  {activeTeacherSessions.slice(0, 6).length}
-                </Badge>
+                </button>
+              ))
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <Calendar className="mx-auto mb-3 h-12 w-12 opacity-50" />
+                <p className="text-sm">No sessions match your current filters.</p>
               </div>
-              {activeTeacherSessions.slice(0, 6).length ? (
-                activeTeacherSessions.slice(0, 6).map((s) => (
-                  <button
-                    key={`t-s-${s.id}`}
-                    type="button"
-                    onClick={() => openSessionDetail(s)}
-                    className="group w-full rounded-xl border border-border bg-background p-4 text-left transition-colors hover:bg-accent/40"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium">
-                            {s.subject_name} - {s.section_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Session #{s.id} - {s.students_present ?? 0} students
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                            s.average_engagement >= 85
-                              ? "border-success/35 bg-success/10 text-success"
-                              : s.average_engagement >= 60
-                                ? "border-primary/35 bg-primary/10 text-primary"
-                                : s.average_engagement >= 40
-                                  ? "border-warning/35 bg-warning/10 text-warning"
-                                  : "border-danger/35 bg-danger/10 text-danger"
-                          )}
-                        >
-                          {s.average_engagement.toFixed(0)}%
-                        </span>
-                        {s.is_active ? (
-                          <Badge tone="success" className="gap-1 text-[10px] uppercase">
-                            <Zap className="h-3 w-3" />
-                            Live
-                          </Badge>
-                        ) : null}
-                        <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-                      </div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  <Calendar className="mx-auto mb-3 h-12 w-12 opacity-50" />
-                  <p className="text-sm">No sessions match your current filters.</p>
-                </div>
-              )}
-            </div>
+            )}
+          </div>
         </div>
       </Drawer>
     </div>
