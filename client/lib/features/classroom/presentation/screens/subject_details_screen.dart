@@ -7,7 +7,7 @@ import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
 import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
-import 'package:teachtrack/features/session/presentation/widgets/students_present_dialog.dart';
+import 'package:teachtrack/features/session/presentation/widgets/session_start_dialog.dart';
 import 'package:teachtrack/core/providers/navigation_provider.dart';
 import '../widgets/subject_header.dart';
 import '../widgets/subject_overview_tab.dart';
@@ -38,9 +38,11 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
 
   void _startMonitoring(BuildContext context, SubjectModel subject, SectionModel section) async {
     final sessionProvider = context.read<SessionProvider>();
-    final studentsPresent = await showStudentsPresentDialog(context, initialValue: 20);
+    final sessionParams = await showSessionStartDialog(context, initialStudents: 20);
     
-    if (studentsPresent == null) return;
+    if (sessionParams == null) return;
+
+    if (!context.mounted) return;
 
     showDialog(
       context: context,
@@ -51,7 +53,8 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
     final success = await sessionProvider.startSession(
       subject.id,
       section.id,
-      studentsPresent,
+      sessionParams.studentsPresent,
+      sessionParams.activityMode,
     );
 
     if (context.mounted) {

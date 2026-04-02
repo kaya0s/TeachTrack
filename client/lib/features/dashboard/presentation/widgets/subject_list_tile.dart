@@ -50,6 +50,7 @@ class _SubjectListTileState extends State<SubjectListTile> {
       widget.subject.id,
       selectedSection.id,
       studentsPresent,
+      'LECTURE',
     );
 
     if (!mounted) return;

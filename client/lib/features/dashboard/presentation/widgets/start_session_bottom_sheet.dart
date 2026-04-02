@@ -17,6 +17,7 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
   SubjectModel? selectedSubject;
   SectionModel? selectedSection;
   int studentsCount = 30; // Default
+  String selectedMode = 'LECTURE';
   bool isStarting = false;
   late final PageController subjectPageController;
 
@@ -93,8 +94,12 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
               const SizedBox(height: 16),
               _buildSectionSelection(sections, theme),
               const SizedBox(height: 36),
-              _buildStudentCountSelection(theme),
-              const SizedBox(height: 48),
+               _buildStudentCountSelection(theme),
+               const SizedBox(height: 36),
+               _buildSectionLabel(theme, "ACTIVITY MODE"),
+               const SizedBox(height: 16),
+               _buildActivityModeSelection(theme),
+               const SizedBox(height: 48),
               _buildStartButton(session, context, theme),
               const SizedBox(height: 20),
             ],
@@ -332,6 +337,68 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
     );
   }
 
+  Widget _buildActivityModeSelection(ThemeData theme) {
+    const modes = [
+      {'id': 'LECTURE', 'name': 'Lecture', 'icon': Icons.sensors_rounded, 'color': Colors.teal},
+      {'id': 'STUDY', 'name': 'Study', 'icon': Icons.menu_book_rounded, 'color': Colors.blue},
+      {'id': 'COLLABORATION', 'name': 'Collaboration', 'icon': Icons.groups_rounded, 'color': Colors.orange},
+      {'id': 'EXAM', 'name': 'Exam', 'icon': Icons.security_rounded, 'color': Colors.red},
+    ];
+
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        scrollDirection: Axis.horizontal,
+        itemCount: modes.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final mode = modes[index];
+          final isSelected = selectedMode == mode['id'];
+          final Color color = mode['color'] as Color;
+
+          return GestureDetector(
+            onTap: () => setState(() => selectedMode = mode['id'] as String),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected ? color : theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? color : theme.dividerColor.withOpacity(0.08),
+                  width: 2,
+                ),
+                boxShadow: isSelected ? [
+                  BoxShadow(color: color.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))
+                ] : [],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    mode['icon'] as IconData,
+                    size: 16,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    mode['name'] as String,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : theme.textTheme.bodyLarge?.color?.withOpacity(0.8),
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStartButton(SessionProvider session, BuildContext context, ThemeData theme) {
     final bool hasActive = session.activeSession != null;
     final bool canStart = selectedSection != null && !isStarting && !hasActive;
@@ -341,10 +408,21 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
       child: GestureDetector(
         onTap: !canStart ? null : () async {
           setState(() => isStarting = true);
+          
+          // Show exam mode limitation modal if EXAM mode is selected
+          if (selectedMode == 'EXAM') {
+            final shouldContinue = await _showExamModeLimitationDialog(context);
+            if (!shouldContinue) {
+              setState(() => isStarting = false);
+              return;
+            }
+          }
+          
           final success = await session.startSession(
             selectedSubject!.id,
             selectedSection!.id,
             studentsCount,
+            selectedMode,
           );
           if (!mounted) return;
           Navigator.pop(context, success);
@@ -397,6 +475,94 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
         ),
       ),
     );
+  }
+
+  Future<bool> _showExamModeLimitationDialog(BuildContext context) async {
+    final theme = Theme.of(context);
+    return await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Exam Mode Limitations',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Due to current system limitations, exam mode can only detect:',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.phone_android, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Phone Usage',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Other behaviors (looking around, off-task) cannot be detected yet.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Do you want to continue with exam mode?',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 }
 

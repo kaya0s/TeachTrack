@@ -68,6 +68,7 @@ class _SubjectCardState extends State<SubjectCard> {
       widget.subject.id,
       section.id,
       studentsPresent,
+      'LECTURE',
     );
 
     if (!mounted) return;

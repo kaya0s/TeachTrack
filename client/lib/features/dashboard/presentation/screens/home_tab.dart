@@ -1295,29 +1295,35 @@ class _RecentSessionsList extends StatelessWidget {
                               collegeLogoPath: logoPath,
                             ),
                             const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.groups_rounded,
-                                    size: 11,
-                                    color: theme.colorScheme.secondary),
-                                const SizedBox(width: 4),
-                                Text(
-                                  s.sectionName,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.secondary),
+                                Row(
+                                  children: [
+                                    Icon(Icons.groups_rounded,
+                                        size: 11,
+                                        color: theme.colorScheme.secondary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      s.sectionName,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                          color: theme.colorScheme.secondary),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    _buildModeChip(s.activityMode),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Icon(Icons.schedule_rounded,
-                                    size: 11,
-                                    color: theme.colorScheme.secondary),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _formatDate(s.startTime),
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.secondary),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.schedule_rounded,
+                                        size: 11,
+                                        color: theme.colorScheme.secondary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _formatDate(s.startTime),
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                          color: theme.colorScheme.secondary),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
                           ],
                         ),
                       ),
@@ -1366,6 +1372,52 @@ class _RecentSessionsList extends StatelessWidget {
             ],
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildModeChip(String mode) {
+    Color color;
+    IconData icon;
+    switch (mode) {
+      case 'EXAM':
+        color = Colors.red;
+        icon = Icons.assignment_turned_in_rounded;
+        break;
+      case 'COLLABORATION':
+        color = Colors.orange;
+        icon = Icons.groups_rounded;
+        break;
+      case 'STUDY':
+        color = Colors.green;
+        icon = Icons.menu_book_rounded;
+        break;
+      default:
+        color = Colors.blue;
+        icon = Icons.school_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 8, color: color),
+          const SizedBox(width: 4),
+          Text(
+            mode,
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
