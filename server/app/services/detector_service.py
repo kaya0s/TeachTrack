@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pathlib import Path
 import logging
 import threading
@@ -23,8 +24,10 @@ from ultralytics import YOLO
 
 from app.core.config import settings
 from app.db.database import SessionLocal
+from app.models.session import ClassSession
 from app.schemas.session import BehaviorLogCreate
 from app.services.admin import settings_service
+from app.services.snapshot_service import snapshot_service
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,10 @@ _model = None
 _model_lock = threading.Lock()
 _detectors: dict[int, dict] = {}
 _detectors_lock = threading.Lock()
+
+_last_snapshot_time: dict[int, float] = {}
+_snapshot_lock = threading.Lock()
+SNAPSHOT_COOLDOWN_SECONDS = 30
 
 _server_root = Path(__file__).resolve().parents[2]
 _initial_model_path = Path(MODEL_PATH)
@@ -226,6 +233,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                     logger.error(f"Preview error for session {session_id}: {exc}")
 
             counts = _empty_behavior_counts()
+            phone_detections = []
             for box in results[0].boxes:
                 cls_id = int(box.cls[0])
                 conf = float(box.conf[0])
@@ -234,10 +242,56 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 class_name = str(model.names[cls_id]).strip()
                 if class_name in counts:
                     counts[class_name] += 1
+                    if class_name == "using_phone" and snapshot_service.is_configured():
+                        bbox = box.xyxy[0].cpu().numpy().tolist()  # [x1, y1, x2, y2]
+                        phone_detections.append({"bbox": bbox, "label": "Phone", "confidence": conf})
+
+            log_data = BehaviorLogCreate(**counts)
+
+            if phone_detections and snapshot_service.is_configured():
+                should_upload = False
+                with _snapshot_lock:
+                    last_ts = _last_snapshot_time.get(session_id, 0.0)
+                    if current_time - last_ts >= SNAPSHOT_COOLDOWN_SECONDS:
+                        _last_snapshot_time[session_id] = current_time
+                        should_upload = True
+
+                if should_upload:
+                    try:
+                        db = SessionLocal()
+                        try:
+                            session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
+                            if session:
+                                if session.activity_mode == "EXAM":
+                                    snapshot_url = asyncio.run(
+                                        snapshot_service.upload_snapshot_with_detections(
+                                            frame,
+                                            phone_detections,
+                                            session_id,
+                                            "phone",
+                                            int(current_time),
+                                        )
+                                    )
+                                else:
+                                    snapshot_url = asyncio.run(
+                                        snapshot_service.upload_snapshot(
+                                            frame,
+                                            session_id,
+                                            "phone",
+                                            int(current_time),
+                                        )
+                                    )
+
+                                if snapshot_url:
+                                    setattr(log_data, "_snapshot_url", snapshot_url)
+                        finally:
+                            db.close()
+                    except Exception as exc:
+                        logger.error(f"Failed to capture snapshot for session {session_id}: {exc}")
 
             db = SessionLocal()
             try:
-                process_log_fn(db, session_id, BehaviorLogCreate(**counts))
+                process_log_fn(db, session_id, log_data)
             except Exception as exc:
                 logger.error(f"Detector failed to log metrics for session {session_id}: {exc}")
             finally:
