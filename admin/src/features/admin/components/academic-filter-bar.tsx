@@ -72,8 +72,7 @@ export function AcademicFilterBar({
               const value = e.target.value ? Number(e.target.value) : null;
               onChange({ department_id: value, major_id: null });
             }}
-            className="bg-transparent text-xs font-semibold outline-none"
-            disabled={!filters.college_id}
+            className="bg-transparent text-xs font-semibold outline-none w-full"
           >
             <option value="">All departments</option>
             {departments.map((department) => (
@@ -91,13 +90,12 @@ export function AcademicFilterBar({
               const value = e.target.value ? Number(e.target.value) : null;
               onChange({ major_id: value });
             }}
-            className="bg-transparent text-xs font-semibold outline-none"
-            disabled={!filters.department_id}
+            className="bg-transparent text-xs font-semibold outline-none w-full"
           >
             <option value="">All majors</option>
             {majors.map((major) => (
               <option key={major.id} value={major.id}>
-                {major.code}
+                {major.name} ({major.code})
               </option>
             ))}
           </select>

@@ -121,6 +121,8 @@ export type AdminAcademicFilters = {
   college_id?: number | null;
   department_id?: number | null;
   major_id?: number | null;
+  section_id?: number | null;
+  subject_id?: number | null;
   date_from?: string | null; // YYYY-MM-DD
   date_to?: string | null; // YYYY-MM-DD
   date_preset?: AdminAcademicDatePreset | null;
@@ -143,6 +145,45 @@ export type AdminSection = {
   teacher_fullname: string | null;
   teacher_profile_picture_url: string | null;
   created_at: string | null;
+};
+
+export type AdminClassAssignmentStatus = "assigned" | "unassigned_teacher" | "invalid_mapping";
+
+export type AdminClassSectionRef = {
+  id: number;
+  name: string;
+  major_id: number | null;
+  major_name: string | null;
+  department_id: number | null;
+  department_name: string | null;
+  year_level: number | null;
+  section_code: string | null;
+};
+
+export type AdminClassSubjectRef = {
+  id: number;
+  name: string;
+  code: string | null;
+  major_id: number | null;
+  major_name: string | null;
+};
+
+export type AdminClassTeacherRef = {
+  id: number | null;
+  fullname: string | null;
+  username: string | null;
+  department_id: number | null;
+  profile_picture_url: string | null;
+};
+
+export type AdminClassAssignment = {
+  id: number;
+  section: AdminClassSectionRef;
+  subject: AdminClassSubjectRef;
+  teacher: AdminClassTeacherRef;
+  status: AdminClassAssignmentStatus;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 export type AdminSession = {
@@ -290,6 +331,7 @@ export type AdminSettings = {
     using_phone: number;
     sleeping: number;
     off_task: number;
+    not_visible: number;
   };
   admin_ops: {
     enable_admin_log_stream: boolean;

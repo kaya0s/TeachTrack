@@ -26,6 +26,7 @@ import type {
   AdminSettingsUpdate,
   AdminBackupRun,
   AdminMediaUploadResponse,
+  AdminClassAssignment,
 } from "@/features/admin/types";
 
 export type {
@@ -51,6 +52,7 @@ export type {
   AdminSettingsUpdate,
   AdminBackupRun,
   AdminMediaUploadResponse,
+  AdminClassAssignment,
 };
 
 function toQueryString(params: Record<string, string | number | boolean | null | undefined>) {
@@ -68,6 +70,8 @@ export function buildAcademicFilterQuery(filters: AdminAcademicFilters = {}): st
     college_id: filters.college_id ?? undefined,
     department_id: filters.department_id ?? undefined,
     major_id: filters.major_id ?? undefined,
+    section_id: filters.section_id ?? undefined,
+    subject_id: filters.subject_id ?? undefined,
     date_from: filters.date_from ?? undefined,
     date_to: filters.date_to ?? undefined,
   });
@@ -385,11 +389,30 @@ export async function uploadAdminMedia(file: File, entity: "college" | "departme
 }
 
 // Class endpoints
-export async function createClass(payload: any) {
+export async function getClasses(params: string | AdminAcademicFilters = "") {
+  const query = typeof params === "string" ? params : buildAcademicFilterQuery(params);
+  return httpRequest(`/admin/classes${query}`);
+}
+
+export async function createClass(payload: any): Promise<AdminClassAssignment> {
   return httpRequest("/admin/classes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateClass(classAssignmentId: number, payload: any): Promise<AdminClassAssignment> {
+  return httpRequest(`/admin/classes/${classAssignmentId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteClass(classAssignmentId: number) {
+  return httpRequest(`/admin/classes/${classAssignmentId}`, {
+    method: "DELETE",
   });
 }
 

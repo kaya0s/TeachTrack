@@ -10,7 +10,7 @@ type AlertDialogProps = {
     onClose: () => void;
     onConfirm: () => void;
     title: string;
-    description: string;
+    description: React.ReactNode;
     confirmText?: string;
     cancelText?: string;
     variant?: "default" | "danger";

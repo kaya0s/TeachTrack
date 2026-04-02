@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BrainCircuit, BarChart3, BookOpen, Cog, Database, LayoutDashboard, LifeBuoy, ScrollText, Users, School } from "lucide-react";
+import { BrainCircuit, BarChart3, BookOpen, Cog, Database, LayoutDashboard, LifeBuoy, ScrollText, Users, School, Layers3, BarChart4 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -10,15 +10,16 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/sessions", label: "Sessions", icon: BarChart3 },
   { href: "/teachers", label: "Teachers", icon: Users },
-  { href: "/subjects", label: "Subjects", icon: BookOpen },
   { href: "/colleges", label: "Colleges", icon: School },
-  { href: "/sections", label: "Sections", icon: BookOpen },
+  { href: "/subjects-and-sections", label: "Subjects & Sections", icon: Layers3 },
+  { href: "/sessions", label: "Sessions", icon: BarChart3 },
+  { href: "/classes", label: "Classes", icon: BookOpen },
   { href: "/models", label: "Models", icon: BrainCircuit },
   { href: "/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/backup", label: "Backup", icon: Database },
   { href: "/settings", label: "Settings", icon: Cog },
+  { href: "/methodology", label: "Methodology", icon: BarChart4 },
 ];
 
 export function AppSidebar({ onNavigateStart }: { onNavigateStart?: () => void }) {

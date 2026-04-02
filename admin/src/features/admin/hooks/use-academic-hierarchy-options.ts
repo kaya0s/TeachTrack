@@ -47,11 +47,7 @@ export function useAcademicHierarchyOptions(filters: AdminAcademicFilters): Stat
     const collegeId = filters.college_id ?? null;
     const hasDepartmentSelection = Boolean(filters.department_id);
 
-    if (!collegeId && !hasDepartmentSelection) {
-      setDepartments([]);
-      return;
-    }
-
+    // Relaxed: Fetches all departments if no college/department selection is present
     setLoadingDepartments(true);
     const request = collegeId
       ? getDepartments(collegeId, "?limit=500")
@@ -79,11 +75,7 @@ export function useAcademicHierarchyOptions(filters: AdminAcademicFilters): Stat
     const departmentId = filters.department_id ?? null;
     const hasMajorSelection = Boolean(filters.major_id);
 
-    if (!departmentId && !hasMajorSelection) {
-      setMajors([]);
-      return;
-    }
-
+    // Relaxed: Fetches all majors if no department/major selection is present
     setLoadingMajors(true);
     const request = departmentId
       ? getMajors(undefined, "?limit=500", departmentId)

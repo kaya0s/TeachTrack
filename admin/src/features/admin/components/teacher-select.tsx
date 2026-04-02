@@ -72,7 +72,12 @@ export function TeacherSelect({
                                     </span>
                                 )}
                             </div>
-                            <span className="font-medium">{teacherName(selectedTeacher)}</span>
+                            <div className="min-w-0 flex flex-col">
+                                <span className="truncate font-medium">{teacherName(selectedTeacher)}</span>
+                                <span className="truncate text-[10px] text-muted-foreground">
+                                    {selectedTeacher.department_name ?? "No department"}
+                                </span>
+                            </div>
                         </>
                     ) : (
                         <span className="text-muted-foreground">{placeholder}</span>
@@ -126,6 +131,9 @@ export function TeacherSelect({
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate font-semibold">{teacherName(teacher)}</p>
+                                        <p className="truncate text-[10px] text-muted-foreground">
+                                            {teacher.department_name ?? "No department"}
+                                        </p>
                                         <p className="truncate text-[10px] text-muted-foreground">{teacher.email}</p>
                                     </div>
                                     {value === teacher.id && (

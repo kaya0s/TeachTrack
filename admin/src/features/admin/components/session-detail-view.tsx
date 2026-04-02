@@ -146,28 +146,43 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                     ]}
                     heightClassName="h-72"
                 />
+
+                <SessionTrendChart
+                    title="Engagement Score Over Time (per minute)"
+                    data={detail.metrics_rollup.map(row => ({
+                        time: new Date(row.window_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        engagement: row.engagement_score
+                    }))}
+                    xLabel={(row) => String(row.time)}
+                    centerMode="mean"
+                    smoothCurves
+                    lines={[
+                        { key: "engagement", label: "Engagement %", colorClass: "bg-primary", stroke: "hsl(var(--primary))" }
+                    ]}
+                    heightClassName="h-72"
+                />
             </div>
 
             <div className="rounded-xl border border-border bg-card">
                 <div className="border-b border-border px-4 py-3 bg-muted/20">
-                    <h4 className="text-sm font-semibold">Latest behavior stream ({Math.min(12, detail.logs.length)} entries)</h4>
+                    <h4 className="text-sm font-semibold">Behavior stream logs ({detail.logs.length} entries)</h4>
                 </div>
-                <div className="max-h-72 overflow-y-auto p-2">
+                <div className="max-h-96 overflow-y-auto p-0">
                     {detail.logs.length ? (
                         <Table>
-                            <THead>
-                                <TR><TH>Time</TH><TH>Task</TH><TH>Sleep</TH><TH>Phone</TH><TH>Off Task</TH><TH>Invisible</TH><TH>Total</TH></TR>
+                            <THead className="sticky top-0 bg-card z-10 shadow-sm">
+                                <TR><TH className="px-4">Time</TH><TH>Task</TH><TH>Sleep</TH><TH>Phone</TH><TH>Off Task</TH><TH>Invisible</TH><TH className="pr-4">Total</TH></TR>
                             </THead>
                             <TBody>
-                                {[...detail.logs].reverse().slice(0, 12).map((log, idx) => (
+                                {[...detail.logs].reverse().map((log, idx) => (
                                     <TR key={`${log.timestamp}-${idx}`}>
-                                        <TD className="text-xs font-mono">{new Date(log.timestamp).toLocaleTimeString()}</TD>
+                                        <TD className="px-4 text-xs font-mono">{new Date(log.timestamp).toLocaleTimeString()}</TD>
                                         <TD>{log.on_task}</TD>
                                         <TD>{log.sleeping}</TD>
                                         <TD>{log.using_phone}</TD>
                                         <TD>{log.off_task}</TD>
                                         <TD className="text-muted-foreground">{log.not_visible}</TD>
-                                        <TD className="font-semibold">{log.total_detected}</TD>
+                                        <TD className="pr-4 font-semibold">{log.total_detected}</TD>
                                     </TR>
                                 ))}
                             </TBody>
