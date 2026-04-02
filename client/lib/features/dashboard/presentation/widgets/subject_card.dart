@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
+import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
 import 'package:teachtrack/features/auth/presentation/providers/auth_provider.dart';
 import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
@@ -97,9 +98,11 @@ class _SubjectCardState extends State<SubjectCard> {
   Widget build(BuildContext context) {
     final subject = widget.subject;
     final imageUrl = resolveImageUrl(subject.coverImageUrl);
-    final collegeLogoUrl = resolveImageUrl(subject.collegeLogoPath);
     final collegeName = _subjectCollegeName(subject);
     final theme = Theme.of(context);
+    final majorLabel = (subject.majorCode?.trim().isNotEmpty == true)
+        ? subject.majorCode
+        : subject.majorName;
 
     return Material(
       color: theme.cardColor,
@@ -162,38 +165,11 @@ class _SubjectCardState extends State<SubjectCard> {
                       ),
                     ],
                     const SizedBox(height: 1),
-                    Row(
-                      children: [
-                        Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: theme.dividerColor.withOpacity(0.55)),
-                          ),
-                          child: ClipOval(
-                            child: collegeLogoUrl == null
-                                ? Icon(Icons.school_rounded, size: 12, color: theme.colorScheme.primary)
-                                : Image.network(
-                                    collegeLogoUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Icon(Icons.school_rounded, size: 12, color: theme.colorScheme.primary),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            collegeName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                    HierarchyMetaRow(
+                      collegeName: subject.collegeName ?? collegeName,
+                      departmentName: subject.departmentName,
+                      majorLabel: majorLabel,
+                      collegeLogoPath: subject.collegeLogoPath,
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -213,10 +189,10 @@ class _SubjectCardState extends State<SubjectCard> {
                           "${subject.sections.length} sections",
                           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right_rounded,
                           size: 20,
-                          color: Colors.grey,
+                          color: theme.colorScheme.secondary,
                         ),
                       ],
                     ),

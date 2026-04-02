@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:teachtrack/core/utils/image_url_resolver.dart';
 import 'package:teachtrack/features/auth/presentation/providers/auth_provider.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
@@ -25,9 +26,14 @@ class AccountTab extends StatelessWidget {
     // Determine college - Prioritize explicit college info from User Profile
     String collegeName = user?.collegeName ?? 'Instructor';
     String? collegeLogoPath = user?.collegeLogoPath;
-    
+
+    // Determine department - Prioritize explicit department info from User Profile
+    String? departmentName = user?.departmentName;
+    String? departmentCoverImageUrl = user?.departmentCoverImageUrl;
+
     // Fallback if missing in profile
-    if (user?.collegeName == null || user!.collegeName!.trim().isEmpty) {
+    final userCollegeName = user?.collegeName?.trim();
+    if (userCollegeName == null || userCollegeName.isEmpty) {
       if (classroom.subjects.isNotEmpty) {
         final Map<String, int> counts = {};
         final Map<String, String?> logos = {};
@@ -44,6 +50,29 @@ class AccountTab extends StatelessWidget {
         }
       }
     }
+
+    // Fallback department from classroom subjects
+    if (departmentName == null || departmentName.trim().isEmpty) {
+      if (classroom.subjects.isNotEmpty) {
+        final Map<String, int> counts = {};
+        final Map<String, String?> coverUrls = {};
+        for (final s in classroom.subjects) {
+          if (s.departmentName != null && s.departmentName!.trim().isNotEmpty) {
+            counts[s.departmentName!] = (counts[s.departmentName!] ?? 0) + 1;
+            coverUrls[s.departmentName!] = s.departmentCoverImageUrl;
+          }
+        }
+        if (counts.isNotEmpty) {
+          final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          departmentName = sorted.first.key;
+          departmentCoverImageUrl = coverUrls[departmentName];
+        }
+      }
+    }
+
+    final collegeLogoUrl = resolveImageUrl(collegeLogoPath);
+    final deptCoverUrl = resolveImageUrl(departmentCoverImageUrl);
+    final deptLabel = departmentName?.trim();
 
     final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
@@ -179,7 +208,29 @@ class AccountTab extends StatelessWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.school_rounded, color: isDark ? Colors.white70 : colorScheme.primary, size: 14),
+                                    if (collegeLogoUrl != null) ...[
+                                      Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: (isDark ? Colors.white : colorScheme.primary).withOpacity(0.25),
+                                          ),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: Image.network(
+                                          collegeLogoUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(
+                                            Icons.school_rounded,
+                                            color: isDark ? Colors.white70 : colorScheme.primary,
+                                            size: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ] else
+                                      Icon(Icons.school_rounded, color: isDark ? Colors.white70 : colorScheme.primary, size: 14),
                                     const SizedBox(width: 8),
                                     Flexible(
                                       child: Text(collegeName, 
@@ -196,6 +247,58 @@ class AccountTab extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                              if (deptLabel != null && deptLabel.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: (isDark ? Colors.white : colorScheme.primary).withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (deptCoverUrl != null) ...[
+                                        Container(
+                                          width: 22,
+                                          height: 16,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: (isDark ? Colors.white : colorScheme.primary).withOpacity(0.25),
+                                            ),
+                                          ),
+                                          clipBehavior: Clip.antiAlias,
+                                          child: Image.network(
+                                            deptCoverUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.apartment_rounded,
+                                              color: isDark ? Colors.white70 : colorScheme.primary,
+                                              size: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ] else
+                                        Icon(Icons.apartment_rounded, color: isDark ? Colors.white70 : colorScheme.primary, size: 14),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          deptLabel,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: isDark ? Colors.white70 : colorScheme.primary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -323,6 +426,23 @@ class AccountTab extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 24),
+
+        // ── Methodology Section ──────────────────────────────────────────────
+        _SectionLabel('SUPPORT & TRANSPARENCY', theme),
+        _GroupedCard(
+          theme: theme,
+          tiles: [
+            _SettingTile(
+              icon: Icons.calculate_outlined,
+              color: const Color(0xFF6C63FF),
+              title: 'How Engagement is Calculated',
+              subtitle: 'Learn about our scoring methodology',
+              onTap: () => _showMethodology(context, theme),
+              theme: theme,
+            ),
+          ],
+        ),
         const SizedBox(height: 48),
         Center(
           child: Column(
@@ -437,6 +557,126 @@ class AccountTab extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showMethodology(BuildContext context, ThemeData theme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: theme.hintColor.withOpacity(0.2), 
+                    borderRadius: BorderRadius.circular(2)
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C63FF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.calculate_rounded, color: Color(0xFF6C63FF), size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Methodology', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -1)),
+                        Text('The logic behind your scores', style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
+              _MethodologyStep(
+                step: "1",
+                icon: Icons.person_add_rounded,
+                title: "Initial Headcount",
+                desc: "The teacher defines the total number of students present. This becomes our base for calculation.",
+                theme: theme,
+              ),
+              _MethodologyStep(
+                step: "2",
+                icon: Icons.camera_alt_rounded,
+                title: "AI Analysis",
+                desc: "The AI counts behaviors (On-Task, Phone, Sleep). Students not seen are automatically marked 'Not Visible'.",
+                theme: theme,
+              ),
+              _MethodologyStep(
+                step: "3",
+                icon: Icons.auto_awesome_rounded,
+                title: "Scoring Weight",
+                desc: "Every behavior has a weight. Distractions subtract from the potential 100% score based on admin-defined rules.",
+                theme: theme,
+                isLast: true,
+              ),
+
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+                ),
+                child: Column(
+                  children: [
+                    Text("Live Formula Breakdown", style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                    const SizedBox(height: 16),
+                    const _FormulaRow(label: "On-Task", icon: Icons.check_circle_outline, value: "Points +", color: Colors.green),
+                    const _FormulaRow(label: "Distractions", icon: Icons.error_outline, value: "Points -", color: Colors.red),
+                    const Divider(height: 32),
+                    const Text(
+                      "Sum of Behaviors ÷ Total Headcount",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
+                "Why is 'Not Visible' accounted for?",
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "To ensure 100% accuracy, we track students the camera can't currently see. This creates a realistic classroom average rather than just a best-case scenario.",
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor, height: 1.5),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -681,6 +921,82 @@ class _ThemeItem extends StatelessWidget {
       title: Text(title, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: selected ? theme.colorScheme.primary : theme.textTheme.bodyLarge?.color)),
       trailing: selected ? Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary, size: 24) : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+}
+
+class _MethodologyStep extends StatelessWidget {
+  final String step;
+  final IconData icon;
+  final String title;
+  final String desc;
+  final ThemeData theme;
+  final bool isLast;
+
+  const _MethodologyStep({required this.step, required this.icon, required this.title, required this.desc, required this.theme, this.isLast = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Text(step, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            if (!isLast)
+              Container(width: 2, height: 40, color: theme.dividerColor.withOpacity(0.2)),
+          ],
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 18, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(desc, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor, height: 1.4)),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FormulaRow extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final String value;
+  final Color color;
+
+  const _FormulaRow({required this.label, required this.icon, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 13)),
+        ],
+      ),
     );
   }
 }

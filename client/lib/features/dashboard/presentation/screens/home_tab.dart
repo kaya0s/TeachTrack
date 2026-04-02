@@ -11,6 +11,8 @@ import 'package:teachtrack/features/session/presentation/screens/session_history
 import 'package:teachtrack/features/dashboard/presentation/widgets/start_session_bottom_sheet.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
+import 'package:teachtrack/core/utils/image_url_resolver.dart';
   
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -59,6 +61,10 @@ class _HomeTabState extends State<HomeTab> {
     // Determine college - Prioritize explicit college info from User Profile
     String collegeName = user?.collegeName ?? 'Instructor';
     String? collegeLogoPath = user?.collegeLogoPath;
+
+    // Determine department - Prioritize explicit department info from User Profile
+    String? departmentName = user?.departmentName;
+    String? departmentCoverImageUrl = user?.departmentCoverImageUrl;
     
     // If user's college info is not in the profile, fall back to inferring from subjects
     if (user?.collegeName == null || user!.collegeName!.trim().isEmpty) {
@@ -75,6 +81,25 @@ class _HomeTabState extends State<HomeTab> {
           final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
           collegeName = sorted.first.key;
           collegeLogoPath = logos[collegeName];
+        }
+      }
+    }
+
+    // If user's department info is not in the profile, fall back to inferring from subjects
+    if (departmentName == null || departmentName.trim().isEmpty) {
+      if (classroom.subjects.isNotEmpty) {
+        final Map<String, int> counts = {};
+        final Map<String, String?> coverUrls = {};
+        for (final s in classroom.subjects) {
+          if (s.departmentName != null && s.departmentName!.trim().isNotEmpty) {
+            counts[s.departmentName!] = (counts[s.departmentName!] ?? 0) + 1;
+            coverUrls[s.departmentName!] = s.departmentCoverImageUrl;
+          }
+        }
+        if (counts.isNotEmpty) {
+          final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          departmentName = sorted.first.key;
+          departmentCoverImageUrl = coverUrls[departmentName];
         }
       }
     }
@@ -150,6 +175,8 @@ class _HomeTabState extends State<HomeTab> {
               greeting: greeting,
               fullName: fullName,
               collegeName: collegeName,
+              departmentName: departmentName,
+              departmentCoverImageUrl: departmentCoverImageUrl,
               collegeLogoPath: collegeLogoPath,
               profilePictureUrl: user?.profilePictureUrl,
               userInitial: user?.firstname?.isNotEmpty == true
@@ -284,6 +311,8 @@ class _HeroHeader extends StatelessWidget {
   final String greeting;
   final String fullName;
   final String collegeName;
+  final String? departmentName;
+  final String? departmentCoverImageUrl;
   final String? collegeLogoPath;
   final String? profilePictureUrl;
   final String userInitial;
@@ -294,6 +323,8 @@ class _HeroHeader extends StatelessWidget {
     required this.greeting,
     required this.fullName,
     required this.collegeName,
+    required this.departmentName,
+    required this.departmentCoverImageUrl,
     required this.collegeLogoPath,
     required this.profilePictureUrl,
     required this.userInitial,
@@ -449,6 +480,44 @@ class _HeroHeader extends StatelessWidget {
                               ),
                             ],
                           ),
+                          if (departmentName?.trim().isNotEmpty == true) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                if (resolveImageUrl(departmentCoverImageUrl) != null) ...[
+                                  Container(
+                                    width: 22,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white.withOpacity(0.12) : colorScheme.primary.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: Image.network(
+                                      resolveImageUrl(departmentCoverImageUrl)!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(Icons.apartment_rounded, size: 16, color: subColor),
+                                    ),
+                                  ),
+                                ] else
+                                  Icon(Icons.apartment_rounded, size: 16, color: subColor),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    departmentName!.trim(),
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -579,6 +648,7 @@ class _CollegeLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logoUrl = resolveImageUrl(logoPath);
     return Container(
       width: size,
       height: size,
@@ -590,9 +660,9 @@ class _CollegeLogo extends StatelessWidget {
         ),
       ),
       child: ClipOval(
-        child: logoPath != null && logoPath!.isNotEmpty
+        child: logoUrl != null
             ? Image.network(
-                logoPath!,
+                logoUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _buildPlaceholder(),
               )
@@ -1170,7 +1240,12 @@ class _RecentSessionsList extends StatelessWidget {
           final s = e.value;
           final color = _engagementColor(s.averageEngagement);
           final subject = _findSubject(s.subjectId);
-          final logoPath = subject?.collegeLogoPath;
+          final logoPath = (s.collegeLogoPath?.trim().isNotEmpty == true)
+              ? s.collegeLogoPath
+              : subject?.collegeLogoPath;
+          final majorLabel = (s.majorCode?.trim().isNotEmpty == true)
+              ? s.majorCode
+              : (s.majorName ?? subject?.majorCode ?? subject?.majorName);
 
           return Column(
             children: [
@@ -1212,7 +1287,14 @@ class _RecentSessionsList extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 4),
+                            HierarchyMetaRow(
+                              collegeName: s.collegeName ?? subject?.collegeName,
+                              departmentName: s.departmentName ?? subject?.departmentName,
+                              majorLabel: majorLabel,
+                              collegeLogoPath: logoPath,
+                            ),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 Icon(Icons.groups_rounded,
@@ -1313,7 +1395,8 @@ class _SessionCardLeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (logoPath != null && logoPath!.isNotEmpty) {
+    final logoUrl = resolveImageUrl(logoPath);
+    if (logoUrl != null) {
       return Container(
         width: 42,
         height: 42,
@@ -1324,7 +1407,7 @@ class _SessionCardLeading extends StatelessWidget {
         ),
         child: ClipOval(
           child: Image.network(
-            logoPath!,
+            logoUrl,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _buildFallback(),
           ),

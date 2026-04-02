@@ -13,6 +13,7 @@ import 'classes_tab.dart';
 import 'active_sessions_tab.dart';
 import 'notifications_tab.dart';
 import 'account_tab.dart';
+import 'package:teachtrack/features/notifications/domain/models/notification_model.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,6 +25,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   // Index mapping: 0=Home, 1=Classes, 2=ActiveSessions, 3=Notifications, 4=Account
   bool _didInitialSessionCheck = false;
+  int _lastNotificationId = 0;
 
 
   static const List<Widget> _pages = [
@@ -47,8 +49,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.didChangeDependencies();
     if (!_didInitialSessionCheck) {
       final session = Provider.of<SessionProvider>(context);
+      final notifications = Provider.of<NotificationProvider>(context, listen: false);
+      
       if (!session.isLoading) {
         _didInitialSessionCheck = true;
+        
+        // Initial load to set baseline for notifications
+        notifications.load(silent: true).then((_) {
+          if (mounted && notifications.items.isNotEmpty) {
+            _lastNotificationId = notifications.items.first.id;
+          }
+        });
+
+        notifications.startBackgroundPolling();
+        notifications.addListener(_handleNotificationUpdate);
+
         if (session.activeSession != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -58,6 +73,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     }
+  }
+
+  void _handleNotificationUpdate() {
+    if (!mounted) return;
+    final notifications = context.read<NotificationProvider>();
+    if (notifications.items.isNotEmpty) {
+      // Find the absolute maximum ID in the current list
+      final int maxIdInList = notifications.items
+          .map((i) => i.id)
+          .fold(0, (prev, id) => id > prev ? id : prev);
+      
+      // If we see a newer ID than our baseline
+      if (maxIdInList > _lastNotificationId) {
+        final previousBase = _lastNotificationId;
+        _lastNotificationId = maxIdInList;
+
+        // Only show if we had a baseline (so it's a truly new arrival)
+        if (previousBase != 0) {
+          // Find the specific notification(s) that are new and unread
+          final newUnread = notifications.items
+              .where((i) => i.id > previousBase && !i.isRead)
+              .toList();
+          
+          if (newUnread.isNotEmpty) {
+            // Show the very newest one
+            newUnread.sort((a, b) => b.id.compareTo(a.id));
+            _showHeadsUp(newUnread.first);
+          }
+        }
+      } else if (maxIdInList < _lastNotificationId && notifications.items.length < 5) {
+        // If the list was severely cleared, reset baseline
+        _lastNotificationId = maxIdInList;
+      }
+    }
+  }
+
+  void _showHeadsUp(TeacherNotificationModel notification) {
+    if (!mounted) return;
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (context) => _HeadsUpAlert(
+        notification: notification,
+        onDismiss: () {
+          if (entry.mounted) entry.remove();
+        },
+        onTap: () {
+          if (entry.mounted) entry.remove();
+          context.read<NavigationProvider>().setIndex(3);
+        },
+      ),
+    );
+
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 5), () {
+      if (entry.mounted) entry.remove();
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<NotificationProvider>().removeListener(_handleNotificationUpdate);
+    super.dispose();
   }
 
   @override
@@ -275,20 +354,41 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSelected = currentIndex == index;
+    final notifications = context.watch<NotificationProvider>();
+    final showBadge = index == 3 && notifications.unreadCount > 0;
+    
     return InkWell(
       onTap: () => onTap(index),
       borderRadius: BorderRadius.circular(28),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              isSelected ? activeIcon : icon,
-              key: ValueKey(isSelected),
-              color: isSelected ? activeColor : inactiveColor,
-              size: 22,
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  isSelected ? activeIcon : icon,
+                  key: ValueKey(isSelected),
+                  color: isSelected ? activeColor : inactiveColor,
+                  size: 22,
+                ),
+              ),
+              if (showBadge)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    height: 8,
+                    width: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 3),
           AnimatedDefaultTextStyle(
@@ -488,6 +588,146 @@ class _ProfileIconButton extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+class _HeadsUpAlert extends StatefulWidget {
+  final TeacherNotificationModel notification;
+  final VoidCallback onDismiss;
+  final VoidCallback onTap;
+
+  const _HeadsUpAlert({
+    required this.notification,
+    required this.onDismiss,
+    required this.onTap,
+  });
+
+  @override
+  State<_HeadsUpAlert> createState() => _HeadsUpAlertState();
+}
+
+class _HeadsUpAlertState extends State<_HeadsUpAlert> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _offsetAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0, -1.2),
+      end: const Offset(0, 0.05), // Slight bounce down
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    ));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: SlideTransition(
+            position: _offsetAnimation,
+            child: Material(
+              color: Colors.transparent,
+              child: GestureDetector(
+                onTap: widget.onTap,
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1F2937) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        blurRadius: 0,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.notifications_active_rounded,
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.notification.title,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.notification.body,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.secondary,
+                                fontSize: 11,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: widget.onDismiss,
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),

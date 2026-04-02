@@ -37,6 +37,26 @@ class ClassroomRepository {
         .toList();
   }
 
+  Future<List<DepartmentModel>> getDepartments() async {
+    final response = await _apiClient.get('/classroom/departments');
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(DepartmentModel.fromJson)
+        .toList();
+  }
+
+  Future<List<MajorModel>> getMajors() async {
+    final response = await _apiClient.get('/classroom/majors');
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(MajorModel.fromJson)
+        .toList();
+  }
+
   Future<String> uploadSubjectCoverImage(String filePath) async {
     final fileName = filePath.split(RegExp(r'[\\/]')).last;
     final formData = FormData.fromMap({

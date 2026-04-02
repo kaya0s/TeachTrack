@@ -11,6 +11,10 @@ class UserModel {
   final int? collegeId;
   final String? collegeName;
   final String? collegeLogoPath;
+  final int? departmentId;
+  final String? departmentName;
+  final String? departmentCode;
+  final String? departmentCoverImageUrl;
 
   UserModel({
     required this.id,
@@ -25,6 +29,10 @@ class UserModel {
     this.collegeId,
     this.collegeName,
     this.collegeLogoPath,
+    this.departmentId,
+    this.departmentName,
+    this.departmentCode,
+    this.departmentCoverImageUrl,
   });
 
   String get displayName {
@@ -51,6 +59,10 @@ class UserModel {
       collegeId: (json['college_id'] as num?)?.toInt(),
       collegeName: json['college_name'] as String?,
       collegeLogoPath: json['college_logo_path'] as String?,
+      departmentId: (json['department_id'] as num?)?.toInt(),
+      departmentName: json['department_name'] as String?,
+      departmentCode: json['department_code'] as String?,
+      departmentCoverImageUrl: json['department_cover_image_url'] as String?,
     );
   }
 
@@ -68,6 +80,10 @@ class UserModel {
       'college_id': collegeId,
       'college_name': collegeName,
       'college_logo_path': collegeLogoPath,
+      'department_id': departmentId,
+      'department_name': departmentName,
+      'department_code': departmentCode,
+      'department_cover_image_url': departmentCoverImageUrl,
     };
   }
 }

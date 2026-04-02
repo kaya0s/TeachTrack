@@ -333,7 +333,8 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
   }
 
   Widget _buildStartButton(SessionProvider session, BuildContext context, ThemeData theme) {
-    final bool canStart = selectedSection != null && !isStarting;
+    final bool hasActive = session.activeSession != null;
+    final bool canStart = selectedSection != null && !isStarting && !hasActive;
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -353,13 +354,15 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
           height: 68,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: !canStart
-                  ? [theme.dividerColor.withOpacity(0.1), theme.dividerColor.withOpacity(0.05)]
-                  : [const Color(0xFF10B981), const Color(0xFF0D9488)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: !canStart
+                ? LinearGradient(
+                    colors: [theme.dividerColor.withOpacity(0.1), theme.dividerColor.withOpacity(0.05)],
+                  )
+                : const LinearGradient(
+                    colors: [Color(0xFF10B981), Color(0xFF0D9488)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
             boxShadow: !canStart ? [] : [
               BoxShadow(
                 color: const Color(0xFF10B981).withOpacity(0.3),
@@ -380,9 +383,9 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
               else ...[
                 const Icon(Icons.bolt_rounded, color: Colors.white, size: 24),
                 const SizedBox(width: 12),
-                const Text(
-                  "START LIVE SESSION",
-                  style: TextStyle(
+                Text(
+                  hasActive ? "SESSION ALREADY ACTIVE" : "START LIVE SESSION",
+                  style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 16,

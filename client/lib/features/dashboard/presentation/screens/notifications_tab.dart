@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
+import 'package:teachtrack/features/auth/presentation/providers/auth_provider.dart';
 import 'package:teachtrack/features/classroom/presentation/screens/subject_details_screen.dart';
 import 'package:teachtrack/features/notifications/domain/models/notification_model.dart';
 import 'package:teachtrack/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
+import 'package:teachtrack/core/utils/image_url_resolver.dart';
+import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 
 class NotificationsTab extends StatefulWidget {
   const NotificationsTab({super.key});
@@ -237,75 +240,187 @@ class _NotificationCard extends StatelessWidget {
     final accent = isAlert ? const Color(0xFFFF6B6B) : (read ? theme.colorScheme.outline : theme.colorScheme.primary);
     final timeStr = DateFormat('h:mm a').format(item.createdAt);
 
+    final classroom = context.watch<ClassroomProvider>();
+    SubjectModel? subject;
+    bool isNewAssignment = false;
+
+    try {
+      if (item.metadataJson != null && item.metadataJson!.isNotEmpty) {
+        final meta = jsonDecode(item.metadataJson!);
+        final dynamic sId = meta['subject_id'] ?? meta['SubjectId'];
+        final int? subjectId = sId is int ? sId : int.tryParse(sId?.toString() ?? '');
+        
+        if (subjectId != null) {
+          subject = classroom.subjects.where((s) => s.id == subjectId).firstOrNull;
+          // If not in current subjects, maybe in sections (if that helps)
+          if (subject == null && classroom.sections.isNotEmpty) {
+             // Fallback: try to find a section that belongs to this subject ID (less reliable but better than nothing)
+          }
+        }
+      }
+      
+      final title = item.title.toLowerCase();
+      final body = item.body.toLowerCase();
+      final type = item.type.toUpperCase();
+      
+      isNewAssignment = type.contains('ASSIGNMENT') || 
+                       title.contains('assigned') || 
+                       title.contains('new class') ||
+                       title.contains('subject') ||
+                       body.contains('assigned to you');
+    } catch (_) {}
+
+    final user = context.watch<AuthProvider>().user;
+    final departmentImg = isNewAssignment 
+        ? (resolveImageUrl(subject?.departmentCoverImageUrl) ?? resolveImageUrl(user?.departmentCoverImageUrl))
+        : null;
+    final collegeLogo = isNewAssignment 
+        ? (resolveImageUrl(subject?.collegeLogoPath) ?? resolveImageUrl(user?.collegeLogoPath))
+        : null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(read ? 0.4 : 0.8)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isNewAssignment 
+              ? theme.colorScheme.primary.withValues(alpha: read ? 0.15 : 0.35)
+              : theme.dividerColor.withValues(alpha: read ? 0.15 : 0.45),
+          width: 0.8,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: (isNewAssignment ? theme.colorScheme.primary : Colors.black)
+                .withValues(alpha: read ? 0.01 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Background Image for Assignment
+          if (departmentImg != null)
+            Positioned.fill(
+              child: Opacity(
+                opacity: theme.brightness == Brightness.dark ? 0.35 : 0.20,
+                child: Image.network(
+                  departmentImg,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
-                child: Icon(_getIcon(item.type), color: accent, size: 20),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+            ),
+          
+          // Gradient overlay for readability
+          if (departmentImg != null)
+             Positioned.fill(
+               child: Container(
+                 decoration: BoxDecoration(
+                   gradient: LinearGradient(
+                     begin: Alignment.topLeft,
+                     end: Alignment.bottomRight,
+                     colors: [
+                       theme.cardColor.withOpacity(0.4),
+                       theme.cardColor.withOpacity(0.9),
+                     ],
+                   ),
+                 ),
+               ),
+             ),
+
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Icon or Logo
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: isNewAssignment 
+                          ? Colors.white.withOpacity(theme.brightness == Brightness.dark ? 0.1 : 0.8)
+                          : accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: isNewAssignment ? Border.all(color: theme.dividerColor.withOpacity(0.2)) : null,
+                    ),
+                    padding: EdgeInsets.all(isNewAssignment && collegeLogo != null ? 6 : 12),
+                    child: (isNewAssignment && collegeLogo != null)
+                        ? Image.network(
+                            collegeLogo,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Icon(_getIcon(item.type), color: accent, size: 22),
+                          )
+                        : Icon(_getIcon(item.type), color: accent, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: read ? FontWeight.w600 : FontWeight.w800,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: read ? FontWeight.w600 : FontWeight.w900,
+                                  fontSize: 15,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
                             ),
-                          ),
+                            if (!read)
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: theme.cardColor, width: 2),
+                                ),
+                              ),
+                          ],
                         ),
-                        if (!read)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.body,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.7), 
+                            fontSize: 13,
+                            height: 1.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.access_time_rounded, size: 12, color: theme.hintColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              timeStr,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.hintColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.body,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary, fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      timeStr,
-                      style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

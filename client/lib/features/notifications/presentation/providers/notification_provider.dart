@@ -63,7 +63,7 @@ class NotificationProvider extends ChangeNotifier {
   /// Fast polling used while the NotificationsScreen is open (8 s).
   void startRealtimePolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       load(silent: true);
     });
   }
@@ -81,7 +81,7 @@ class NotificationProvider extends ChangeNotifier {
   /// the bell badge stays up-to-date without draining battery.
   void startBackgroundPolling() {
     _bgPollTimer?.cancel();
-    _bgPollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    _bgPollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       load(silent: true);
     });
   }

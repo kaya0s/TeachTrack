@@ -6,9 +6,13 @@ import 'package:teachtrack/features/classroom/presentation/providers/classroom_p
 import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/session/presentation/screens/session_detail_screen.dart';
+import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
+import 'package:teachtrack/core/utils/image_url_resolver.dart';
 
 class FilterState {
   final Set<String> colleges;
+  final Set<String> departments;
+  final Set<String> majors;
   final Set<String> subjects;
   final Set<String> sections;
   final Set<String> statuses;
@@ -20,6 +24,8 @@ class FilterState {
 
   FilterState({
     this.colleges = const {},
+    this.departments = const {},
+    this.majors = const {},
     this.subjects = const {},
     this.sections = const {},
     this.statuses = const {},
@@ -32,6 +38,8 @@ class FilterState {
 
   FilterState copyWith({
     Set<String>? colleges,
+    Set<String>? departments,
+    Set<String>? majors,
     Set<String>? subjects,
     Set<String>? sections,
     Set<String>? statuses,
@@ -44,6 +52,8 @@ class FilterState {
   }) {
     return FilterState(
       colleges: colleges ?? this.colleges,
+      departments: departments ?? this.departments,
+      majors: majors ?? this.majors,
       subjects: subjects ?? this.subjects,
       sections: sections ?? this.sections,
       statuses: statuses ?? this.statuses,
@@ -57,6 +67,8 @@ class FilterState {
 
   bool get isDefault =>
       colleges.isEmpty &&
+      departments.isEmpty &&
+      majors.isEmpty &&
       subjects.isEmpty &&
       sections.isEmpty &&
       statuses.isEmpty &&
@@ -100,6 +112,26 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         : 'Unknown';
   }
 
+  String _getDepartmentForSession(SessionSummaryModel session, List<SubjectModel> subjects) {
+    final direct = session.departmentName?.trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final subj = _findSubject(session.subjectId, subjects);
+    final fallback = subj?.departmentName?.trim();
+    return (fallback != null && fallback.isNotEmpty) ? fallback : 'Unknown';
+  }
+
+  String _getMajorForSession(SessionSummaryModel session, List<SubjectModel> subjects) {
+    final directCode = session.majorCode?.trim();
+    if (directCode != null && directCode.isNotEmpty) return directCode;
+    final directName = session.majorName?.trim();
+    if (directName != null && directName.isNotEmpty) return directName;
+    final subj = _findSubject(session.subjectId, subjects);
+    final fallbackCode = subj?.majorCode?.trim();
+    if (fallbackCode != null && fallbackCode.isNotEmpty) return fallbackCode;
+    final fallbackName = subj?.majorName?.trim();
+    return (fallbackName != null && fallbackName.isNotEmpty) ? fallbackName : 'Unknown';
+  }
+
   List<SessionSummaryModel> _applyFilters(
       List<SessionSummaryModel> history, List<SubjectModel> subjects) {
     var filtered = history.where((s) {
@@ -109,6 +141,16 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       if (_filter.colleges.isNotEmpty) {
         final cName = _getCollegeForSubject(s.subjectId, subjects);
         if (!_filter.colleges.contains(cName)) return false;
+      }
+
+      if (_filter.departments.isNotEmpty) {
+        final dName = _getDepartmentForSession(s, subjects);
+        if (!_filter.departments.contains(dName)) return false;
+      }
+
+      if (_filter.majors.isNotEmpty) {
+        final mLabel = _getMajorForSession(s, subjects);
+        if (!_filter.majors.contains(mLabel)) return false;
       }
 
       if (_filter.subjects.isNotEmpty && !_filter.subjects.contains(s.subjectName)) return false;
@@ -178,6 +220,12 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     final availableColleges = history.map((e) {
       return _getCollegeForSubject(e.subjectId, subjects);
     }).where((c) => c != 'Unknown').toSet().toList()..sort();
+    final availableDepartments = history.map((e) {
+      return _getDepartmentForSession(e, subjects);
+    }).where((d) => d != 'Unknown').toSet().toList()..sort();
+    final availableMajors = history.map((e) {
+      return _getMajorForSession(e, subjects);
+    }).where((m) => m != 'Unknown').toSet().toList()..sort();
 
     final newFilter = await showModalBottomSheet<FilterState>(
       context: context,
@@ -186,6 +234,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       builder: (_) => _FilterBottomSheet(
         initialState: _filter,
         availableColleges: availableColleges,
+        availableDepartments: availableDepartments,
+        availableMajors: availableMajors,
         availableSubjects: availableSubjects,
         availableSections: availableSections,
       ),
@@ -264,6 +314,18 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       addChip('College: $c', () {
         final updated = Set<String>.from(_filter.colleges)..remove(c);
         setState(() => _filter = _filter.copyWith(colleges: updated));
+      });
+    }
+    for (var d in _filter.departments) {
+      addChip('Dept: $d', () {
+        final updated = Set<String>.from(_filter.departments)..remove(d);
+        setState(() => _filter = _filter.copyWith(departments: updated));
+      });
+    }
+    for (var m in _filter.majors) {
+      addChip('Major: $m', () {
+        final updated = Set<String>.from(_filter.majors)..remove(m);
+        setState(() => _filter = _filter.copyWith(majors: updated));
       });
     }
     for (var s in _filter.subjects) {
@@ -411,9 +473,17 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                           itemBuilder: (context, index) {
                             final session = filteredSessions[index];
                             final subjModel = _findSubject(session.subjectId, subjects);
+                            final majorLabel = (session.majorCode?.trim().isNotEmpty == true)
+                                ? session.majorCode
+                                : (session.majorName ?? subjModel?.majorCode ?? subjModel?.majorName);
                             return _SessionListCard(
                               session: session,
-                              logoPath: subjModel?.collegeLogoPath,
+                              logoPath: (session.collegeLogoPath?.trim().isNotEmpty == true)
+                                  ? session.collegeLogoPath
+                                  : subjModel?.collegeLogoPath,
+                              collegeName: session.collegeName ?? subjModel?.collegeName,
+                              departmentName: session.departmentName ?? subjModel?.departmentName,
+                              majorLabel: majorLabel,
                               theme: theme,
                             );
                           },
@@ -473,11 +543,17 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 class _SessionListCard extends StatelessWidget {
   final SessionSummaryModel session;
   final String? logoPath;
+  final String? collegeName;
+  final String? departmentName;
+  final String? majorLabel;
   final ThemeData theme;
 
   const _SessionListCard({
     required this.session,
     required this.logoPath,
+    required this.collegeName,
+    required this.departmentName,
+    required this.majorLabel,
     required this.theme,
   });
 
@@ -504,6 +580,7 @@ class _SessionListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _engagementColor(session.averageEngagement);
+    final logoUrl = resolveImageUrl(logoPath);
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -534,7 +611,7 @@ class _SessionListCard extends StatelessWidget {
             child: Row(
               children: [
                 // Avatar / Logo
-                if (logoPath != null && logoPath!.isNotEmpty)
+                if (logoUrl != null)
                   Container(
                     width: 44,
                     height: 44,
@@ -543,7 +620,7 @@ class _SessionListCard extends StatelessWidget {
                       border: Border.all(color: theme.dividerColor),
                     ),
                     child: ClipOval(
-                      child: Image.network(logoPath!, fit: BoxFit.cover,
+                      child: Image.network(logoUrl, fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => _buildFallback(color)),
                     ),
                   )
@@ -564,6 +641,13 @@ class _SessionListCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
+                      HierarchyMetaRow(
+                        collegeName: collegeName,
+                        departmentName: departmentName,
+                        majorLabel: majorLabel,
+                        collegeLogoPath: logoPath,
+                      ),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           Icon(Icons.groups_rounded, size: 12, color: theme.colorScheme.secondary),
@@ -656,12 +740,16 @@ class _SessionListCard extends StatelessWidget {
 class _FilterBottomSheet extends StatefulWidget {
   final FilterState initialState;
   final List<String> availableColleges;
+  final List<String> availableDepartments;
+  final List<String> availableMajors;
   final List<String> availableSubjects;
   final List<String> availableSections;
 
   const _FilterBottomSheet({
     required this.initialState,
     required this.availableColleges,
+    required this.availableDepartments,
+    required this.availableMajors,
     required this.availableSubjects,
     required this.availableSections,
   });
@@ -836,6 +924,26 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                         children: widget.availableColleges.map((c) => _buildChoiceChip(
                           c, _state.colleges.contains(c),
                           () => _toggleSetItem(_state.colleges, c, (s) => setState(() => _state = _state.copyWith(colleges: s)))
+                        )).toList(),
+                      ),
+                    ],
+
+                    if (widget.availableDepartments.isNotEmpty) ...[
+                      _buildSectionHeader('Department'),
+                      Wrap(
+                        children: widget.availableDepartments.map((d) => _buildChoiceChip(
+                          d, _state.departments.contains(d),
+                          () => _toggleSetItem(_state.departments, d, (s) => setState(() => _state = _state.copyWith(departments: s)))
+                        )).toList(),
+                      ),
+                    ],
+
+                    if (widget.availableMajors.isNotEmpty) ...[
+                      _buildSectionHeader('Major'),
+                      Wrap(
+                        children: widget.availableMajors.map((m) => _buildChoiceChip(
+                          m, _state.majors.contains(m),
+                          () => _toggleSetItem(_state.majors, m, (s) => setState(() => _state = _state.copyWith(majors: s)))
                         )).toList(),
                       ),
                     ],

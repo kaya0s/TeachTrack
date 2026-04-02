@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
 import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
 import '../widgets/behavior_trend_chart.dart';
@@ -123,18 +124,31 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
         slivers: [
           SliverAppBar(
             pinned: true,
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: theme.colorScheme.onPrimary,
-            iconTheme: IconThemeData(color: theme.colorScheme.onPrimary),
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: theme.colorScheme.onPrimary),
-              onPressed: () => Navigator.of(context).pop(),
+            toolbarHeight: kToolbarHeight,
+            leadingWidth: kToolbarHeight,
+            backgroundColor: theme.colorScheme.surface,
+            foregroundColor: theme.colorScheme.onSurface,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: theme.colorScheme.onSurface),
+            leading: BackButton(
+              onPressed: () {
+                final navigator = Navigator.of(context);
+                if (navigator.canPop()) {
+                  navigator.pop();
+                  return;
+                }
+                final rootNavigator = Navigator.of(context, rootNavigator: true);
+                if (rootNavigator.canPop()) {
+                  rootNavigator.pop();
+                }
+              },
             ),
             title: Text(
               s.subjectName,
               style: TextStyle(
-                color: theme.colorScheme.onPrimary,
+                color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
               ),
@@ -147,8 +161,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
                       ? null
                       : () => _showExportSheet(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: theme.colorScheme.primary,
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
                     elevation: 0,
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
@@ -338,69 +352,100 @@ class _MetadataCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('MMM d, yyyy · h:mm a');
+    final majorLabel = (session.majorCode?.trim().isNotEmpty == true)
+        ? session.majorCode
+        : session.majorName;
+    final divider = theme.dividerColor.withValues(alpha: 0.6);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: divider),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.18)),
+                  ),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 18,
+                  ),
                 ),
-                child: Icon(Icons.info_outline_rounded,
-                    color: theme.colorScheme.primary, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Session Info',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _InfoRow(
-            icon: Icons.class_rounded,
-            label: 'Subject',
-            value: session.subjectName,
-            theme: theme,
-          ),
-          _InfoRow(
-            icon: Icons.groups_rounded,
-            label: 'Section',
-            value: session.sectionName,
-            theme: theme,
-          ),
-          _InfoRow(
-            icon: Icons.calendar_today_rounded,
-            label: 'Date',
-            value: fmt.format(session.startTime),
-            theme: theme,
-          ),
-          _InfoRow(
-            icon: Icons.timer_rounded,
-            label: 'Duration',
-            value: formatDuration(session.startTime, session.endTime),
-            theme: theme,
-          ),
-          _InfoRow(
-            icon: Icons.people_rounded,
-            label: 'Students',
-            value: '${metrics.studentsPresent} present',
-            theme: theme,
-          ),
-          _InfoRow(
-            icon: Icons.bar_chart_rounded,
-            label: 'Total Logs',
-            value: '${metrics.totalLogs} data points',
-            theme: theme,
-            isLast: true,
-          ),
-        ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Session Info',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            HierarchyMetaRow(
+              collegeName: session.collegeName,
+              departmentName: session.departmentName,
+              majorLabel: majorLabel,
+              collegeLogoPath: session.collegeLogoPath,
+            ),
+            const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.class_rounded,
+              label: 'Subject',
+              value: session.subjectName,
+              theme: theme,
+              divider: divider,
+            ),
+            _InfoRow(
+              icon: Icons.groups_rounded,
+              label: 'Section',
+              value: session.sectionName,
+              theme: theme,
+              divider: divider,
+            ),
+            _InfoRow(
+              icon: Icons.calendar_today_rounded,
+              label: 'Date',
+              value: fmt.format(session.startTime),
+              theme: theme,
+              divider: divider,
+            ),
+            _InfoRow(
+              icon: Icons.timer_rounded,
+              label: 'Duration',
+              value: formatDuration(session.startTime, session.endTime),
+              theme: theme,
+              divider: divider,
+            ),
+            _InfoRow(
+              icon: Icons.people_rounded,
+              label: 'Students',
+              value: '${metrics.studentsPresent} present',
+              theme: theme,
+              divider: divider,
+            ),
+            _InfoRow(
+              icon: Icons.bar_chart_rounded,
+              label: 'Total Logs',
+              value: '${metrics.totalLogs} ',
+              theme: theme,
+              divider: divider,
+              isLast: true,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -411,46 +456,55 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final ThemeData theme;
+  final Color divider;
   final bool isLast;
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
     required this.theme,
+    required this.divider,
     this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.62);
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
-              Icon(icon, size: 16, color: theme.colorScheme.secondary),
+              Icon(icon, size: 16, color: muted),
               const SizedBox(width: 10),
               Text(
                 label,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.secondary,
-                  fontWeight: FontWeight.w500,
+                  color: muted,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  value,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                  textAlign: TextAlign.end,
-                  maxLines: 2,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    value,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.right,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        if (!isLast) Divider(height: 1, color: theme.dividerColor),
+        if (!isLast) Divider(height: 1, color: divider),
       ],
     );
   }
@@ -624,11 +678,16 @@ class _BehaviorChartCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           if (total == 0)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('No behavior data available',
-                    style: TextStyle(color: Colors.grey)),
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No behavior data available',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             )
           else
@@ -1433,5 +1492,4 @@ class _ExportOption extends StatelessWidget {
     );
   }
 }
-
 

@@ -8,6 +8,7 @@ import 'package:teachtrack/features/session/presentation/providers/session_provi
 import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
 import 'package:teachtrack/features/session/presentation/widgets/students_present_dialog.dart';
+import 'package:teachtrack/core/providers/navigation_provider.dart';
 import '../widgets/subject_header.dart';
 import '../widgets/subject_overview_tab.dart';
 import '../widgets/subject_history_tab.dart';
@@ -57,12 +58,11 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
       Navigator.pop(context); // Close loading dialog
 
       if (success) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MonitoringScreen(sessionId: sessionProvider.activeSession!.id),
-          ),
-        );
+        // Redirection to Dashboard's Active Session Tab
+        if (context.mounted) {
+           context.read<NavigationProvider>().setIndex(2);
+           Navigator.popUntil(context, (route) => route.isFirst);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Failed to start session: ${sessionProvider.error}")),
@@ -88,17 +88,45 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
             final imageUrl = resolveImageUrl(currentSubject.coverImageUrl);
             final history = session.history.where((s) => s.subjectId == currentSubject.id).toList();
 
+            final theme = Theme.of(context);
             return Column(
               children: [
                 SubjectHeader(
                   subject: currentSubject,
                   imageUrl: imageUrl,
-                  collapseProgress: 0, // Simplified or can be animated later
+                  collapseProgress: 0,
                 ),
-                const TabBar(
+                TabBar(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  indicatorColor: theme.colorScheme.primary,
+                  indicatorWeight: 3,
+                  labelColor: theme.colorScheme.primary,
+                  unselectedLabelColor: theme.colorScheme.secondary.withValues(alpha: 0.55),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.4),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   tabs: [
-                    Tab(text: "Overview", icon: Icon(Icons.dashboard_outlined)),
-                    Tab(text: "History", icon: Icon(Icons.history_rounded)),
+                    Tab(
+                      height: 52,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.insights_rounded, size: 20, color: theme.colorScheme.primary),
+                          const SizedBox(width: 8),
+                          const Text("OVERVIEW"),
+                        ],
+                      ),
+                    ),
+                    Tab(
+                      height: 52,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history_rounded, size: 20, color: theme.colorScheme.primary),
+                          const SizedBox(width: 8),
+                          const Text("HISTORY"),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
                 Expanded(

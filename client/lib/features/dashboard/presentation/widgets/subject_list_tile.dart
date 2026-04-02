@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
+import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
 import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
 import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
@@ -72,7 +73,9 @@ class _SubjectListTileState extends State<SubjectListTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final imageUrl = resolveImageUrl(widget.subject.coverImageUrl);
-    final collegeLogoUrl = resolveImageUrl(widget.subject.collegeLogoPath);
+    final majorLabel = (widget.subject.majorCode?.trim().isNotEmpty == true)
+        ? widget.subject.majorCode
+        : widget.subject.majorName;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -138,36 +141,23 @@ class _SubjectListTileState extends State<SubjectListTile> {
                         ),
                       ],
                       const SizedBox(height: 4),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            if (collegeLogoUrl != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: const BoxDecoration(shape: BoxShape.circle),
-                                  child: ClipOval(child: Image.network(collegeLogoUrl, fit: BoxFit.cover)),
-                                ),
-                              ),
-                            Text(
-                              widget.subject.collegeName ?? 'General',
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.groups_rounded, size: 12, color: theme.colorScheme.secondary),
-                            const SizedBox(width: 4),
-                            Text(
-                              "${widget.subject.sections.length} sections",
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
-                              maxLines: 1,
-                            ),
-                          ],
-                        ),
+                      HierarchyMetaRow(
+                        collegeName: widget.subject.collegeName,
+                        departmentName: widget.subject.departmentName,
+                        majorLabel: majorLabel,
+                        collegeLogoPath: widget.subject.collegeLogoPath,
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.groups_rounded, size: 12, color: theme.colorScheme.secondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            "${widget.subject.sections.length} sections",
+                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+                            maxLines: 1,
+                          ),
+                        ],
                       ),
                     ],
                   ),

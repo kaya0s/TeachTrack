@@ -147,6 +147,15 @@ class SessionSummaryModel {
   final int sectionId;
   final String subjectName;
   final String sectionName;
+  final int? collegeId;
+  final String? collegeName;
+  final String? collegeLogoPath;
+  final int? departmentId;
+  final String? departmentName;
+  final String? departmentCode;
+  final int? majorId;
+  final String? majorName;
+  final String? majorCode;
   final DateTime startTime;
   final DateTime? endTime;
   final bool isActive;
@@ -158,6 +167,15 @@ class SessionSummaryModel {
     required this.sectionId,
     required this.subjectName,
     required this.sectionName,
+    this.collegeId,
+    this.collegeName,
+    this.collegeLogoPath,
+    this.departmentId,
+    this.departmentName,
+    this.departmentCode,
+    this.majorId,
+    this.majorName,
+    this.majorCode,
     required this.startTime,
     this.endTime,
     required this.isActive,
@@ -173,6 +191,15 @@ class SessionSummaryModel {
       sectionId: (json['section_id'] as num?)?.toInt() ?? 0,
       subjectName: (json['subject_name'] as String?) ?? '',
       sectionName: (json['section_name'] as String?) ?? '',
+      collegeId: (json['college_id'] as num?)?.toInt(),
+      collegeName: json['college_name'] as String?,
+      collegeLogoPath: json['college_logo_path'] as String?,
+      departmentId: (json['department_id'] as num?)?.toInt(),
+      departmentName: json['department_name'] as String?,
+      departmentCode: json['department_code'] as String?,
+      majorId: (json['major_id'] as num?)?.toInt(),
+      majorName: json['major_name'] as String?,
+      majorCode: json['major_code'] as String?,
       startTime: startRaw != null
           ? ApiDateUtils.parse(startRaw.toString())
           : DateTime.now(),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:teachtrack/core/utils/image_url_resolver.dart';
+import 'package:teachtrack/features/auth/presentation/providers/auth_provider.dart';
 import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
 import 'package:teachtrack/features/classroom/presentation/screens/subject_details_screen.dart';
@@ -18,8 +20,7 @@ class ClassesTab extends StatefulWidget {
 class _ClassesTabState extends State<ClassesTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String _selectedCollegeFilter = 'all';
-  ViewType _viewType = ViewType.grid; // Added view type state
+  ViewType _viewType = ViewType.grid;
 
   @override
   void initState() {
@@ -42,8 +43,6 @@ class _ClassesTabState extends State<ClassesTab> {
         (subject.code?.toLowerCase().contains(q) ?? false);
   }
 
-  // Removed _collegeLabel as it's no longer used for filtering logic
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -63,153 +62,178 @@ class _ClassesTabState extends State<ClassesTab> {
 
         final filtered = classroom.subjects.where((s) {
           if (!_matchesSearch(s, _searchQuery)) return false;
-          if (_selectedCollegeFilter == 'all') return true;
-          return s.collegeName == _selectedCollegeFilter; // Updated filtering logic
+          return true;
         }).toList();
+
+        final user = context.watch<AuthProvider>().user;
+        final firstSubject = classroom.subjects.firstOrNull;
+        final collegeLogoUrl = resolveImageUrl(firstSubject?.collegeLogoPath ?? user?.collegeLogoPath);
+
+        final deptId = firstSubject?.departmentId ?? user?.departmentId;
+        final deptName = (firstSubject?.departmentName ?? user?.departmentName)?.trim();
+
+        final deptFromList = deptId != null
+            ? classroom.departments.where((d) => d.id == deptId).firstOrNull
+            : (deptName == null || deptName.isEmpty)
+                ? null
+                : classroom.departments
+                    .where((d) => d.name.trim().toLowerCase() == deptName.toLowerCase())
+                    .firstOrNull;
+
+        final departmentImageUrl = resolveImageUrl(
+          firstSubject?.departmentCoverImageUrl ??
+              deptFromList?.coverImageUrl ??
+              user?.departmentCoverImageUrl,
+        );
 
         return RefreshIndicator(
           onRefresh: () => classroom.fetchClassroomData(),
           child: CustomScrollView(
             slivers: [
-              // Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title row with count badge
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'My Classes',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          Text(
-                            '${classroom.subjects.length} active subject${classroom.subjects.length != 1 ? 's' : ''}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.secondary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-
-                      Row(
-                        children: [
-                          // Search bar - flexible
-                          Expanded(
-                            child: _SearchBar(
-                              controller: _searchController,
-                              onChanged: (v) => setState(() => _searchQuery = v),
-                              theme: theme,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // College Filter Dropdown
-                          SizedBox(
-                            width: 110,
-                            child: _CollegeDropdown(
-                              colleges: classroom.colleges,
-                              selected: _selectedCollegeFilter,
-                              onChanged: (v) => setState(() => _selectedCollegeFilter = v ?? 'all'),
-                              theme: theme,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // View Switcher inside the action row
-                          Container(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: Row(
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title row + view toggle
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _ViewToggleButton(
-                                  icon: Icons.grid_view_rounded,
-                                  isSelected: _viewType == ViewType.grid,
-                                  onPressed: () => setState(() => _viewType = ViewType.grid),
-                                  theme: theme,
+                                Text(
+                                  'My Classes',
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
-                                _ViewToggleButton(
-                                  icon: Icons.view_list_rounded,
-                                  isSelected: _viewType == ViewType.list,
-                                  onPressed: () => setState(() => _viewType = ViewType.list),
-                                  theme: theme,
+                                Text(
+                                  '${classroom.subjects.length} active subject${classroom.subjects.length != 1 ? 's' : ''}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                    ],
-                  ),
-                ),
-              ),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _ViewToggleButton(
+                                    icon: Icons.grid_view_rounded,
+                                    isSelected: _viewType == ViewType.grid,
+                                    onPressed: () => setState(() => _viewType = ViewType.grid),
+                                    theme: theme,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _ViewToggleButton(
+                                    icon: Icons.view_list_rounded,
+                                    isSelected: _viewType == ViewType.list,
+                                    onPressed: () => setState(() => _viewType = ViewType.list),
+                                    theme: theme,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
 
-              // Results or empty
-              if (filtered.isEmpty)
-                SliverFillRemaining(
-                  child: _EmptySearchResult(theme: theme),
-                )
-              else if (_viewType == ViewType.grid) // Conditional rendering for grid view
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 400, // Updated maxCrossAxisExtent
-                      mainAxisSpacing: 16, // Updated mainAxisSpacing
-                      crossAxisSpacing: 16, // Updated crossAxisSpacing
-                      childAspectRatio: 1.05, // Updated childAspectRatio
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final subject = filtered[index];
-                        return SubjectCard(
-                          subject: subject,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SubjectDetailsScreen(subject: subject),
+                        // Search + affiliation logos (college + department)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SearchBar(
+                                controller: _searchController,
+                                onChanged: (v) => setState(() => _searchQuery = v),
+                                theme: theme,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      childCount: filtered.length,
-                    ),
-                  ),
-                )
-              else // Conditional rendering for list view
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final subject = filtered[index];
-                        return SubjectListTile( // Using SubjectListTile
-                          subject: subject,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SubjectDetailsScreen(subject: subject),
+                            const SizedBox(width: 12),
+                            _AffiliationLogo(
+                              imageUrl: collegeLogoUrl,
+                              fallbackIcon: Icons.account_balance_rounded,
+                              theme: theme,
                             ),
-                          ),
-                        );
-                      },
-                      childCount: filtered.length,
+                            const SizedBox(width: 8),
+                            _AffiliationLogo(
+                              imageUrl: departmentImageUrl,
+                              fallbackIcon: Icons.apartment_rounded,
+                              theme: theme,
+                              isCircular: false,
+                              width: 64,
+                              height: 44,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                     ),
                   ),
                 ),
+
+                // Results or empty
+                if (filtered.isEmpty)
+                  SliverFillRemaining(
+                    child: _EmptySearchResult(theme: theme),
+                  )
+                else if (_viewType == ViewType.grid)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 400,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 1.05,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final subject = filtered[index];
+                          return SubjectCard(
+                            subject: subject,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SubjectDetailsScreen(subject: subject),
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: filtered.length,
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final subject = filtered[index];
+                          return SubjectListTile(
+                            subject: subject,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SubjectDetailsScreen(subject: subject),
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: filtered.length,
+                      ),
+                    ),
+                  ),
             ],
           ),
         );
@@ -218,7 +242,58 @@ class _ClassesTabState extends State<ClassesTab> {
   }
 }
 
-// ── Widgets ──────────────────────────────────────────────────────────────────
+// ── Filter Data Model ─────────────────────────────────────────────────────────
+
+// ── Filter Chip ───────────────────────────────────────────────────────────────
+
+// ── Filter Panel ──────────────────────────────────────────────────────────────
+
+// ── Widgets ───────────────────────────────────────────────────────────────────
+
+class _AffiliationLogo extends StatelessWidget {
+  final String? imageUrl;
+  final IconData fallbackIcon;
+  final ThemeData theme;
+  final bool isCircular;
+  final double width;
+  final double height;
+
+  const _AffiliationLogo({
+    required this.imageUrl,
+    required this.fallbackIcon,
+    required this.theme,
+    this.isCircular = true,
+    this.width = 44,
+    this.height = 44,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(12);
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: isCircular ? null : borderRadius,
+        border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: imageUrl == null
+          ? Icon(fallbackIcon, size: 20, color: theme.colorScheme.secondary.withOpacity(0.8))
+          : Image.network(
+              imageUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(
+                fallbackIcon,
+                size: 20,
+                color: theme.colorScheme.secondary.withOpacity(0.8),
+              ),
+            ),
+    );
+  }
+}
 
 class _ViewToggleButton extends StatelessWidget {
   final IconData icon;
@@ -263,102 +338,6 @@ class _ViewToggleButton extends StatelessWidget {
   }
 }
 
-class _CollegeDropdown extends StatelessWidget {
-  final List<CollegeModel> colleges;
-  final String selected;
-  final ValueChanged<String?> onChanged;
-  final ThemeData theme;
-
-  const _CollegeDropdown({
-    required this.colleges,
-    required this.selected,
-    required this.onChanged,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selected,
-          isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.primary.withOpacity(0.7), size: 20),
-          dropdownColor: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-          alignment: AlignmentDirectional.centerStart,
-          menuMaxHeight: 400,
-          onChanged: onChanged,
-          // Closed state presentation
-          selectedItemBuilder: (context) {
-            return [
-              const Center(child: Text('All', maxLines: 1)),
-              ...colleges.map((c) => Center(
-                    child: Text(c.acronym ?? (c.name.split(' ').first), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  )),
-            ];
-          },
-          items: [
-            DropdownMenuItem(
-              value: 'all',
-              enabled: true,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(color: theme.colorScheme.secondary.withOpacity(0.1), shape: BoxShape.circle),
-                    child: const Icon(Icons.layers_rounded, size: 14),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('All ', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-            ),
-            ...colleges.map((c) => DropdownMenuItem(
-                  value: c.name,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), shape: BoxShape.circle),
-                        clipBehavior: Clip.antiAlias,
-                        child: c.logoPath != null && c.logoPath!.isNotEmpty
-                            ? Image.network(c.logoPath!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildFallback(c))
-                            : _buildFallback(c),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(c.acronym ?? c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFallback(CollegeModel c) {
-    return Center(
-      child: Text(
-        (c.acronym ?? c.name).substring(0, 1).toUpperCase(),
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
-}
-
 class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -398,8 +377,6 @@ class _SearchBar extends StatelessWidget {
     );
   }
 }
-
-// Removed _CollegeFilterChips and _Chip as they are replaced by _CollegeFilterScroll and _CollegeCircle
 
 class _ErrorView extends StatelessWidget {
   final String message;

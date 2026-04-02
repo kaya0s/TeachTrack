@@ -314,6 +314,13 @@ class AuthProvider extends ChangeNotifier {
         role: _user!.role,
         isActive: _user!.isActive,
         profilePictureUrl: url,
+        collegeId: _user!.collegeId,
+        collegeName: _user!.collegeName,
+        collegeLogoPath: _user!.collegeLogoPath,
+        departmentId: _user!.departmentId,
+        departmentName: _user!.departmentName,
+        departmentCode: _user!.departmentCode,
+        departmentCoverImageUrl: _user!.departmentCoverImageUrl,
       );
       _status = AuthStatus.authenticated;
       notifyListeners();
