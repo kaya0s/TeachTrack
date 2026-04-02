@@ -577,6 +577,36 @@ class _SessionListCard extends StatelessWidget {
     return DateFormat('MMM d, yyyy · h:mm a').format(d);
   }
 
+  Widget _buildModeLabel(String mode) {
+    Color color;
+    IconData icon;
+    switch (mode) {
+      case 'EXAM': color = Colors.red; icon = Icons.security_rounded; break;
+      case 'COLLABORATION': color = Colors.orange; icon = Icons.groups_rounded; break;
+      case 'STUDY': color = Colors.blue; icon = Icons.menu_book_rounded; break;
+      default: color = Colors.teal; icon = Icons.sensors_rounded; break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            mode,
+            style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = _engagementColor(session.averageEngagement);
@@ -647,6 +677,8 @@ class _SessionListCard extends StatelessWidget {
                         majorLabel: majorLabel,
                         collegeLogoPath: logoPath,
                       ),
+                      const SizedBox(height: 4),
+                      _buildModeLabel(session.activityMode),
                       const SizedBox(height: 6),
                       Row(
                         children: [

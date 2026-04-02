@@ -394,6 +394,15 @@ class _MetadataCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.settings_input_component_rounded,
+              label: 'Activity Mode',
+              value: session.activityMode,
+              theme: theme,
+              divider: divider,
+              isSpecial: true,
+            ),
+            const SizedBox(height: 12),
             HierarchyMetaRow(
               collegeName: session.collegeName,
               departmentName: session.departmentName,
@@ -458,6 +467,7 @@ class _InfoRow extends StatelessWidget {
   final ThemeData theme;
   final Color divider;
   final bool isLast;
+  final bool isSpecial;
   const _InfoRow({
     required this.icon,
     required this.label,
@@ -465,11 +475,58 @@ class _InfoRow extends StatelessWidget {
     required this.theme,
     required this.divider,
     this.isLast = false,
+    this.isSpecial = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final muted = theme.colorScheme.onSurface.withValues(alpha: 0.62);
+
+    Widget valueWidget;
+    if (isSpecial) {
+      Color color;
+      switch (value) {
+        case 'EXAM':
+          color = Colors.red;
+          break;
+        case 'COLLABORATION':
+          color = Colors.orange;
+          break;
+        case 'STUDY':
+          color = Colors.green;
+          break;
+        default:
+          color = Colors.blue;
+      }
+      valueWidget = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Text(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
+        ),
+      );
+    } else {
+      valueWidget = Text(
+        value,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurface,
+        ),
+        textAlign: TextAlign.right,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
     return Column(
       children: [
         Padding(
@@ -489,16 +546,7 @@ class _InfoRow extends StatelessWidget {
               Expanded(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: Text(
-                    value,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                    textAlign: TextAlign.right,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: valueWidget,
                 ),
               ),
             ],
@@ -988,6 +1036,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     buffer.writeln('--- SESSION DETAILS ---');
     buffer.writeln('Subject,${s.subjectName}');
     buffer.writeln('Section,${s.sectionName}');
+    buffer.writeln('Activity Mode,${s.activityMode}');
     buffer.writeln('Start Time,${fmt.format(s.startTime)}');
     buffer.writeln('End Time,${s.endTime != null ? fmt.format(s.endTime!) : "In Progress"}');
     buffer.writeln('Average Engagement,${s.averageEngagement.toStringAsFixed(2)}%');
@@ -1076,8 +1125,8 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(32),
         header: (ctx) => pw.Container(
           padding: const pw.EdgeInsets.only(bottom: 16),
           decoration: const pw.BoxDecoration(
@@ -1152,23 +1201,24 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
                         color: PdfColors.indigo700)),
                 pw.SizedBox(height: 10),
                 pw.Row(children: [
+                  _pdfKeyVal('Activity Mode', s.activityMode),
+                  pw.SizedBox(width: 40),
                   _pdfKeyVal('Date', fmt.format(s.startTime)),
                 ]),
-                pw.SizedBox(height: 4),
+                pw.SizedBox(height: 8),
                 pw.Row(children: [
                   _pdfKeyVal(
                       'Duration',
                       s.endTime != null
                           ? '${s.endTime!.difference(s.startTime).inMinutes} min'
                           : 'In progress'),
+                  if (m != null) ...[
+                    pw.SizedBox(width: 40),
+                    _pdfKeyVal('Students Present', '${m.studentsPresent}'),
+                  ],
                 ]),
                 if (m != null) ...[
-                  pw.SizedBox(height: 4),
-                  pw.Row(children: [
-                    _pdfKeyVal(
-                        'Students Present', '${m.studentsPresent}'),
-                  ]),
-                  pw.SizedBox(height: 4),
+                  pw.SizedBox(height: 8),
                   pw.Row(children: [
                     _pdfKeyVal('Total Data Points', '${m.totalLogs}'),
                   ]),
@@ -1248,15 +1298,17 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColors.indigo50),
                   children: [
-                    _pdfTableHeader('Behavior'),
-                    _pdfTableHeader('Count'),
+                    _pdfTableHeader('Behavior Type'),
+                    _pdfTableHeader('Total Count'),
+                    _pdfTableHeader('Avg per Log'),
+                    _pdfTableHeader('Avg per Student'),
                   ],
                 ),
-                _pdfTableRow('On Task', '$onTask'),
-                _pdfTableRow('Sleeping', '$sleeping'),
-                _pdfTableRow('Using Phone', '$phone'),
-                _pdfTableRow('Off Task', '$offTask'),
-                _pdfTableRow('Not Visible', '$notVisible'),
+                _pdfTableRowRich('On Task', '$onTask', m),
+                _pdfTableRowRich('Sleeping', '$sleeping', m),
+                _pdfTableRowRich('Using Phone', '$phone', m),
+                _pdfTableRowRich('Off Task', '$offTask', m),
+                _pdfTableRowRich('Not Visible', '$notVisible', m),
               ],
             ),
             pw.SizedBox(height: 20),
@@ -1333,10 +1385,22 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     );
   }
 
-  pw.TableRow _pdfTableRow(String label, String value) {
+  pw.TableRow _pdfTableRowRich(String label, String value, SessionMetricsModel? m) {
+    String avgPerLog = '0.00';
+    String avgPerStudent = '0.00';
+    if (m != null && m.totalLogs > 0) {
+      final val = double.tryParse(value) ?? 0;
+      avgPerLog = (val / m.totalLogs).toStringAsFixed(2);
+      if (m.studentsPresent > 0) {
+        avgPerStudent = (val / m.totalLogs / m.studentsPresent).toStringAsFixed(2);
+      }
+    }
+    
     return pw.TableRow(children: [
       _pdfTableCell(label),
       _pdfTableCell(value),
+      _pdfTableCell(avgPerLog),
+      _pdfTableCell(avgPerStudent),
     ]);
   }
 
