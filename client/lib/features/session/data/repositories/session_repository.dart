@@ -10,14 +10,16 @@ class SessionRepository {
   Future<SessionModel> startSession(
     int subjectId,
     int sectionId,
-    int studentsPresent,
-  ) async {
+    int studentsPresent, {
+    String? activityMode,
+  }) async {
     final response = await _apiClient.post(
       '/sessions/start',
       data: {
         'subject_id': subjectId,
         'section_id': sectionId,
         'students_present': studentsPresent,
+        'activity_mode': activityMode ?? 'LECTURE',
       },
     );
     final data = response.data;

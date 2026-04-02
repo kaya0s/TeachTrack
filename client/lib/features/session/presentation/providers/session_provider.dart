@@ -64,6 +64,7 @@ class SessionProvider extends ChangeNotifier {
     int subjectId,
     int sectionId,
     int studentsPresent,
+    String? activityMode,
   ) async {
     _isLoading = true;
     _error = null;
@@ -73,6 +74,7 @@ class SessionProvider extends ChangeNotifier {
         subjectId,
         sectionId,
         studentsPresent,
+        activityMode: activityMode,
       );
       startMetricsPolling();
       await ForegroundSessionService.startOrUpdate(session: _activeSession!);

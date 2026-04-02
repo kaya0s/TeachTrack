@@ -8,6 +8,7 @@ class SessionModel {
   final DateTime startTime;
   final DateTime? endTime;
   final bool isActive;
+  final String activityMode;
 
   SessionModel({
     required this.id,
@@ -17,6 +18,7 @@ class SessionModel {
     required this.startTime,
     this.endTime,
     required this.isActive,
+    required this.activityMode,
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class SessionModel {
           : DateTime.now(),
       endTime: endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
       isActive: json['is_active'] == true,
+      activityMode: json['activity_mode'] as String? ?? 'LECTURE',
     );
   }
 }
@@ -80,6 +83,7 @@ class AlertModel {
   final String message;
   final DateTime triggeredAt;
   final bool isRead;
+  final String? snapshotUrl;
 
   AlertModel({
     required this.id,
@@ -87,6 +91,7 @@ class AlertModel {
     required this.message,
     required this.triggeredAt,
     required this.isRead,
+    this.snapshotUrl,
   });
 
   factory AlertModel.fromJson(Map<String, dynamic> json) {
@@ -99,6 +104,7 @@ class AlertModel {
           ? ApiDateUtils.parse(triggeredAtRaw.toString())
           : DateTime.now(),
       isRead: json['is_read'] == true,
+      snapshotUrl: json['snapshot_url'] as String?,
     );
   }
 }
@@ -159,6 +165,7 @@ class SessionSummaryModel {
   final DateTime startTime;
   final DateTime? endTime;
   final bool isActive;
+  final String activityMode;
   final double averageEngagement;
 
   SessionSummaryModel({
@@ -179,6 +186,7 @@ class SessionSummaryModel {
     required this.startTime,
     this.endTime,
     required this.isActive,
+    required this.activityMode,
     required this.averageEngagement,
   });
 
@@ -206,6 +214,7 @@ class SessionSummaryModel {
       endTime:
           endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
       isActive: json['is_active'] == true,
+      activityMode: json['activity_mode'] as String? ?? 'LECTURE',
       averageEngagement:
           (json['average_engagement'] as num?)?.toDouble() ?? 0.0,
     );
