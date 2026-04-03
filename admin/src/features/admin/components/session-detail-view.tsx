@@ -84,21 +84,32 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                 }
             });
 
+            const avgVisible =
+                detail.session.on_task +
+                detail.session.sleeping +
+                detail.session.using_phone +
+                detail.session.off_task;
+
+            const visiblePct = (value: number) => {
+                if (!avgVisible) return "-";
+                return `${((value / avgVisible) * 100).toFixed(1)}%`;
+            };
+
             const behaviorData = [
-                ["On Task", detail.session.on_task.toFixed(2)],
-                ["Sleeping", detail.session.sleeping.toFixed(2)],
-                ["Using Phone", detail.session.using_phone.toFixed(2)],
-                ["Off Task", detail.session.off_task.toFixed(2)],
-                ["Not Visible", detail.session.not_visible.toFixed(2)],
+                ["On Task", detail.session.on_task.toFixed(2), visiblePct(detail.session.on_task)],
+                ["Sleeping", detail.session.sleeping.toFixed(2), visiblePct(detail.session.sleeping)],
+                ["Using Phone", detail.session.using_phone.toFixed(2), visiblePct(detail.session.using_phone)],
+                ["Off Task", detail.session.off_task.toFixed(2), visiblePct(detail.session.off_task)],
+                ["Not Visible", detail.session.not_visible.toFixed(2), "-"],
             ];
 
             autoTable(doc, {
-                head: [["Behavior Type", "Average detections"]],
+                head: [["Behavior Type", "Average detections", "Avg % of visible"]],
                 body: behaviorData,
                 startY: doc.lastAutoTable.finalY + 10,
                 theme: "striped",
                 headStyles: { fillColor: [34, 197, 94] }, // Green header
-                margin: { left: centerX - 60, right: centerX - 60 }
+                margin: { left: 40, right: 40 }
             });
 
             doc.save(`session_${detail.session.id}_report.pdf`);
