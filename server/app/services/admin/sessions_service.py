@@ -507,6 +507,25 @@ def get_session_detail(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    behavior_avgs_row = (
+        db.query(
+            func.avg(BehaviorLog.on_task).label("on_task"),
+            func.avg(BehaviorLog.sleeping).label("sleeping"),
+            func.avg(BehaviorLog.using_phone).label("using_phone"),
+            func.avg(BehaviorLog.off_task).label("off_task"),
+            func.avg(BehaviorLog.not_visible).label("not_visible"),
+        )
+        .filter(BehaviorLog.session_id == session_id)
+        .first()
+    )
+    behavior_avgs = {
+        "on_task": _to_float(getattr(behavior_avgs_row, "on_task", 0.0)),
+        "sleeping": _to_float(getattr(behavior_avgs_row, "sleeping", 0.0)),
+        "using_phone": _to_float(getattr(behavior_avgs_row, "using_phone", 0.0)),
+        "off_task": _to_float(getattr(behavior_avgs_row, "off_task", 0.0)),
+        "not_visible": _to_float(getattr(behavior_avgs_row, "not_visible", 0.0)),
+    }
+
     summary = {
         "id": session.id,
         "teacher_id": session.teacher_id,
@@ -529,6 +548,7 @@ def get_session_detail(
         "is_active": session.is_active,
         "teacher_profile_picture_url": session.teacher.profile_picture_url if session.teacher else None,
         "average_engagement": _avg_engagement_for_session(db, session.id, session.activity_mode),
+        **behavior_avgs,
     }
 
     logs = (
