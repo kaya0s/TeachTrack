@@ -18,6 +18,7 @@ from app.models.classroom import ClassSection, Department, Major
 from app.models.user import User
 from app.services.admin import settings_service
 from app.services import audit_service, detector_service
+from app.services.engagement_service import _avg_engagement_from_snapshot_logs
 from app.core.logging import get_recent_server_logs
 from app.utils.datetime import utc_now
 from app.constants import DEFAULT_PAGE_SIZE
@@ -55,77 +56,10 @@ def _teacher_name_fields(user: User | None) -> tuple[str, str | None]:
     return (user.username, _user_display_name(user))
 
 
-def _avg_engagement_from_stats(stats_row: tuple, students_present: int, weights: dict[str, float]) -> float:
-    """Legacy fallback: compute engagement using aggregate sums.
-
-    Used only for sessions that pre-date the students_present_snapshot column
-    (all rows will have snapshot=NULL). For post-migration sessions use
-    _avg_engagement_from_logs instead.
-    """
-    if not stats_row or students_present <= 0:
-        return 0.0
-    on_task_sum, using_phone_sum, sleeping_sum, off_task_sum, log_count = stats_row
-    if (log_count or 0) <= 0:
-        return 0.0
-    raw_total = (
-        (weights["on_task"] * _to_float(on_task_sum))
-        - (weights["using_phone"] * _to_float(using_phone_sum))
-        - (weights["sleeping"] * _to_float(sleeping_sum))
-        - (weights["off_task"] * _to_float(off_task_sum))
-    )
-    return round(max(0.0, min(100.0, (raw_total / (students_present * log_count)) * 100)), 2)
-
-
-def _avg_engagement_from_logs(
-    db: Session,
-    session_id: int,
-    session_students_present: int,
-    weights: dict[str, float],
-) -> float:
-    """Accurate per-log engagement average that uses the headcount snapshot.
-
-    - Logs WITH a snapshot use their own snapshot as the normaliser (correct
-      even if the teacher changed headcount mid-session).
-    - Logs WITHOUT a snapshot (pre-migration rows) fall back to
-      session_students_present.
-    - Includes not_visible penalty if configured (default 0).
-    Returns a value clamped to [0, 100].
-    """
-    rows = (
-        db.query(
-            BehaviorLog.on_task,
-            BehaviorLog.using_phone,
-            BehaviorLog.sleeping,
-            BehaviorLog.off_task,
-            BehaviorLog.not_visible,
-            BehaviorLog.students_present_snapshot,
-        )
-        .filter(BehaviorLog.session_id == session_id)
-        .all()
-    )
-    if not rows:
-        return 0.0
-
-    total_score = 0.0
-    count = 0
-    w_not_visible = weights.get("not_visible", 0.0)
-    for on_task, using_phone, sleeping, off_task, not_visible, snapshot in rows:
-        sp = snapshot if snapshot and snapshot > 0 else session_students_present
-        if sp <= 0:
-            continue
-        raw_score = (
-            (weights["on_task"] * _to_float(on_task))
-            - (weights["using_phone"] * _to_float(using_phone))
-            - (weights["sleeping"] * _to_float(sleeping))
-            - (weights["off_task"] * _to_float(off_task))
-            - (w_not_visible * _to_float(not_visible))
-        )
-        total_score += max(0.0, min(100.0, (raw_score / sp) * 100))
-        count += 1
-
-    if count == 0:
-        return 0.0
-    return round(total_score / count, 2)
+def _avg_engagement_for_session(db: Session, session_id: int, activity_mode: str) -> float:
+    weights = settings_service.get_engagement_weights(db, mode=activity_mode)
+    # Engagement is visibility-normalized: divide by the number of detected/visible students.
+    return _avg_engagement_from_snapshot_logs(db, session_id, weights)
 
 
 def recalculate_all_sessions_engagement(db: Session) -> int:
@@ -138,8 +72,7 @@ def recalculate_all_sessions_engagement(db: Session) -> int:
     for s in sessions:
         if s.activity_mode == "EXAM":
             continue
-        weights = settings_service.get_engagement_weights(db, mode=s.activity_mode)
-        avg = _avg_engagement_from_logs(db, s.id, s.students_present, weights)
+        avg = _avg_engagement_for_session(db, s.id, s.activity_mode)
         s.average_engagement = avg
         db.add(s)
         count += 1
@@ -317,10 +250,7 @@ def get_dashboard_data(
             "end_time": row.end_time,
             "is_active": row.is_active,
             "teacher_profile_picture_url": row.teacher.profile_picture_url if row.teacher else None,
-            # Use snapshot-aware per-log average for accuracy
-            "average_engagement": _avg_engagement_from_logs(
-                db, row.id, row.students_present, settings_service.get_engagement_weights(db, mode=row.activity_mode)
-            ),
+            "average_engagement": _avg_engagement_for_session(db, row.id, row.activity_mode),
         }
 
     active_sessions = [_serialize_session(row) for row in active_sessions_raw]
@@ -577,7 +507,6 @@ def get_session_detail(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    weights = settings_service.get_engagement_weights(db)
     summary = {
         "id": session.id,
         "teacher_id": session.teacher_id,
@@ -599,10 +528,7 @@ def get_session_detail(
         "end_time": session.end_time,
         "is_active": session.is_active,
         "teacher_profile_picture_url": session.teacher.profile_picture_url if session.teacher else None,
-        # Snapshot-aware per-log average for accuracy across headcount changes
-        "average_engagement": _avg_engagement_from_logs(
-            db, session.id, session.students_present, settings_service.get_engagement_weights(db, mode=session.activity_mode)
-        ),
+        "average_engagement": _avg_engagement_for_session(db, session.id, session.activity_mode),
     }
 
     logs = (

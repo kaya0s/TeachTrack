@@ -26,10 +26,9 @@ def backfill_engagement():
         for session in sessions:
             # Use the accurate per-log snapshot logic to compute the true average
             avg_score = _avg_engagement_from_snapshot_logs(
-                db, 
-                session.id, 
-                session.students_present, 
-                weights
+                db,
+                session.id,
+                weights,
             )
             
             # Update the cache column
