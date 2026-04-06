@@ -41,14 +41,20 @@ class _NotificationsTabState extends State<NotificationsTab> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
     return Column(
       children: [
         Container(
           margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           decoration: BoxDecoration(
-            color: theme.brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.035),
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: isDark ? 0.25 : 0.35),
+            ),
           ),
           child: TabBar(
             controller: _tabController,
@@ -59,12 +65,30 @@ class _NotificationsTabState extends State<NotificationsTab> with SingleTickerPr
               borderRadius: BorderRadius.circular(12),
             ),
             labelColor: theme.colorScheme.onPrimary,
-            unselectedLabelColor: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
+            unselectedLabelColor: theme.colorScheme.onSurface.withValues(alpha: 0.68),
             labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
             unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             tabs: const [
-              Tab(text: 'General'),
-              Tab(text: 'Behavior Alerts'),
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.notifications_none_rounded, size: 16),
+                    SizedBox(width: 6),
+                    Text('General'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 16),
+                    SizedBox(width: 6),
+                    Text('Behavior Alerts'),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
