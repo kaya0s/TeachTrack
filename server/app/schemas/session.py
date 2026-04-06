@@ -1,14 +1,15 @@
-from pydantic import BaseModel, Field, root_validator
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
+
+from app.schemas.base import UtcAwareBaseModel
 
 class ActivityMode(str, Enum):
     LECTURE = "LECTURE"
     COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 
-class SessionCreate(BaseModel):
+class SessionCreate(UtcAwareBaseModel):
     section_id: int
     subject_id: int
     students_present: int
@@ -19,7 +20,7 @@ class AlertSeverityEnum(str, Enum):
     CRITICAL = "CRITICAL"
 
 # -- Behavior Logs --
-class BehaviorLogBase(BaseModel):
+class BehaviorLogBase(UtcAwareBaseModel):
     on_task: int = 0
     sleeping: int = 0
     using_phone: int = 0
@@ -42,7 +43,7 @@ class BehaviorLog(BehaviorLogBase):
         from_attributes = True
 
 # -- Alerts --
-class Alert(BaseModel):
+class Alert(UtcAwareBaseModel):
     id: int
     session_id: int
     alert_type: str
@@ -56,7 +57,7 @@ class Alert(BaseModel):
         from_attributes = True
 
 # -- Session Metrics & Detail --
-class SessionMetrics(BaseModel):
+class SessionMetrics(UtcAwareBaseModel):
     session_id: int
     students_present: int
     total_logs: int
@@ -64,7 +65,7 @@ class SessionMetrics(BaseModel):
     recent_logs: List[BehaviorLog]
     alerts: List[Alert]
 
-class SessionMetricRow(BaseModel):
+class SessionMetricRow(UtcAwareBaseModel):
     id: int
     session_id: int
     window_start: datetime
@@ -82,7 +83,7 @@ class SessionMetricRow(BaseModel):
         from_attributes = True
 
 # -- Session Summary --
-class SessionSummary(BaseModel):
+class SessionSummary(UtcAwareBaseModel):
     id: int
     subject_id: int
     section_id: int
@@ -112,7 +113,7 @@ class Session(SessionSummary):
     pass
 
 # -- History & Logs --
-class SessionHistory(BaseModel):
+class SessionHistory(UtcAwareBaseModel):
     id: int
     session_id: int
     changed_at: datetime
@@ -125,7 +126,7 @@ class SessionHistory(BaseModel):
     class Config:
         from_attributes = True
 
-class AlertHistory(BaseModel):
+class AlertHistory(UtcAwareBaseModel):
     id: int
     alert_id: int
     changed_at: datetime
@@ -139,13 +140,13 @@ class AlertHistory(BaseModel):
         from_attributes = True
 
 # -- AI Model Management --
-class ModelOption(BaseModel):
+class ModelOption(UtcAwareBaseModel):
     file_name: str
     is_current: bool = False
 
-class ModelSelectionRequest(BaseModel):
+class ModelSelectionRequest(UtcAwareBaseModel):
     file_name: str
 
-class ModelSelectionResponse(BaseModel):
+class ModelSelectionResponse(UtcAwareBaseModel):
     current_model_file: str
     models: List[ModelOption]
