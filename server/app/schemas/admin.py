@@ -588,7 +588,6 @@ class AdminWeightsSet(BaseModel):
 
 class AdminSettingsEngagementWeights(BaseModel):
     LECTURE: AdminWeightsSet
-    STUDY: AdminWeightsSet
     COLLABORATION: AdminWeightsSet
     EXAM: AdminWeightsSet
 

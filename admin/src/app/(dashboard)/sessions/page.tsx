@@ -672,7 +672,6 @@ export default function SessionsPage() {
                 options={[
                   { value: "all", label: "All Modes" },
                   { value: "LECTURE", label: "Lecture" },
-                  { value: "STUDY", label: "Study" },
                   { value: "COLLABORATION", label: "Collaboration" },
                   { value: "EXAM", label: "Exam" },
                 ]}

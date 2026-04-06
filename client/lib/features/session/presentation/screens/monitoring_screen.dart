@@ -436,10 +436,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         color = Colors.orange;
         icon = Icons.groups_rounded;
         break;
-      case 'STUDY':
-        color = Colors.green;
-        icon = Icons.menu_book_rounded;
-        break;
       default:
         color = Colors.blue;
         icon = Icons.school_rounded;

@@ -148,7 +148,6 @@ def process_behavior_log(
         db.commit()
         return  # End processing for exams (No permanent engagement saved)
 
-    # Standard Mode Logic (Lecture, Study, Collaboration)
     
     # High sleeping rate: Require total >= 5 for sleeping.
     sleeping_threshold = 0.5 if session.activity_mode == "COLLABORATION" else 0.3

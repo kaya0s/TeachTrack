@@ -385,7 +385,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState<"save" | "reset">("save");
-  const [activeWeightMode, setActiveWeightMode] = useState<"LECTURE" | "STUDY" | "COLLABORATION">("LECTURE");
+  const [activeWeightMode, setActiveWeightMode] = useState<"LECTURE" | "COLLABORATION" | "EXAM">("LECTURE");
 
   const { errors, isValid } = useMemo(() => validateSettings(settings), [settings]);
 
@@ -758,7 +758,7 @@ export default function SettingsPage() {
             >
               <div className="space-y-6">
                 <div className="flex flex-wrap gap-2 rounded-xl border border-border/40 bg-slate-500/5 p-1">
-                  {(["LECTURE", "STUDY", "COLLABORATION"] as const).map((m) => (
+                  {(["LECTURE", "COLLABORATION", "EXAM"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setActiveWeightMode(m)}

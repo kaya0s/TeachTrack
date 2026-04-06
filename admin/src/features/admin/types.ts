@@ -343,7 +343,6 @@ export type AdminSettings = {
   };
   engagement_weights: {
     LECTURE: AdminWeightsSet;
-    STUDY: AdminWeightsSet;
     COLLABORATION: AdminWeightsSet;
     EXAM: AdminWeightsSet;
   };
