@@ -5,7 +5,6 @@ from enum import Enum
 
 class ActivityMode(str, Enum):
     LECTURE = "LECTURE"
-    STUDY = "STUDY"
     COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 

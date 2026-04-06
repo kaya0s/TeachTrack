@@ -15,7 +15,6 @@ class AlertSeverity(str, enum.Enum):
 
 class ActivityMode(str, enum.Enum):
     LECTURE = "LECTURE"
-    STUDY = "STUDY"
     COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 

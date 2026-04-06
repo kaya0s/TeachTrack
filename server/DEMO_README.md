@@ -102,7 +102,7 @@ New demo endpoints available at `http://localhost:8000/api/v1/demo/`:
 
 ### **Detection Behavior**
 - **Real YOLO model** processes video frames
-- **Activity mode support** (LECTURE, STUDY, COLLABORATION, EXAM)
+- **Activity mode support** (LECTURE, COLLABORATION, EXAM)
 - **Snapshot uploads** for phone detections
 - **Video loops** automatically when reaching end
 - **Same intervals** as production (configurable)

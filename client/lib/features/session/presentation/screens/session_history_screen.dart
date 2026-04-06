@@ -583,7 +583,6 @@ class _SessionListCard extends StatelessWidget {
     switch (mode) {
       case 'EXAM': color = Colors.red; icon = Icons.security_rounded; break;
       case 'COLLABORATION': color = Colors.orange; icon = Icons.groups_rounded; break;
-      case 'STUDY': color = Colors.blue; icon = Icons.menu_book_rounded; break;
       default: color = Colors.teal; icon = Icons.sensors_rounded; break;
     }
     return Container(

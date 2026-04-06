@@ -492,9 +492,6 @@ class _InfoRow extends StatelessWidget {
         case 'COLLABORATION':
           color = Colors.orange;
           break;
-        case 'STUDY':
-          color = Colors.green;
-          break;
         default:
           color = Colors.blue;
       }
@@ -1556,4 +1553,3 @@ class _ExportOption extends StatelessWidget {
     );
   }
 }
-

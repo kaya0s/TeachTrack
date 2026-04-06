@@ -32,15 +32,10 @@ def upgrade() -> None:
         "class_sessions", 
         ["activity_mode"]
     )
-
-    # 3. Restructure system_settings to support mode-specific weights & exam proctoring
-    # Note: We rely on the JSON field 'config' in 'system_settings' table or wherever settings are stored.
-    # If the settings are in a dedicated table 'system_settings', we update the baseline defaults.
     
     # We define the new structured defaults for the migration
     new_weights = {
         "LECTURE": {"on_task": 1.0, "using_phone": 4.0, "sleeping": 3.0, "off_task": 2.0, "not_visible": 1.5},
-        "STUDY": {"on_task": 1.0, "using_phone": 4.0, "sleeping": 3.0, "off_task": 1.0, "not_visible": 1.5},
         "COLLABORATION": {"on_task": 1.0, "using_phone": 3.0, "sleeping": 3.0, "off_task": 0.0, "not_visible": 1.0},
         "EXAM": {"on_task": 1.0, "using_phone": 8.0, "sleeping": 5.0, "off_task": 8.0, "not_visible": 4.0}
     }
@@ -50,13 +45,6 @@ def upgrade() -> None:
         "off_task_count_threshold": 2
     }
 
-    # If your system uses a single row in system_settings table with a JSONB 'config' column:
-    # (Checking the model in settings_service.py/models suggest it's a key-value or JSON)
-    # Based on settings_service logic, it seems it handles the structure in-app, 
-    # but the DB needs to store the nested dict.
-    
-    # We update the current rows if they exist.
-    # op.execute("UPDATE system_settings SET ...") 
 
 def downgrade() -> None:
     op.drop_index("ix_class_sessions_activity_mode", "class_sessions")
