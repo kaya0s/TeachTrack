@@ -83,6 +83,7 @@ def start_session(db: Session, session_in: SessionCreate, current_user) -> Sessi
         subject_id=session_with_relations.subject_id,
         section_id=session_with_relations.section_id,
         subject_name=session_with_relations.subject.name if session_with_relations.subject else "Unknown",
+        subject_cover_image_url=(session_with_relations.subject.cover_image_url if session_with_relations.subject else None),
         section_name=session_with_relations.section.name if session_with_relations.section else "Unknown",
         college_id=(
             session_with_relations.section.major.department.college_id
@@ -379,6 +380,7 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
                 "subject_id": session.subject_id,
                 "section_id": session.section_id,
                 "subject_name": session.subject.name if session.subject else "Unknown",
+                "subject_cover_image_url": session.subject.cover_image_url if session.subject else None,
                 "section_name": session.section.name if session.section else "Unknown",
                 "college_id": (
                     session.section.major.department.college_id
@@ -427,6 +429,62 @@ def list_session_summaries(db: Session, teacher_id: int, include_active: bool, l
             }
         )
     return summaries
+
+
+def get_session_summary(db: Session, session_id: int, teacher_id: int) -> dict[str, Any]:
+    session = get_session_or_404(db, session_id, teacher_id)
+    return {
+        "id": session.id,
+        "subject_id": session.subject_id,
+        "section_id": session.section_id,
+        "subject_name": session.subject.name if session.subject else "Unknown",
+        "subject_cover_image_url": session.subject.cover_image_url if session.subject else None,
+        "section_name": session.section.name if session.section else "Unknown",
+        "college_id": (
+            session.section.major.department.college_id
+            if session.section and session.section.major and session.section.major.department
+            else None
+        ),
+        "college_name": (
+            session.section.major.department.college.name
+            if session.section
+            and session.section.major
+            and session.section.major.department
+            and session.section.major.department.college
+            else None
+        ),
+        "college_logo_path": (
+            session.section.major.department.college.logo_path
+            if session.section
+            and session.section.major
+            and session.section.major.department
+            and session.section.major.department.college
+            else None
+        ),
+        "department_id": (
+            session.section.major.department_id
+            if session.section and session.section.major
+            else None
+        ),
+        "department_name": (
+            session.section.major.department.name
+            if session.section and session.section.major and session.section.major.department
+            else None
+        ),
+        "department_code": (
+            session.section.major.department.code
+            if session.section and session.section.major and session.section.major.department
+            else None
+        ),
+        "major_id": session.section.major_id if session.section else None,
+        "major_name": session.section.major.name if session.section and session.section.major else None,
+        "major_code": session.section.major.code if session.section and session.section.major else None,
+        "start_time": session.start_time,
+        "end_time": session.end_time,
+        "is_active": session.is_active,
+        "activity_mode": session.activity_mode,
+        "average_engagement": round(float(session.average_engagement), 2) if session.average_engagement else 0.0,
+    }
 
 
 def get_active_session_or_404(db: Session, session_id: int, teacher_id: int | None = None) -> ClassSession:

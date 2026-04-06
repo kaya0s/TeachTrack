@@ -21,6 +21,7 @@ from app.schemas.session import (
 )
 from app.services import alert_service, detector_service, engagement_service, session_lifecycle_service
 from app.constants import MAX_PAGE_SIZE
+from app.models.session import Alert as AlertModel, ClassSession
 
 # Import demo detector service for demo branch
 try:
@@ -68,6 +69,37 @@ def list_sessions(
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
     return session_lifecycle_service.list_session_summaries(db, current_user.id, include_active, limit)
+
+
+@router.get("/alerts", response_model=List[AlertSchema])
+def list_teacher_alerts(
+    limit: int = 50,
+    unread_only: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    safe_limit = max(1, min(limit, MAX_PAGE_SIZE))
+    query = (
+        db.query(AlertModel)
+        .join(ClassSession, AlertModel.session_id == ClassSession.id)
+        .filter(ClassSession.teacher_id == current_user.id)
+    )
+    if unread_only:
+        query = query.filter(AlertModel.is_read == False)
+    return (
+        query.order_by(AlertModel.triggered_at.desc(), AlertModel.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+
+@router.get("/{session_id}", response_model=SessionSummarySchema)
+def get_session_summary(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    return session_lifecycle_service.get_session_summary(db, session_id, current_user.id)
 
 
 @models_router.get("", response_model=ModelSelectionResponse)

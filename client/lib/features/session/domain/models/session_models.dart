@@ -79,17 +79,21 @@ class BehaviorLogModel {
 
 class AlertModel {
   final int id;
+  final int sessionId;
   final String alertType;
   final String message;
   final DateTime triggeredAt;
+  final String severity;
   final bool isRead;
   final String? snapshotUrl;
 
   AlertModel({
     required this.id,
+    required this.sessionId,
     required this.alertType,
     required this.message,
     required this.triggeredAt,
+    required this.severity,
     required this.isRead,
     this.snapshotUrl,
   });
@@ -98,11 +102,13 @@ class AlertModel {
     final triggeredAtRaw = json['triggered_at'];
     return AlertModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
+      sessionId: (json['session_id'] as num?)?.toInt() ?? 0,
       alertType: (json['alert_type'] as String?) ?? '',
       message: (json['message'] as String?) ?? '',
       triggeredAt: triggeredAtRaw != null
           ? ApiDateUtils.parse(triggeredAtRaw.toString())
           : DateTime.now(),
+      severity: (json['severity'] as String?) ?? '',
       isRead: json['is_read'] == true,
       snapshotUrl: json['snapshot_url'] as String?,
     );
@@ -152,6 +158,7 @@ class SessionSummaryModel {
   final int subjectId;
   final int sectionId;
   final String subjectName;
+  final String? subjectCoverImageUrl;
   final String sectionName;
   final int? collegeId;
   final String? collegeName;
@@ -173,6 +180,7 @@ class SessionSummaryModel {
     required this.subjectId,
     required this.sectionId,
     required this.subjectName,
+    this.subjectCoverImageUrl,
     required this.sectionName,
     this.collegeId,
     this.collegeName,
@@ -198,6 +206,7 @@ class SessionSummaryModel {
       subjectId: (json['subject_id'] as num?)?.toInt() ?? 0,
       sectionId: (json['section_id'] as num?)?.toInt() ?? 0,
       subjectName: (json['subject_name'] as String?) ?? '',
+      subjectCoverImageUrl: json['subject_cover_image_url'] as String?,
       sectionName: (json['section_name'] as String?) ?? '',
       collegeId: (json['college_id'] as num?)?.toInt(),
       collegeName: json['college_name'] as String?,

@@ -7,7 +7,9 @@ import 'package:teachtrack/features/auth/presentation/providers/auth_provider.da
 import 'package:teachtrack/features/classroom/presentation/screens/subject_details_screen.dart';
 import 'package:teachtrack/features/notifications/domain/models/notification_model.dart';
 import 'package:teachtrack/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
+import 'package:teachtrack/features/session/presentation/screens/session_detail_screen.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
 import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 
@@ -102,28 +104,177 @@ class _GeneralNotificationsList extends StatelessWidget {
   }
 }
 
-class _BehaviorAlertsList extends StatelessWidget {
+class _BehaviorAlertsList extends StatefulWidget {
   final ThemeData theme;
   const _BehaviorAlertsList({required this.theme});
 
   @override
-  Widget build(BuildContext context) {
-    final notifications = context.watch<NotificationProvider>();
-    final session = context.watch<SessionProvider>();
-    
-    // Combine Behavioral Alerts from Notifications (historic) AND current session alerts (live) if needed
-    final historicAlerts = notifications.items.where((i) => i.type.toUpperCase().contains('ALERT')).toList();
-    final liveAlerts = session.metrics?.alerts ?? [];
+  State<_BehaviorAlertsList> createState() => _BehaviorAlertsListState();
+}
 
-    if (historicAlerts.isEmpty && liveAlerts.isEmpty) {
-      return _EmptyState(theme: theme, title: 'No behavior alerts', sub: 'Student engagement alerts will appear here.');
+class _BehaviorAlertsListState extends State<_BehaviorAlertsList> {
+  bool _loading = true;
+  String? _error;
+  List<AlertModel> _alerts = const <AlertModel>[];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final alerts = await context.read<SessionProvider>().fetchTeacherAlerts(limit: 100);
+      if (!mounted) return;
+      setState(() {
+        _alerts = alerts;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Failed to load behavior alerts',
+                style: widget.theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: widget.theme.textTheme.bodySmall?.copyWith(
+                  color: widget.theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    // Since AlertModel and TeacherNotificationModel are different, we primarily use Notifications for history
+    if (_alerts.isEmpty) {
+      return _EmptyState(
+        theme: widget.theme,
+        title: 'No behavior alerts',
+        sub: 'Student engagement alerts will appear here.',
+      );
+    }
+
     return RefreshIndicator(
-      onRefresh: () => notifications.load(),
-      child: _GroupedNotificationList(items: historicAlerts, theme: theme, isAlert: true),
+      onRefresh: _load,
+      child: _GroupedAlertList(alerts: _alerts, theme: widget.theme),
     );
+  }
+}
+
+class _GroupedAlertList extends StatelessWidget {
+  final List<AlertModel> alerts;
+  final ThemeData theme;
+
+  const _GroupedAlertList({required this.alerts, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, List<AlertModel>> grouped = {};
+    for (var alert in alerts) {
+      String day;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final date = DateTime(alert.triggeredAt.year, alert.triggeredAt.month, alert.triggeredAt.day);
+
+      if (date == today) {
+        day = 'Today';
+      } else if (date == yesterday) {
+        day = 'Yesterday';
+      } else {
+        day = DateFormat('MMMM d, y').format(date);
+      }
+      grouped.putIfAbsent(day, () => []).add(alert);
+    }
+
+    return CustomScrollView(
+      slivers: [
+        for (var entry in grouped.entries) ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                entry.key.toUpperCase(),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.secondary,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _AlertCard(
+                  alert: entry.value[index],
+                  theme: theme,
+                  onTap: () => _openAlertSession(context, entry.value[index]),
+                ),
+                childCount: entry.value.length,
+              ),
+            ),
+          ),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+      ],
+    );
+  }
+
+  Future<void> _openAlertSession(BuildContext context, AlertModel alert) async {
+    if (alert.sessionId <= 0) return;
+    try {
+      final summary = await context.read<SessionProvider>().fetchSessionSummaryById(alert.sessionId);
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => SessionDetailScreen(session: summary)),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open session: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
@@ -223,6 +374,162 @@ class _GroupedNotificationList extends StatelessWidget {
         MaterialPageRoute(builder: (_) => SubjectDetailsScreen(subject: subject)),
       );
     } catch (_) {}
+  }
+}
+
+class _AlertCard extends StatelessWidget {
+  final AlertModel alert;
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  const _AlertCard({required this.alert, required this.onTap, required this.theme});
+
+  IconData _iconForType(String type) {
+    switch (type.toUpperCase()) {
+      case 'PHONE':
+        return Icons.smartphone_rounded;
+      case 'SLEEPING':
+        return Icons.bedtime_rounded;
+      case 'ENGAGEMENT_DROP':
+        return Icons.trending_down_rounded;
+      default:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
+  Color _accentForType(String type) {
+    switch (type.toUpperCase()) {
+      case 'PHONE':
+        return const Color(0xFFFFB300);
+      case 'SLEEPING':
+        return const Color(0xFFFF6B6B);
+      case 'ENGAGEMENT_DROP':
+        return const Color(0xFF6C63FF);
+      default:
+        return theme.colorScheme.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final read = alert.isRead;
+    final accent = read ? theme.colorScheme.outline : _accentForType(alert.alertType);
+    final timeStr = DateFormat('h:mm a').format(alert.triggeredAt);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? 0.12 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(_iconForType(alert.alertType), color: accent, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              alert.alertType.isEmpty ? 'ALERT' : alert.alertType,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: read ? FontWeight.w600 : FontWeight.w900,
+                                fontSize: 15,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          if (!read)
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: theme.cardColor, width: 2),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        alert.message,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time_rounded, size: 12, color: theme.hintColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            timeStr,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.hintColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (alert.severity.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                alert.severity.toUpperCase(),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 9,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

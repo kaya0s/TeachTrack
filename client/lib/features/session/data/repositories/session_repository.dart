@@ -75,6 +75,34 @@ class SessionRepository {
         .toList();
   }
 
+  Future<SessionSummaryModel> getSessionSummary(int sessionId) async {
+    final response = await _apiClient.get('/sessions/$sessionId');
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid session summary response');
+    }
+    return SessionSummaryModel.fromJson(data);
+  }
+
+  Future<List<AlertModel>> listTeacherAlerts({
+    int limit = 50,
+    bool unreadOnly = false,
+  }) async {
+    final response = await _apiClient.get(
+      '/sessions/alerts',
+      queryParameters: {
+        'limit': limit,
+        if (unreadOnly) 'unread_only': true,
+      },
+    );
+    final data = response.data;
+    if (data == null || data is! List) return [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AlertModel.fromJson)
+        .toList();
+  }
+
   Future<void> startServerDetector(int sessionId) async {
     await _apiClient.post('/sessions/$sessionId/detector/start');
   }
@@ -108,5 +136,4 @@ class SessionRepository {
     return MlModelSelectionModel.fromJson(data);
   }
 }
-
 

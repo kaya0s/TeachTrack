@@ -325,6 +325,8 @@ class _Content extends StatelessWidget {
 
         // ── KPI grid ──────────────────────────────────────────────────────
         _KpiGrid(metrics: metrics, theme: theme),
+        const SizedBox(height: 16),
+        _AlertsCard(alerts: metrics.alerts),
       ],
     );
   }
@@ -978,6 +980,191 @@ class _KpiTile extends StatelessWidget {
 }
 
 // ── Export Bottom Sheet ───────────────────────────────────────────────────────
+
+class _AlertsCard extends StatelessWidget {
+  final List<AlertModel> alerts;
+  const _AlertsCard({required this.alerts});
+
+  IconData _iconForType(String type) {
+    switch (type.toUpperCase()) {
+      case 'PHONE':
+        return Icons.smartphone_rounded;
+      case 'SLEEPING':
+        return Icons.bedtime_rounded;
+      case 'ENGAGEMENT_DROP':
+        return Icons.trending_down_rounded;
+      default:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
+  Color _colorForType(String type, ThemeData theme) {
+    switch (type.toUpperCase()) {
+      case 'PHONE':
+        return const Color(0xFFFFB300);
+      case 'SLEEPING':
+        return const Color(0xFFFF6B6B);
+      case 'ENGAGEMENT_DROP':
+        return const Color(0xFF6C63FF);
+      default:
+        return theme.colorScheme.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final divider = theme.dividerColor;
+    final fmt = DateFormat('MMM d, h:mm a');
+
+    final sorted = [...alerts]
+      ..sort((a, b) => b.triggeredAt.compareTo(a.triggeredAt));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: divider),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.error.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  color: theme.colorScheme.error,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Alerts',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${alerts.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (sorted.isEmpty)
+            Text(
+              'No alerts were recorded for this session.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sorted.length,
+              separatorBuilder: (_, __) =>
+                  Divider(height: 16, color: divider.withValues(alpha: 0.7)),
+              itemBuilder: (context, index) {
+                final alert = sorted[index];
+                final accent = _colorForType(alert.alertType, theme);
+                final unread = !alert.isRead;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _iconForType(alert.alertType),
+                        color: accent,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  alert.alertType.isEmpty ? 'ALERT' : alert.alertType,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: unread ? FontWeight.w900 : FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                fmt.format(alert.triggeredAt),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            alert.message,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (unread) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: theme.cardColor, width: 2),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ExportBottomSheet extends StatefulWidget {
   final SessionSummaryModel session;
