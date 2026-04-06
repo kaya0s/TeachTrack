@@ -147,7 +147,7 @@ class _HomeTabState extends State<HomeTab> {
     }
 
     // This week sessions
-    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final weekStart = today.subtract(Duration(days: now.weekday - 1));
     final thisWeekSessions = completedSessions
@@ -296,7 +296,7 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   String _getGreeting() {
-    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now();
     final hour = now.hour;
     if (hour < 5) return 'Good night';
     if (hour < 12) return 'Good morning';
@@ -334,8 +334,7 @@ class _HeroHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Explicitly using PH Time (UTC+8) to ensure consistency
-    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now();
     final dateStr = DateFormat('MMMM d, EEEE').format(now);
     final timeStr = DateFormat('hh:mm a').format(now);
     final isDark = theme.brightness == Brightness.dark;
@@ -933,7 +932,7 @@ class _MiniAnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Group last 7 days by day of week
-    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final last7 = List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
 
@@ -1422,7 +1421,7 @@ class _RecentSessionsList extends StatelessWidget {
   }
 
   String _formatDate(DateTime d) {
-    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now();
     final diff = now.difference(d);
     if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
