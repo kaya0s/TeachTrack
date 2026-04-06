@@ -47,6 +47,7 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
 
     showDialog(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (_) => const CenterLoadingDialog(
         icon: Icons.sensors_rounded,
@@ -54,6 +55,8 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
         message: 'Preparing the camera detector and first analytics…',
       ),
     );
+    // Let the dialog paint before starting network + warmup work.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
 
     final success = await sessionProvider.startSession(
       subject.id,
