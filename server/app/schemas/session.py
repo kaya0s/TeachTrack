@@ -87,6 +87,7 @@ class SessionSummary(BaseModel):
     subject_id: int
     section_id: int
     subject_name: str
+    subject_cover_image_url: Optional[str] = None
     section_name: str
     # Hierarchy context
     college_id: Optional[int] = None

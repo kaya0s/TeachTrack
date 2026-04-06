@@ -481,6 +481,9 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                               logoPath: (session.collegeLogoPath?.trim().isNotEmpty == true)
                                   ? session.collegeLogoPath
                                   : subjModel?.collegeLogoPath,
+                              subjectCoverImageUrl: (session.subjectCoverImageUrl?.trim().isNotEmpty == true)
+                                  ? session.subjectCoverImageUrl
+                                  : subjModel?.coverImageUrl,
                               collegeName: session.collegeName ?? subjModel?.collegeName,
                               departmentName: session.departmentName ?? subjModel?.departmentName,
                               majorLabel: majorLabel,
@@ -543,6 +546,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 class _SessionListCard extends StatelessWidget {
   final SessionSummaryModel session;
   final String? logoPath;
+  final String? subjectCoverImageUrl;
   final String? collegeName;
   final String? departmentName;
   final String? majorLabel;
@@ -551,6 +555,7 @@ class _SessionListCard extends StatelessWidget {
   const _SessionListCard({
     required this.session,
     required this.logoPath,
+    required this.subjectCoverImageUrl,
     required this.collegeName,
     required this.departmentName,
     required this.majorLabel,
@@ -609,7 +614,7 @@ class _SessionListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _engagementColor(session.averageEngagement);
-    final logoUrl = resolveImageUrl(logoPath);
+    final coverUrl = resolveImageUrl(subjectCoverImageUrl);
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -639,17 +644,18 @@ class _SessionListCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                // Avatar / Logo
-                if (logoUrl != null)
+                // Subject cover image
+                if (coverUrl != null)
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: theme.dividerColor),
                     ),
-                    child: ClipOval(
-                      child: Image.network(logoUrl, fit: BoxFit.cover,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(coverUrl, fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => _buildFallback(color)),
                     ),
                   )

@@ -1243,6 +1243,9 @@ class _RecentSessionsList extends StatelessWidget {
           final logoPath = (s.collegeLogoPath?.trim().isNotEmpty == true)
               ? s.collegeLogoPath
               : subject?.collegeLogoPath;
+          final coverImageUrl = (s.subjectCoverImageUrl?.trim().isNotEmpty == true)
+              ? s.subjectCoverImageUrl
+              : subject?.coverImageUrl;
           final majorLabel = (s.majorCode?.trim().isNotEmpty == true)
               ? s.majorCode
               : (s.majorName ?? subject?.majorCode ?? subject?.majorName);
@@ -1271,7 +1274,7 @@ class _RecentSessionsList extends StatelessWidget {
                     children: [
                       // College logo or engagement-colored icon
                       _SessionCardLeading(
-                        logoPath: logoPath,
+                        coverImageUrl: coverImageUrl,
                         color: color,
                         theme: theme,
                       ),
@@ -1431,31 +1434,32 @@ class _RecentSessionsList extends StatelessWidget {
 // ── Session Card Leading ──────────────────────────────────────────────────────
 
 class _SessionCardLeading extends StatelessWidget {
-  final String? logoPath;
+  final String? coverImageUrl;
   final Color color;
   final ThemeData theme;
 
   const _SessionCardLeading({
-    required this.logoPath,
+    required this.coverImageUrl,
     required this.color,
     required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    final logoUrl = resolveImageUrl(logoPath);
-    if (logoUrl != null) {
+    final imageUrl = resolveImageUrl(coverImageUrl);
+    if (imageUrl != null) {
       return Container(
         width: 42,
         height: 42,
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: theme.dividerColor),
           color: theme.cardColor,
         ),
-        child: ClipOval(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
           child: Image.network(
-            logoUrl,
+            imageUrl,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _buildFallback(),
           ),
