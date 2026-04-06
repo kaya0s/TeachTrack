@@ -57,6 +57,11 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
       sessionParams.activityMode,
     );
 
+    if (success) {
+      // Warm up detector/metrics while the loading dialog is still shown.
+      await sessionProvider.warmupLiveMonitoring();
+    }
+
     if (context.mounted) {
       Navigator.pop(context); // Close loading dialog
 

@@ -205,6 +205,28 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> warmupLiveMonitoring({
+    int maxSeconds = 6,
+    int pollIntervalMs = 700,
+  }) async {
+    if (_activeSession == null) return;
+
+    await startServerDetector();
+
+    final deadline = DateTime.now().add(Duration(seconds: maxSeconds));
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        await fetchMetrics();
+      } catch (_) {}
+
+      final m = _metrics;
+      if (m != null && (m.totalLogs > 0 || m.recentLogs.isNotEmpty)) {
+        return;
+      }
+      await Future.delayed(Duration(milliseconds: pollIntervalMs));
+    }
+  }
+
   Future<void> stopServerDetector() async {
     if (_activeSession == null) return;
     try {
