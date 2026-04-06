@@ -8,6 +8,7 @@ import 'package:teachtrack/features/session/presentation/providers/session_provi
 import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
 import 'package:teachtrack/features/session/presentation/widgets/session_start_dialog.dart';
+import 'package:teachtrack/core/widgets/center_loading_dialog.dart';
 import 'package:teachtrack/core/providers/navigation_provider.dart';
 import '../widgets/subject_header.dart';
 import '../widgets/subject_overview_tab.dart';
@@ -47,7 +48,11 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const CenterLoadingDialog(
+        icon: Icons.sensors_rounded,
+        title: 'Starting live monitoring',
+        message: 'Preparing the camera detector and first analytics…',
+      ),
     );
 
     final success = await sessionProvider.startSession(

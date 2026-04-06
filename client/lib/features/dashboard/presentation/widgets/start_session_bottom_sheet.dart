@@ -4,6 +4,7 @@ import 'package:teachtrack/features/classroom/domain/models/classroom_models.dar
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
 import 'package:teachtrack/features/session/presentation/screens/monitoring_screen.dart';
+import 'package:teachtrack/core/widgets/center_loading_dialog.dart';
 
 class StartSessionBottomSheet extends StatefulWidget {
   const StartSessionBottomSheet({super.key});
@@ -416,18 +417,37 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
               return;
             }
           }
-          
-          final success = await session.startSession(
-            selectedSubject!.id,
-            selectedSection!.id,
-            studentsCount,
-            selectedMode,
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const CenterLoadingDialog(
+              icon: Icons.sensors_rounded,
+              title: 'Starting live monitoring',
+              message: 'Preparing the camera detector and first analytics…',
+            ),
           );
 
-          if (success) {
-            // Start detector + prime first metrics so Monitoring has data immediately.
-            await session.warmupLiveMonitoring();
+          bool success = false;
+          try {
+            success = await session.startSession(
+              selectedSubject!.id,
+              selectedSection!.id,
+              studentsCount,
+              selectedMode,
+            );
+
+            if (success) {
+              // Start detector + prime first metrics so Monitoring has data immediately.
+              await session.warmupLiveMonitoring();
+            }
+          } finally {
+            if (mounted) {
+              Navigator.of(context, rootNavigator: true).pop(); // Close loading dialog
+            }
+            if (mounted) setState(() => isStarting = false);
           }
+
           if (!mounted) return;
           Navigator.pop(context, success);
         },
@@ -456,24 +476,16 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (isStarting)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
-                )
-              else ...[
-                const Icon(Icons.bolt_rounded, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  hasActive ? "SESSION ALREADY ACTIVE" : "START LIVE SESSION",
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      letterSpacing: 0.5),
-                ),
-              ],
+              const Icon(Icons.bolt_rounded, color: Colors.white, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                hasActive ? "SESSION ALREADY ACTIVE" : "START LIVE SESSION",
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 0.5),
+              ),
             ],
           ),
         ),
