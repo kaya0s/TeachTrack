@@ -423,6 +423,11 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
             studentsCount,
             selectedMode,
           );
+
+          if (success) {
+            // Start detector + prime first metrics so Monitoring has data immediately.
+            await session.warmupLiveMonitoring();
+          }
           if (!mounted) return;
           Navigator.pop(context, success);
         },

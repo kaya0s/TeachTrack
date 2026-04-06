@@ -35,7 +35,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   void initState() {
     super.initState();
     _startDetectorAndHeartbeat();
-    
+     
     // Listen for metrics changes to check for new alerts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
@@ -185,7 +185,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
   void _startDetectorAndHeartbeat() {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    session.startServerDetector();
+
+    // Fire and forget warmup so we show detections faster on first open.
+    Future.microtask(() => session.warmupLiveMonitoring());
+
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) {
         session.heartbeatServerDetector();
