@@ -420,6 +420,7 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
 
           showDialog(
             context: context,
+            useRootNavigator: true,
             barrierDismissible: false,
             builder: (_) => const CenterLoadingDialog(
               icon: Icons.sensors_rounded,
@@ -427,6 +428,8 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
               message: 'Preparing the camera detector and first analytics…',
             ),
           );
+          // Let the dialog paint before starting network + warmup work.
+          await Future<void>.delayed(const Duration(milliseconds: 80));
 
           bool success = false;
           try {
