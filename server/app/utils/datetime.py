@@ -1,12 +1,22 @@
 """Date and time utility functions."""
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 
 def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+    """Get current datetime in Philippines timezone (Asia/Manila).
+
+    NOTE: this project previously used UTC. The helper name `utc_now`
+    is kept for compatibility but returns Asia/Manila time to persist
+    timestamps in PH local time as requested.
+    """
+    try:
+        tz = ZoneInfo("Asia/Manila")
+    except Exception:
+        tz = timezone.utc
+    return datetime.now(tz)
 
 
 def from_timestamp(timestamp: float) -> datetime:

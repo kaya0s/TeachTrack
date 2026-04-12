@@ -50,6 +50,8 @@ def create_backup_run(db: Session, created_by_user) -> BackupRun:
         entity_id=backup_run.id,
         details={"message": "Manual backup started"}
     )
+    # Ensure audit entry is persisted immediately for visibility in admin UI
+    db.commit()
     
     return backup_run
 
@@ -129,6 +131,8 @@ async def run_backup_task(db: Session, backup_id: int):
                 entity_id=backup_run.id,
                 details={"filename": filename, "size": file_size, "drive_id": drive_info["id"]}
             )
+            # Persist audit log immediately
+            db.commit()
 
     except Exception as e:
         backup_run.status = "failed"
@@ -145,6 +149,8 @@ async def run_backup_task(db: Session, backup_id: int):
             entity_id=backup_id,
             details={"error": str(e)}
         )
+        # Persist audit log immediately
+        db.commit()
 
 
 def _upload_to_drive(file_path: str, filename: str) -> dict:

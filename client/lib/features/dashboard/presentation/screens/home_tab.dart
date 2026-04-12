@@ -1421,11 +1421,15 @@ class _RecentSessionsList extends StatelessWidget {
   }
 
   String _formatDate(DateTime d) {
+    // Compare using date-only (local) to avoid negative-relative labels
+    // caused by time-of-day or timezone offsets.
     final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inDays == 0) return 'Today';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    final today = DateTime(now.year, now.month, now.day);
+    final sessionDate = DateTime(d.year, d.month, d.day);
+    final diffDays = today.difference(sessionDate).inDays;
+    if (diffDays == 0) return 'Today';
+    if (diffDays == 1) return 'Yesterday';
+    if (diffDays > 0 && diffDays < 7) return '${diffDays}d ago';
     return '${d.month}/${d.day}/${d.year}';
   }
 }

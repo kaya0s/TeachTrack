@@ -1,12 +1,16 @@
 class ApiDateUtils {
   static DateTime parse(String raw) {
     final value = raw.trim();
-    final parsed = DateTime.parse(value);
-    if (parsed.isUtc) return parsed.toLocal();
+  
+    final tzIndicator = RegExp(r'[zZ]|[+\-]\d{2}:?\d{2}');
+    if (tzIndicator.hasMatch(value)) {
+      final parsed = DateTime.parse(value);
+      return parsed.isUtc ? parsed.toLocal() : parsed;
+    }
 
-    
-    // device local time for consistent UI display.
-    final naiveAsUtc = DateTime.utc(
+   
+    final parsed = DateTime.parse(value);
+    final asUtcInstant = DateTime.utc(
       parsed.year,
       parsed.month,
       parsed.day,
@@ -15,7 +19,7 @@ class ApiDateUtils {
       parsed.second,
       parsed.millisecond,
       parsed.microsecond,
-    );
-    return naiveAsUtc.toLocal();
+    ).subtract(const Duration(hours: 8));
+    return asUtcInstant.toLocal();
   }
 }

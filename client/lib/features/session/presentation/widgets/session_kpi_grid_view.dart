@@ -40,7 +40,7 @@ class SessionKpiGridView extends StatelessWidget {
           icon: Icons.visibility_off_rounded,
         ),
         _KpiTile(
-          title: "Risk Behaviors",
+          title: "Disruptive Behaviors",
           value: highRisk.toString(),
           icon: Icons.warning_amber_rounded,
           isAlert: highRisk > 0,
