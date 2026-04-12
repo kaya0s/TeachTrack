@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, B
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
+from app.utils.datetime import utc_now
 import enum
 
 class AlertType(str, enum.Enum):
@@ -29,11 +30,11 @@ class ClassSession(Base):
     average_engagement = Column(DECIMAL(5, 2), nullable=False, default=0)
     activity_mode = Column(String(20), nullable=False, default=ActivityMode.LECTURE.value)
     
-    start_time = Column(DateTime(timezone=True), server_default=func.now())
+    start_time = Column(DateTime(timezone=True), default=utc_now)
     end_time = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     teacher = relationship("User", back_populates="sessions")
     section = relationship("ClassSection", back_populates="sessions")
@@ -49,7 +50,7 @@ class BehaviorLog(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    timestamp = Column(DateTime(timezone=True), default=utc_now, index=True)
 
     students_present_snapshot = Column(Integer, nullable=True)
 
@@ -71,11 +72,11 @@ class Alert(Base):
     
     alert_type = Column(String(50)) # Storing Enum as string for simplicity in DB, or use Enum type
     message = Column(String(255))
-    triggered_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    triggered_at = Column(DateTime(timezone=True), default=utc_now, index=True)
     severity = Column(String(20), default=AlertSeverity.WARNING.value, index=True)
     is_read = Column(Boolean, default=False, index=True)
     snapshot_url = Column(String(512), nullable=True) # URL to detection screenshot
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     session = relationship("ClassSession", back_populates="alerts")
 
@@ -95,7 +96,7 @@ class SessionMetrics(Base):
     not_visible_avg = Column(DECIMAL(5, 2), nullable=False, default=0)
 
     engagement_score = Column(DECIMAL(5, 2), nullable=False, default=0)
-    computed_at = Column(DateTime(timezone=True), server_default=func.now())
+    computed_at = Column(DateTime(timezone=True), default=utc_now)
 
     session = relationship("ClassSession", back_populates="metrics")
 
@@ -104,7 +105,7 @@ class SessionHistory(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("class_sessions.id"), index=True)
-    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    changed_at = Column(DateTime(timezone=True), default=utc_now, index=True)
     changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     change_type = Column(String(20), nullable=False)
     prev_start_time = Column(DateTime(timezone=True), nullable=True)
@@ -118,7 +119,7 @@ class AlertHistory(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     alert_id = Column(Integer, ForeignKey("alerts.id"), index=True)
-    changed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    changed_at = Column(DateTime(timezone=True), default=utc_now, index=True)
     changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     change_type = Column(String(20), nullable=False)
     prev_is_read = Column(Boolean, nullable=True)
