@@ -23,12 +23,6 @@ from app.services import alert_service, detector_service, engagement_service, se
 from app.constants import MAX_PAGE_SIZE
 from app.models.session import Alert as AlertModel, ClassSession
 
-# Import demo detector service for demo branch
-try:
-    from app.services.demo_detector_service import start_demo_video_detector
-    DEMO_MODE = True
-except ImportError:
-    DEMO_MODE = False
 
 router = APIRouter()
 models_router = APIRouter()
@@ -142,11 +136,7 @@ def start_webcam_detector(
 ) -> Any:
     session_lifecycle_service.get_active_session_or_404(db, session_id, current_user.id)
     try:
-        # Use demo detector if available (demo branch), otherwise use webcam detector
-        if DEMO_MODE:
-            status = start_demo_video_detector(session_id, engagement_service.process_behavior_log)
-        else:
-            status = detector_service.start_webcam_detector(session_id, engagement_service.process_behavior_log)
+        status = detector_service.start_webcam_detector(session_id, engagement_service.process_behavior_log)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"status": status}
