@@ -341,7 +341,6 @@ class _StartSessionBottomSheetState extends State<StartSessionBottomSheet> {
   Widget _buildActivityModeSelection(ThemeData theme) {
     const modes = [
       {'id': 'LECTURE', 'name': 'Lecture', 'icon': Icons.sensors_rounded, 'color': Colors.teal},
-      {'id': 'COLLABORATION', 'name': 'Collaboration', 'icon': Icons.groups_rounded, 'color': Colors.orange},
       {'id': 'EXAM', 'name': 'Exam', 'icon': Icons.security_rounded, 'color': Colors.red},
     ];
 

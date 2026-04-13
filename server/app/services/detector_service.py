@@ -42,6 +42,11 @@ _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
 SNAPSHOT_COOLDOWN_SECONDS = 30
 
+# Per-session phone detection log counter (EXAM mode: upload only from 3rd log onwards)
+_phone_log_count: dict[int, int] = {}
+_phone_log_lock = threading.Lock()
+EXAM_PHONE_SNAPSHOT_MIN_LOGS = 3
+
 _server_root = Path(__file__).resolve().parents[2]
 _initial_model_path = Path(MODEL_PATH)
 _current_model_path = (
@@ -249,6 +254,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             log_data = BehaviorLogCreate(**counts)
 
             if phone_detections and snapshot_service.is_configured():
+                # Increment per-session phone log counter
+                with _phone_log_lock:
+                    _phone_log_count[session_id] = _phone_log_count.get(session_id, 0) + 1
+                    phone_log_count = _phone_log_count[session_id]
+
                 should_upload = False
                 with _snapshot_lock:
                     last_ts = _last_snapshot_time.get(session_id, 0.0)
@@ -263,15 +273,24 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                             session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
                             if session:
                                 if session.activity_mode == "EXAM":
-                                    snapshot_url = asyncio.run(
-                                        snapshot_service.upload_snapshot_with_detections(
-                                            frame,
-                                            phone_detections,
-                                            session_id,
-                                            "phone",
-                                            int(current_time),
+                                    # In EXAM mode, only upload snapshot from the 3rd detection onwards
+                                    if phone_log_count >= EXAM_PHONE_SNAPSHOT_MIN_LOGS:
+                                        snapshot_url = asyncio.run(
+                                            snapshot_service.upload_snapshot_with_detections(
+                                                frame,
+                                                phone_detections,
+                                                session_id,
+                                                "phone",
+                                                int(current_time),
+                                            )
                                         )
-                                    )
+                                        if snapshot_url:
+                                            setattr(log_data, "_snapshot_url", snapshot_url)
+                                    else:
+                                        logger.info(
+                                            f"EXAM session {session_id}: phone log #{phone_log_count} "
+                                            f"(snapshot withheld until log #{EXAM_PHONE_SNAPSHOT_MIN_LOGS})"
+                                        )
                                 else:
                                     snapshot_url = asyncio.run(
                                         snapshot_service.upload_snapshot(
@@ -281,9 +300,8 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                                             int(current_time),
                                         )
                                     )
-
-                                if snapshot_url:
-                                    setattr(log_data, "_snapshot_url", snapshot_url)
+                                    if snapshot_url:
+                                        setattr(log_data, "_snapshot_url", snapshot_url)
                         finally:
                             db.close()
                     except Exception as exc:
@@ -336,6 +354,9 @@ def stop_webcam_detector(session_id: int) -> str:
             return "not_running"
         existing["stop"].set()
         _detectors.pop(session_id, None)
+    # Reset phone log counter for this session
+    with _phone_log_lock:
+        _phone_log_count.pop(session_id, None)
     return "stopped"
 
 
@@ -363,3 +384,6 @@ def stop_detector_if_running(session_id: int) -> None:
             return
         existing["stop"].set()
         _detectors.pop(session_id, None)
+    # Reset phone log counter for this session
+    with _phone_log_lock:
+        _phone_log_count.pop(session_id, None)
