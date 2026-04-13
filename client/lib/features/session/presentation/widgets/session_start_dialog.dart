@@ -19,7 +19,6 @@ Future<SessionStartParams?> showSessionStartDialog(
 
   final modes = [
     {'value': 'LECTURE', 'label': 'Lecture', 'icon': Icons.school_rounded, 'color': Colors.blue},
-    {'value': 'COLLABORATION', 'label': 'Collaboration', 'icon': Icons.groups_rounded, 'color': Colors.orange},
     {'value': 'EXAM', 'label': 'Exam (Strict)', 'icon': Icons.assignment_turned_in_rounded, 'color': Colors.red},
   ];
 
