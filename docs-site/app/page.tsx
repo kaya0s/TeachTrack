@@ -1,27 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
+import Requirements from "@/components/Requirements";
 import Skills from "@/components/Skills";
 import Team from "@/components/Team";
 import Projects from "@/components/Projects";
 import CVSection from "@/components/CVSection";
+import FAQ from "@/components/FAQ";
+import DeveloperNotes from "@/components/DeveloperNotes";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
 import LoadingScreen from "@/components/LoadingScreen";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -39,8 +35,11 @@ export default function Home() {
         <Navbar />
         <Hero />
         <About />
+        <Requirements />
         <Skills />
         <Projects />
+        <FAQ />
+        <DeveloperNotes />
         <CVSection />
         <Team />
         <Contact />

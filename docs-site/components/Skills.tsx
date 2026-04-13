@@ -3,29 +3,64 @@
 import Section from "./Section";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ArrowUpRight, Activity, BarChart3, ShieldCheck } from "lucide-react";
+import {
+    ArrowUpRight,
+    Activity,
+    BarChart3,
+    Bell,
+    History,
+    ShieldCheck,
+    Wrench,
+} from "lucide-react";
 
 const skillCategories = [
     {
         id: "01",
         title: "Secure Access",
         icon: <ShieldCheck size={20} />,
-        description: "Authenticate with email/password or Google, then recover access with verification-code password reset.",
-        skills: ["Login", "Register", "Google Sign-In", "Forgot Password"],
+        description:
+            "Authenticate with email/password or Google. Use verification-code reset if you forget your password.",
+        skills: ["Sign In", "Register", "Google Sign-In", "Password Reset"],
     },
     {
         id: "02",
         title: "Live AI Monitoring",
         icon: <Activity size={20} />,
-        description: "Run active sessions with server-side detector control, heartbeat checks, and real-time behavior tracking.",
-        skills: ["Start/Stop Session", "Detector Control", "Behavior Logs", "Smart Alerts"],
+        description:
+            "Run monitoring sessions with real-time behavior breakdown, engagement scoring, and alerting during class.",
+        skills: ["Start/Stop Session", "Live Metrics", "Behavior Logs", "Smart Alerts"],
     },
     {
         id: "03",
-        title: "Classroom Analytics",
+        title: "Analytics & History",
         icon: <BarChart3 size={20} />,
-        description: "Manage subjects and sections, upload class cover images, and review engagement metrics and session history.",
-        skills: ["Subjects & Sections", "Cover Upload", "Engagement Trends", "Model Selection"],
+        description:
+            "Review dashboard insights, trends, and past sessions. Open a session to see summary details and performance.",
+        skills: ["Dashboard Overview", "Weekly Trend", "Session History", "Session Details"],
+    },
+    {
+        id: "04",
+        title: "Notifications & Alerts",
+        icon: <Bell size={20} />,
+        description:
+            "Stay updated with a dedicated feed for notifications and alert events, including unread filtering and refresh.",
+        skills: ["Notification Feed", "Alert Center", "Unread Filter", "Auto Refresh"],
+    },
+    {
+        id: "05",
+        title: "Classroom Setup",
+        icon: <History size={20} />,
+        description:
+            "Configure your teaching context by managing subjects/sections and keeping classroom info accurate for sessions.",
+        skills: ["Subjects", "Sections", "Covers/Media", "Details View"],
+    },
+    {
+        id: "06",
+        title: "Admin Tools",
+        icon: <Wrench size={20} />,
+        description:
+            "For administrators: manage users, oversee sessions, review alerts, and select the active detector model.",
+        skills: ["User Management", "Force Stop Session", "Alert Filters", "Model Selection"],
     },
 ];
 

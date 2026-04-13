@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, useScroll, useMotionValueEvent, useSpring } from "framer-motion";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const navItems = [
     { name: "Overview", href: "#overview" },
+    { name: "Requirements", href: "#requirements" },
     { name: "Features", href: "#features" },
-    { name: "Team", href: "#team" },
     { name: "How To Use", href: "#how-to-use" },
+    { name: "FAQ", href: "#faq" },
+    { name: "Dev Notes", href: "#developer" },
     { name: "Downloads", href: "#downloads" },
+    { name: "Team", href: "#team" },
     { name: "Support", href: "#support" },
 ];
 
@@ -23,13 +26,8 @@ export default function Navbar() {
         restDelta: 0.001
     });
 
-    const { theme, setTheme } = useTheme();
-    const [mounted, setMounted] = useState(false);
+    const { resolvedTheme, setTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     useMotionValueEvent(scrollY, "change", (latest) => {
         const previous = scrollY.getPrevious() ?? 0;
@@ -74,12 +72,18 @@ export default function Navbar() {
                     <div className="hidden h-4 w-px bg-foreground/30 md:block" />
 
                     <button
-                        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                         className="p-1 text-foreground/80 transition-all hover:text-accent hover:scale-110"
                         aria-label="Toggle theme"
                     >
-                        {mounted && (theme === "dark" ? <Sun size={14} className="md:hidden" strokeWidth={2} /> : <Moon size={14} className="md:hidden" strokeWidth={2} />)}
-                        {mounted && (theme === "dark" ? <Sun size={16} className="hidden md:block" strokeWidth={2} /> : <Moon size={16} className="hidden md:block" strokeWidth={2} />)}
+                        <span className="md:hidden">
+                            <Moon size={14} className="dark:hidden" strokeWidth={2} />
+                            <Sun size={14} className="hidden dark:block" strokeWidth={2} />
+                        </span>
+                        <span className="hidden md:block">
+                            <Moon size={16} className="dark:hidden" strokeWidth={2} />
+                            <Sun size={16} className="hidden dark:block" strokeWidth={2} />
+                        </span>
                     </button>
 
                     <button
@@ -129,10 +133,11 @@ export default function Navbar() {
                     </div>
                     <div className="mt-auto flex justify-between items-end">
                         <button
-                            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                             className="border border-foreground/25 p-3 text-foreground/80 transition-colors hover:border-accent hover:text-accent"
                         >
-                            {mounted && (theme === "dark" ? <Sun size={24} /> : <Moon size={24} />)}
+                            <Moon size={24} className="dark:hidden" />
+                            <Sun size={24} className="hidden dark:block" />
                         </button>
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-foreground/20">© 2026</span>
                     </div>

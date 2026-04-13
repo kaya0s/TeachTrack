@@ -35,7 +35,7 @@ export default function Contact() {
         const mailtoLink = `mailto:erwin.lanzaderas@gmail.com?subject=${subject}&body=${body}`;
         
         // Open user's email client
-        window.location.href = mailtoLink;
+        window.location.assign(mailtoLink);
         
         // Show success message
         setIsSubmitted(true);

@@ -11,35 +11,40 @@ const steps = [
         id: "01",
         title: "Install the app",
         subtitle: "Android APK",
-        description: "Download the APK and install it on your Android device. (APK link will be added soon.)",
+        description:
+            "Install TeachTrack on your device. Once the APK is available, download and install it, then allow required permissions.",
         image: "/images/step1.png",
     },
     {
         id: "02",
         title: "Sign in / Create account",
         subtitle: "Access",
-        description: "Open the app and sign in. If you are new, create an account to get started.",
+        description:
+            "Open the app and sign in using email/password or Google. If needed, register first or reset your password with a verification code.",
         image: "/images/step2.png",
     },
     {
         id: "03",
-        title: "Set up your class",
+        title: "Select your class",
         subtitle: "Configuration",
-        description: "Add your classroom details and ensure your setup is ready before starting a session.",
+        description:
+            "Choose the subject and section you will monitor. Confirm the student count (if prompted) and verify your setup before starting.",
         image: "/images/step3.png",
     },
     {
         id: "04",
         title: "Start monitoring",
         subtitle: "Live session",
-        description: "Start a session and follow the on-screen prompts to begin tracking and monitoring.",
+        description:
+            "Start a session and position the camera so students are visible. Watch live engagement and behavior metrics update in real time.",
         image: "/images/step4.png",
     },
     {
         id: "05",
         title: "Review results",
         subtitle: "Insights",
-        description: "View summaries and insights after a session to support decisions and improvements.",
+        description:
+            "End the session, then review summaries, alerts, and trends on your dashboard. Use session history for follow-up and improvements.",
         image: "/images/step5.png",
     },
 ];

@@ -40,7 +40,7 @@ export default function Section({
     const rotateX = useTransform(smoothProgress, [0, 0.5, 1], [3, 0, -3]);
     const opacity = useTransform(smoothProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
     const scale = useTransform(smoothProgress, [0, 0.2, 0.8, 1], [0.99, 1, 1, 0.99]);
-    const y = useTransform(smoothProgress, [0, 1], [40, -40]);
+    const verticalTitleY = useTransform(smoothProgress, [0, 1], [100, -100]);
 
     return (
         <section
@@ -100,7 +100,7 @@ export default function Section({
             {/* Floating vertical title with heavy parallax */}
             {verticalTitle && (
                 <motion.div
-                    style={{ y: useTransform(smoothProgress, [0, 1], [100, -100]) }}
+                    style={{ y: verticalTitleY }}
                     className="absolute left-10 top-1/2 -translate-y-1/2 hidden lg:block opacity-20"
                 >
                     <span className="vertical-rl text-[12px] font-black uppercase tracking-[1.5em] text-foreground select-none italic">
