@@ -51,8 +51,8 @@ class AuthInterceptor extends Interceptor {
           SessionTokenStore.clear();
         }
 
-        // 2. ONLY show toast if they were actually logged in before.
-        // This prevents the toast on app startup during the initial checkAuth().
+        // 2. ONLY clear nav stack and show toast if they were actually logged in before.
+        // This prevents the toast and random splash resets during initial checkAuth() or background polling. //
         if (wasAuthenticated) {
           Fluttertoast.showToast(
             msg: 'Your session has expired. Please sign in again.',
@@ -61,13 +61,13 @@ class AuthInterceptor extends Interceptor {
             gravity: ToastGravity.BOTTOM,
             toastLength: Toast.LENGTH_LONG,
           );
-        }
 
-        // 3. Navigate to SplashGate to properly rebuild the nav state
-        navigatorKey?.currentState?.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const SplashGate()),
-          (_) => false,
-        );
+          // 3. Navigate to SplashGate to properly rebuild the nav state
+          navigatorKey?.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const SplashGate()),
+            (_) => false,
+          );
+        }
       }
     }
     return handler.next(err);
