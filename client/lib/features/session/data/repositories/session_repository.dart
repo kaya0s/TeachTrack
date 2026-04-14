@@ -104,15 +104,15 @@ class SessionRepository {
   }
 
   Future<void> startServerDetector(int sessionId) async {
-    await _apiClient.post('/sessions/$sessionId/detector/start');
+    await _apiClient.post('/demo/detector/start/$sessionId');
   }
 
   Future<void> stopServerDetector(int sessionId) async {
-    await _apiClient.post('/sessions/$sessionId/detector/stop');
+    await _apiClient.post('/demo/detector/stop/$sessionId');
   }
 
   Future<void> heartbeatServerDetector(int sessionId) async {
-    await _apiClient.post('/sessions/$sessionId/detector/heartbeat');
+    await _apiClient.post('/demo/detector/heartbeat/$sessionId');
   }
 
   Future<MlModelSelectionModel> getAvailableModels() async {
