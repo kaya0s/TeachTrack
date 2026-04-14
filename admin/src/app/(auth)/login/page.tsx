@@ -26,6 +26,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { notify } = useToast();
   const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
@@ -123,10 +128,13 @@ export default function LoginPage() {
     }
   }
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
-    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden p-4 text-foreground ${
-      theme === 'dark' ? 'bg-neutral-950' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'
-    }`}>
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden p-4 text-foreground ${theme === 'dark' ? 'bg-neutral-950' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'
+      }`}>
       {theme === 'dark' && (
         <>
           <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_60%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.04),transparent_55%)]" />
@@ -150,17 +158,15 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-20 flex w-full items-center justify-center">
-        <Card className={`w-full max-w-5xl overflow-hidden rounded-3xl border backdrop-blur ${
-          theme === 'dark' 
-            ? 'border-border bg-background/90' 
+        <Card className={`w-full max-w-5xl overflow-hidden rounded-3xl border backdrop-blur ${theme === 'dark'
+            ? 'border-border bg-background/90'
             : 'border-white/20 bg-white/95 shadow-2xl'
-        }`}>
+          }`}>
           <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className={`flex flex-col justify-between gap-8 border-b px-10 py-10 lg:border-b-0 lg:border-r ${
-          theme === 'dark'
-            ? 'border-border/70 bg-muted/30'
-            : 'border-blue-100/50 bg-blue-50/30'
-        }`}>
+            <div className={`flex flex-col justify-between gap-8 border-b px-10 py-10 lg:border-b-0 lg:border-r ${theme === 'dark'
+                ? 'border-border/70 bg-muted/30'
+                : 'border-blue-100/50 bg-blue-50/30'
+              }`}>
               <div>
                 <BrandLogo />
                 <CardTitle className="mt-6 text-3xl">{mode === "login" ? "Admin Console" : "Account Recovery"}</CardTitle>
@@ -171,60 +177,51 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2">
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
-                  theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
-                }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${
-                    theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-blue-100 text-blue-800'
                   }`}>
+                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-blue-100 text-blue-800'
+                    }`}>
                     <Bell className="h-4 w-4" />
                   </span>
                   <span>Live alerts and incident review</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
-                  theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
-                }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${
-                    theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-green-100 text-green-800'
                   }`}>
+                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-green-100 text-green-800'
+                    }`}>
                     <Users className="h-4 w-4" />
                   </span>
                   <span>Teacher roster and class access</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
-                  theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
-                }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${
-                    theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-purple-100 text-purple-800'
                   }`}>
+                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-purple-100 text-purple-800'
+                    }`}>
                     <Activity className="h-4 w-4" />
                   </span>
                   <span>Engagement analytics and exports</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
-                  theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
-                }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${
-                    theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-orange-100 text-orange-800'
                   }`}>
+                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-orange-100 text-orange-800'
+                    }`}>
                     <Settings className="h-4 w-4" />
                   </span>
                   <span>AI model governance and tuning</span>
                 </div>
               </div>
-              <div className={`rounded-2xl border p-4 text-xs text-muted-foreground ${
-                theme === 'dark'
+              <div className={`rounded-2xl border p-4 text-xs text-muted-foreground ${theme === 'dark'
                   ? 'border-border/70 bg-background/70'
                   : 'border-blue-200/50 bg-blue-100/50'
-              }`}>
+                }`}>
                 Tip: Use a dedicated admin account and rotate credentials regularly.
               </div>
             </div>
@@ -248,18 +245,18 @@ export default function LoginPage() {
                       <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password</label>
                       <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-10" />
                     </div>
-                <Button className="h-10 w-full" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign in"}
-                </Button>
-                <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                  <span className="h-px flex-1 bg-border" />
-                  or
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-                <Button type="button" variant="outline" className="h-10 w-full" disabled={loading}>
-                  <Chrome className="mr-2 h-4 w-4" />
-                  Continue with Google
-                </Button>
+                    <Button className="h-10 w-full" disabled={loading}>
+                      {loading ? "Signing in..." : "Sign in"}
+                    </Button>
+                    <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                      <span className="h-px flex-1 bg-border" />
+                      or
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                    <Button type="button" variant="outline" className="h-10 w-full" disabled={loading}>
+                      <Chrome className="mr-2 h-4 w-4" />
+                      Continue with Google
+                    </Button>
                     <button
                       type="button"
                       className="w-full text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
