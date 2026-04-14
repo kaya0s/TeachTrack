@@ -56,7 +56,7 @@ export default function About() {
           >
             <div className="absolute inset-0 japanese-grid opacity-10" />
             <img
-              src="/images/about.png"
+              src="/images/step5.png"
               alt="TeachTrack overview visual"
               className="absolute inset-0 h-full w-full object-cover"
             />
