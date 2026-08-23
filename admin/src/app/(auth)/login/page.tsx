@@ -22,11 +22,15 @@ import { setToken } from "@/lib/auth";
 
 type Mode = "login" | "forgot";
 
+const DARK_PARTICLE_COLORS = ["#ffffff"];
+const LIGHT_PARTICLE_COLORS = ["#1e40af", "#3b82f6", "#6366f1"];
+
 export default function LoginPage() {
   const router = useRouter();
   const { notify } = useToast();
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const isDark = resolvedTheme !== "light";
 
   useEffect(() => {
     setMounted(true);
@@ -133,9 +137,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden p-4 text-foreground ${theme === 'dark' ? 'bg-neutral-950' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden p-4 text-foreground ${isDark ? 'bg-neutral-950' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'
       }`}>
-      {theme === 'dark' && (
+      {isDark && (
         <>
           <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_60%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.04),transparent_55%)]" />
           <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(135deg,rgba(10,10,10,0.2),rgba(10,10,10,0.55))]" />
@@ -144,11 +148,11 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute inset-0 z-10">
         <div style={{ width: "100%", height: "100%", position: "relative" }}>
           <Particles
-            particleColors={theme === 'dark' ? ["#ffffff"] : ["#1e40af", "#3b82f6", "#6366f1"]}
-            particleCount={theme === 'dark' ? 200 : 150}
-            particleSpread={theme === 'dark' ? 10 : 8}
-            speed={theme === 'dark' ? 0.05 : 0.03}
-            particleBaseSize={theme === 'dark' ? 100 : 80}
+            particleColors={isDark ? DARK_PARTICLE_COLORS : LIGHT_PARTICLE_COLORS}
+            particleCount={isDark ? 200 : 150}
+            particleSpread={isDark ? 10 : 8}
+            speed={isDark ? 0.05 : 0.03}
+            particleBaseSize={isDark ? 140 : 120}
             moveParticlesOnHover
             alphaParticles={false}
             disableRotation={false}
@@ -158,12 +162,12 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-20 flex w-full items-center justify-center">
-        <Card className={`w-full max-w-5xl overflow-hidden rounded-3xl border backdrop-blur ${theme === 'dark'
+        <Card className={`w-full max-w-5xl overflow-hidden rounded-3xl border backdrop-blur ${isDark
             ? 'border-border bg-background/90'
             : 'border-white/20 bg-white/95 shadow-2xl'
           }`}>
           <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className={`flex flex-col justify-between gap-8 border-b px-10 py-10 lg:border-b-0 lg:border-r ${theme === 'dark'
+            <div className={`flex flex-col justify-between gap-8 border-b px-10 py-10 lg:border-b-0 lg:border-r ${isDark
                 ? 'border-border/70 bg-muted/30'
                 : 'border-blue-100/50 bg-blue-50/30'
               }`}>
@@ -177,48 +181,48 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2">
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isDark
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
                   }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-blue-100 text-blue-800'
+                  <span className={`mt-0.5 rounded-xl p-2 ${isDark ? 'bg-muted text-foreground/80' : 'bg-blue-100 text-blue-800'
                     }`}>
                     <Bell className="h-4 w-4" />
                   </span>
                   <span>Live alerts and incident review</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isDark
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
                   }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-green-100 text-green-800'
+                  <span className={`mt-0.5 rounded-xl p-2 ${isDark ? 'bg-muted text-foreground/80' : 'bg-green-100 text-green-800'
                     }`}>
                     <Users className="h-4 w-4" />
                   </span>
                   <span>Teacher roster and class access</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isDark
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
                   }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-purple-100 text-purple-800'
+                  <span className={`mt-0.5 rounded-xl p-2 ${isDark ? 'bg-muted text-foreground/80' : 'bg-purple-100 text-purple-800'
                     }`}>
                     <Activity className="h-4 w-4" />
                   </span>
                   <span>Engagement analytics and exports</span>
                 </div>
-                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${theme === 'dark'
+                <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isDark
                     ? 'border-border/70 bg-background/70'
                     : 'border-white/50 bg-white/80 shadow-sm'
                   }`}>
-                  <span className={`mt-0.5 rounded-xl p-2 ${theme === 'dark' ? 'bg-muted text-foreground/80' : 'bg-orange-100 text-orange-800'
+                  <span className={`mt-0.5 rounded-xl p-2 ${isDark ? 'bg-muted text-foreground/80' : 'bg-orange-100 text-orange-800'
                     }`}>
                     <Settings className="h-4 w-4" />
                   </span>
                   <span>AI model governance and tuning</span>
                 </div>
               </div>
-              <div className={`rounded-2xl border p-4 text-xs text-muted-foreground ${theme === 'dark'
+              <div className={`rounded-2xl border p-4 text-xs text-muted-foreground ${isDark
                   ? 'border-border/70 bg-background/70'
                   : 'border-blue-200/50 bg-blue-100/50'
                 }`}>
