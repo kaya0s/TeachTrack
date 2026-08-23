@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
@@ -18,6 +18,7 @@ from app.schemas.admin import (
 )
 from app.services import admin_service
 from app.constants import DEFAULT_PAGE_SIZE
+from app.core.mail import send_welcome_email
 
 router = APIRouter()
 
@@ -92,7 +93,12 @@ def list_admin_teachers(
 @router.post("/teachers", response_model=AdminTeacherSummary)
 def create_admin_teacher(
     payload: AdminTeacherCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return admin_service.create_teacher(db, payload.model_dump(), actor_user_id=current_user.id)
+    teacher = admin_service.create_teacher(db, payload.model_dump(), actor_user_id=current_user.id)
+    background_tasks.add_task(
+        send_welcome_email, email=teacher.email, username=teacher.username, password=payload.password
+    )
+    return teacher

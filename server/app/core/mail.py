@@ -25,3 +25,21 @@ async def send_verification_email(email: EmailStr, code: str):
 
     fm = FastMail(conf)
     await fm.send_message(message)
+
+async def send_welcome_email(email: EmailStr, username: str, password: str):
+    body = (
+        f"Welcome to TeachTrack!\n\n"
+        f"Your teacher account has been successfully created.\n"
+        f"Username: {username}\n"
+        f"Temporary Password: {password}\n\n"
+        f"Please log in and change your password immediately."
+    )
+    message = MessageSchema(
+        subject="Welcome to TeachTrack - Account Created",
+        recipients=[email],
+        body=body,
+        subtype=MessageType.plain
+    )
+
+    fm = FastMail(conf)
+    await fm.send_message(message)

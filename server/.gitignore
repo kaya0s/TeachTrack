@@ -15,6 +15,9 @@ DB.md
 test_api_script.py
 test_system_flow.py
 
+#virtual environment
+.venv/
+
 #environment variables
 .env
 
