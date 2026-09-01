@@ -1,8 +1,11 @@
+import gzip
+import logging
 import os
 import shutil
 import subprocess
-import gzip
+import sys
 import tempfile
+import traceback
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,51 +25,30 @@ from app.utils.datetime import utc_now
 from app.constants import DEFAULT_PAGE_SIZE
 from app.core.pagination import clamp_pagination
 
+logger = logging.getLogger(__name__)
+
 
 def get_backup_runs(db: Session, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE) -> List[BackupRun]:
     skip, limit = clamp_pagination(skip, limit)
-    return db.query(BackupRun).order_by(BackupRun.created_at.desc()).offset(skip).limit(limit).all()
+    return (
+        db.query(BackupRun)
+        .filter(BackupRun.status == "success")
+        .order_by(BackupRun.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def get_backup_run(db: Session, backup_id: int) -> Optional[BackupRun]:
     return db.query(BackupRun).filter(BackupRun.id == backup_id).first()
 
 
-def create_backup_run(db: Session, created_by_user) -> BackupRun:
-    backup_run = BackupRun(
-        status="running",
-        created_by=created_by_user.id if created_by_user else None
-    )
-    db.add(backup_run)
-    db.commit()
-    db.refresh(backup_run)
-    
-    audit_service.write_audit_log(
-        db,
-        actor_user_id=created_by_user.id if created_by_user else None,
-        actor_username=getattr(created_by_user, "username", None) if created_by_user else "system",
-        action="BACKUP_START",
-        entity_type="BackupRun",
-        entity_id=backup_run.id,
-        details={"message": "Manual backup started"}
-    )
-    # Ensure audit entry is persisted immediately for visibility in admin UI
-    db.commit()
-    
-    return backup_run
+def perform_backup(db: Session, created_by_user) -> BackupRun:
+    actor_username = getattr(created_by_user, "username", None) or "system" if created_by_user else "system"
+    actor_user_id = created_by_user.id if created_by_user else None
 
-
-async def run_backup_task(db: Session, backup_id: int):
-    backup_run = get_backup_run(db, backup_id)
-    if not backup_run:
-        return
-
-    actor_username = "system"
-    if backup_run.created_by:
-        user = db.query(User).filter(User.id == backup_run.created_by).first()
-        if user:
-            actor_username = user.username
-
+    # Step 1: Attempt dump, gzip compression, and Google Drive upload
     try:
         url = make_url(settings.SQLALCHEMY_DATABASE_URL)
         db_name = url.database
@@ -77,8 +59,6 @@ async def run_backup_task(db: Session, backup_id: int):
 
         timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
         filename = f"teachtrack_backup_{timestamp}.sql.gz"
-        backup_run.filename = filename
-        db.commit()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             sql_file = os.path.join(tmp_dir, "dump.sql")
@@ -104,53 +84,71 @@ async def run_backup_task(db: Session, backup_id: int):
                 stderr = (process.stderr or "").strip()
                 stdout = (process.stdout or "").strip()
                 detail = stderr or stdout or "Unknown mysqldump error."
-                raise Exception(f"mysqldump failed: {detail}")
+                raise Exception(f"Database dump failed: {detail}")
 
             with open(sql_file, "rb") as f_in:
                 with gzip.open(gz_file, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
             file_size = os.path.getsize(gz_file)
-            backup_run.file_size_bytes = file_size
-            db.commit()
 
             drive_info = _upload_to_drive(gz_file, filename)
-            
-            backup_run.drive_file_id = drive_info["id"]
-            backup_run.drive_link = drive_info.get("webViewLink")
-            backup_run.status = "success"
-            backup_run.completed_at = utc_now()
-            db.commit()
-
-            audit_service.write_audit_log(
-                db,
-                actor_user_id=backup_run.created_by,
-                actor_username=actor_username,
-                action="BACKUP_SUCCESS",
-                entity_type="BackupRun",
-                entity_id=backup_run.id,
-                details={"filename": filename, "size": file_size, "drive_id": drive_info["id"]}
-            )
-            # Persist audit log immediately
-            db.commit()
 
     except Exception as e:
-        backup_run.status = "failed"
-        backup_run.error_message = str(e)
-        backup_run.completed_at = utc_now()
-        db.commit()
-        
+        # Print absolute error message and full traceback directly to terminal stderr
+        print("\n" + "=" * 60, file=sys.stderr, flush=True)
+        print(f"[BACKUP ERROR] Database backup execution failed: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        print("=" * 60 + "\n", file=sys.stderr, flush=True)
+        sys.stderr.flush()
+
+        logger.error(f"[Database Backup] Failed to execute backup: {e}", exc_info=True)
+
+        # On failure: Do NOT persist anything to backup_runs table.
+        # Log to audit log so system administrators have an audit record of the attempt.
         audit_service.write_audit_log(
             db,
-            actor_user_id=backup_run.created_by,
+            actor_user_id=actor_user_id,
             actor_username=actor_username,
             action="BACKUP_FAILURE",
             entity_type="BackupRun",
-            entity_id=backup_id,
+            entity_id=None,
             details={"error": str(e)}
         )
-        # Persist audit log immediately
         db.commit()
+        raise e
+
+    # Step 2: On success, persist BackupRun record to database
+    backup_run = BackupRun(
+        status="success",
+        filename=filename,
+        file_size_bytes=file_size,
+        drive_file_id=drive_info["id"],
+        drive_link=drive_info.get("webViewLink"),
+        completed_at=utc_now(),
+        created_by=actor_user_id,
+    )
+    db.add(backup_run)
+    db.commit()
+    db.refresh(backup_run)
+
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        action="BACKUP_SUCCESS",
+        entity_type="BackupRun",
+        entity_id=backup_run.id,
+        details={"filename": filename, "size": file_size, "drive_id": drive_info["id"]}
+    )
+    db.commit()
+
+    return backup_run
+
+
+# Backward-compatible aliases
+create_backup_run = perform_backup
+run_backup_task = perform_backup
 
 
 def _upload_to_drive(file_path: str, filename: str) -> dict:

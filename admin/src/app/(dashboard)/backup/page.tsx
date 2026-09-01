@@ -40,10 +40,6 @@ export default function BackupPage() {
     try {
       const data = await getBackups();
       setBackups(data);
-
-      // Check if any run is still "running"
-      const isAnyRunning = data.some((b: AdminBackupRun) => b.status === "running");
-      setRunning(isAnyRunning);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load backup history."));
     } finally {
@@ -55,17 +51,6 @@ export default function BackupPage() {
     fetchBackups();
   }, [fetchBackups]);
 
-  // Polling while running
-  useEffect(() => {
-    if (!running) return;
-
-    const interval = setInterval(() => {
-      fetchBackups(true);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [running, fetchBackups]);
-
   const handleRunBackup = async () => {
     setRunning(true);
     setError(null);
@@ -73,7 +58,8 @@ export default function BackupPage() {
       await runBackup();
       await fetchBackups(true);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to start backup process."));
+      setError(getErrorMessage(err, "A server error occurred while processing the backup. Please check the server logs for details."));
+    } finally {
       setRunning(false);
     }
   };
@@ -104,7 +90,6 @@ export default function BackupPage() {
 
   const lastBackup = backups[0];
   const totalRuns = backups.length;
-  const successfulRuns = backups.filter((b: AdminBackupRun) => b.status === "success").length;
 
   return (
     <div className="space-y-6">
@@ -138,14 +123,14 @@ export default function BackupPage() {
 
       {error && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
-          <CardContent className="flex items-center gap-3 p-4 text-red-800 dark:text-red-400">
-            <AlertCircle className="h-5 w-5 flex-shrink-0" />
-            <div className="text-sm font-medium">{error}</div>
+          <CardContent className="flex items-start sm:items-center gap-3 p-4 text-red-800 dark:text-red-400">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-sm font-medium flex-1 whitespace-pre-wrap break-words">{error}</div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setError(null)}
-              className="ml-auto hover:bg-red-100 dark:hover:bg-red-900/20"
+              className="ml-auto hover:bg-red-100 dark:hover:bg-red-900/20 flex-shrink-0"
             >
               Dismiss
             </Button>
@@ -172,25 +157,22 @@ export default function BackupPage() {
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Successful</p>
-              <p className="text-2xl font-black">{successfulRuns}</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Latest Backup</p>
+              <p className="text-sm font-black">
+                {lastBackup ? `${formatDate(lastBackup.created_at).date}` : "No backups yet"}
+              </p>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50 backdrop-blur-sm">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className={cn(
-              "p-3 rounded-2xl",
-              lastBackup?.status === "success" ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" :
-                lastBackup?.status === "failed" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
-                  "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-            )}>
-              <Clock className="h-6 w-6" />
+            <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+              <HardDrive className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Last Run Status</p>
-              <p className="text-lg font-black capitalize">
-                {lastBackup ? lastBackup.status : "No runs yet"}
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Latest File Size</p>
+              <p className="text-lg font-black">
+                {lastBackup ? formatSize(lastBackup.file_size_bytes) : "—"}
               </p>
             </div>
           </CardContent>

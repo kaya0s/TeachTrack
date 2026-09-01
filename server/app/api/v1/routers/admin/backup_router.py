@@ -1,26 +1,21 @@
+import logging
+import sys
+import traceback
 from typing import Any
 
-import anyio
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
-from app.db.database import SessionLocal, get_db
+from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.backup import BackupRun as BackupRunSchema
 from app.services.admin import backup_service
 from app.constants import DEFAULT_PAGE_SIZE
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
-
-
-def _run_backup_task_background(backup_id: int) -> None:
-    # BackgroundTasks runs in a threadpool, so we create a new DB session here.
-    db = SessionLocal()
-    try:
-        anyio.run(backup_service.run_backup_task, db, backup_id)
-    finally:
-        db.close()
 
 
 @router.get("/backups", response_model=list[BackupRunSchema])
@@ -35,13 +30,23 @@ def list_backups(
 
 @router.post("/backups", response_model=BackupRunSchema)
 def run_backup(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    run = backup_service.create_backup_run(db, current_user)
-    background_tasks.add_task(_run_backup_task_background, run.id)
-    return run
+    try:
+        return backup_service.perform_backup(db, current_user)
+    except Exception as e:
+        print("\n" + "=" * 60, file=sys.stderr, flush=True)
+        print(f"[BACKUP ROUTER ERROR] Backup request failed: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        print("=" * 60 + "\n", file=sys.stderr, flush=True)
+        sys.stderr.flush()
+
+        logger.error(f"[Backup API] Backup creation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A server error occurred while processing the backup. Please check the server logs for details.",
+        )
 
 
 @router.get("/backups/{backup_id}", response_model=BackupRunSchema)
@@ -59,11 +64,10 @@ def get_backup_status(
 # Backward-compatible aliases (older API paths)
 @router.post("/backup", response_model=BackupRunSchema)
 def create_backup(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
-    return run_backup(background_tasks=background_tasks, db=db, current_user=current_user)
+    return run_backup(db=db, current_user=current_user)
 
 
 @router.get("/backup-runs", response_model=list[BackupRunSchema])

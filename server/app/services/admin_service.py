@@ -74,6 +74,7 @@ select_model = _sessions.select_model
 
 # --- Backup ---
 get_backup_runs = _backup.get_backup_runs
+perform_backup = _backup.perform_backup
 create_backup_run = _backup.create_backup_run
 run_backup_task = _backup.run_backup_task
 
@@ -190,6 +191,7 @@ __all__ = [
     "update_settings",
     # backup
     "get_backup_runs",
+    "perform_backup",
     "create_backup_run",
     "run_backup_task",
     # media
