@@ -24,6 +24,7 @@ from app.services.admin import (
 list_users = _users.list_users
 list_teachers = _users.list_teachers
 create_teacher = _users.create_teacher
+update_teacher = _users.update_teacher
 update_user = _users.update_user
 admin_reset_user_password = _users.admin_reset_user_password
 
@@ -141,6 +142,7 @@ __all__ = [
     "list_users",
     "list_teachers",
     "create_teacher",
+    "update_teacher",
     "update_user",
     "admin_reset_user_password",
     # colleges/majors

@@ -238,6 +238,30 @@ class AdminTeacherCreate(BaseModel):
         return value
 
 
+class AdminTeacherUpdate(BaseModel):
+    firstname: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    lastname: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    age: Optional[int] = Field(default=None, ge=1, le=120)
+    email: Optional[EmailStr] = None
+    username: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    college_id: Optional[int] = None
+    department_id: Optional[int] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("firstname", "lastname")
+    @classmethod
+    def _validate_person_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        valid, error = validate_name(value)
+        if not valid:
+            raise ValueError(error or "Invalid name")
+        return value
+
+
 class PaginatedTeachersResponse(BaseModel):
     total: int
     items: list[AdminTeacherSummary]

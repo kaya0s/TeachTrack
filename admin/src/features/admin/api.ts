@@ -143,6 +143,14 @@ export async function createTeacher(payload: any) {
   });
 }
 
+export async function updateTeacher(teacherId: number, payload: any) {
+  return httpRequest(`/admin/teachers/${teacherId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function patchUser(userId: number, payload: any) {
   return httpRequest(`/admin/users/${userId}`, {
     method: "PATCH",
