@@ -395,7 +395,11 @@ export default function SubjectsAndSectionsPage() {
                       return (
                         <TR
                           key={s.id}
-                          className={hasCover ? "relative overflow-hidden group border-b-0" : ""}
+                          className={`group transition-all duration-300 relative overflow-hidden ${
+                            hasCover
+                              ? "border-0 shadow-sm"
+                              : "hover:bg-muted/30"
+                          }`}
                           style={
                             hasCover
                               ? {
@@ -419,12 +423,13 @@ export default function SubjectsAndSectionsPage() {
                             </div>
                           </TD>
                           <TD className={`text-right ${hasCover ? "relative z-10 pr-4" : ""}`}>
-                            <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="flex justify-end gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                               <Button 
                                 size="icon" 
                                 variant={hasCover ? "default" : "ghost"} 
                                 onClick={() => openSubjectModal(s)}
                                 className={hasCover ? "h-8 w-8 bg-white/10 hover:bg-white/20 text-white border-0 backdrop-blur-md" : "h-8 w-8"}
+                                title="Edit Subject"
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
                               </Button>
@@ -433,6 +438,7 @@ export default function SubjectsAndSectionsPage() {
                                 variant={hasCover ? "danger" : "ghost"} 
                                 className={hasCover ? "h-8 w-8 bg-red-500/80 hover:bg-red-500 border-0 backdrop-blur-md" : "h-8 w-8 text-danger hover:text-danger"}
                                 onClick={() => setDeleteTarget({ type: 'subject', id: s.id, name: s.name })}
+                                title="Delete Subject"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>

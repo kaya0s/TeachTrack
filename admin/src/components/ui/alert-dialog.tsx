@@ -55,7 +55,7 @@ export function AlertDialog({
                 role="alertdialog"
             >
                 <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</p>
+                <div className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</div>
                 <div className="mt-6 flex justify-end gap-3">
                     <Button
                         variant="outline"
