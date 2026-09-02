@@ -118,6 +118,22 @@ def process_behavior_log(
     not_visible = max(0, session.students_present - observed)
     total = observed
 
+    # Exam mode is event-only: do not persist behavior observations or metrics.
+    if session.activity_mode == "EXAM":
+        proctor_configs = settings_service.get_proctoring_settings(db)
+        if log_in.using_phone >= proctor_configs["phone_count_threshold"]:
+            msg = f"EXAM ALERT: Phone usage detected! {log_in.using_phone} student(s)."
+            alert_service.trigger_alert(
+                db,
+                session_id,
+                AlertType.PHONE,
+                msg,
+                AlertSeverity.CRITICAL,
+                snapshot_url=snapshot_url,
+            )
+        db.commit()
+        return
+
     log = BehaviorLog(
         session_id=session_id,
         on_task=log_in.on_task,
@@ -139,24 +155,8 @@ def process_behavior_log(
     
     # --- Mode-Aware Alerts ---
     
-    if session.activity_mode == "EXAM":
-        # Proctoring Mode: Focused only on phone usage (current limitation)
-        proctor_configs = settings_service.get_proctoring_settings(db)
-        
-        # Strict Phone Count Check - ONLY phone alerts for exam mode
-        if log_in.using_phone >= proctor_configs["phone_count_threshold"]:
-            msg = f"EXAM ALERT: Phone usage detected! {log_in.using_phone} student(s)."
-            alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.CRITICAL, snapshot_url=snapshot_url)
-            
-        # For EXAM mode, we don't save engagement averages. Keep at zero.
-        session.average_engagement = 0.0
-        db.add(session)
-        db.commit()
-        return  # End processing for exams (No permanent engagement saved)
-
-    
     # High sleeping rate: Require total >= 5 for sleeping.
-    sleeping_threshold = 0.5 if session.activity_mode == "COLLABORATION" else 0.3
+    sleeping_threshold = 0.3
     if total > 0 and total >= 5 and log_in.sleeping > 0:
         ratio = log_in.sleeping / total
         if ratio > sleeping_threshold:
@@ -171,7 +171,7 @@ def process_behavior_log(
             alert_service.trigger_alert(db, session_id, AlertType.PHONE, msg, AlertSeverity.WARNING, snapshot_url=snapshot_url)
 
     # Off-task alerts:
-    if session.activity_mode != "COLLABORATION" and total >= 5 and log_in.off_task > 0:
+    if total >= 5 and log_in.off_task > 0:
         ratio = log_in.off_task / total
         if ratio > 0.4:
             msg = f"High off-task/talking detected [{session.activity_mode}]: {log_in.off_task} students ({int(ratio*100)}%)."
@@ -206,6 +206,23 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
     logs.reverse()
 
     alerts = db.query(Alert).filter(Alert.session_id == session_id, Alert.is_read == False).all()
+    history = db.query(SessionHistory).filter(
+        SessionHistory.session_id == session_id,
+        SessionHistory.change_type == "MODE_SWITCH",
+    ).order_by(SessionHistory.changed_at.asc()).all()
+    mode_events = []
+    for index, event in enumerate(history):
+        next_mode = (
+            history[index + 1].prev_activity_mode
+            if index + 1 < len(history)
+            else session.activity_mode
+        )
+        mode_events.append({
+            "timestamp": event.changed_at,
+            "activity_mode": next_mode,
+            "previous_mode": event.prev_activity_mode,
+            "message": f"{next_mode} MODE ACTIVATED",
+        })
 
     weights = settings_service.get_engagement_weights(db, mode=session.activity_mode)
     avg_eng = _avg_engagement_from_snapshot_logs(db, session_id, weights)
@@ -217,6 +234,7 @@ def get_session_metrics_response(db: Session, session_id: int, teacher_id: int) 
         "average_engagement": avg_eng,
         "recent_logs": logs,
         "alerts": alerts,
+        "mode_events": mode_events,
     }
 
 

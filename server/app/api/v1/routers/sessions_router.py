@@ -56,7 +56,7 @@ def switch_session_mode(
     db: Session = Depends(get_db),
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
-    """Switch the activity mode of a running session (LECTURE ↔ EXAM ↔ COLLABORATION).
+    """Switch the activity mode of a running session (LECTURE <-> EXAM).
 
     The detector keeps running uninterrupted. All behavior logs captured after
     this call will be stamped with the new mode. A MODE_SWITCH entry is written

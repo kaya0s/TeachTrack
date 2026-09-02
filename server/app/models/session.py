@@ -16,7 +16,6 @@ class AlertSeverity(str, enum.Enum):
 
 class ActivityMode(str, enum.Enum):
     LECTURE = "LECTURE"
-    COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 
 class ClassSession(Base):
@@ -53,7 +52,7 @@ class BehaviorLog(Base):
     timestamp = Column(DateTime(timezone=True), default=utc_now, index=True)
 
     students_present_snapshot = Column(Integer, nullable=True)
-    # Mode active at the moment this log was captured (LECTURE / COLLABORATION / EXAM)
+    # Mode active at the moment this log was captured (LECTURE / EXAM)
     activity_mode = Column(String(20), nullable=True)
 
     on_task = Column(Integer, default=0)

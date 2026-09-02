@@ -6,7 +6,6 @@ from app.schemas.base import UtcAwareBaseModel
 
 class ActivityMode(str, Enum):
     LECTURE = "LECTURE"
-    COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 
 class SessionCreate(UtcAwareBaseModel):
@@ -57,6 +56,12 @@ class Alert(UtcAwareBaseModel):
     class Config:
         from_attributes = True
 
+class ModeEvent(UtcAwareBaseModel):
+    timestamp: datetime
+    activity_mode: ActivityMode
+    previous_mode: Optional[ActivityMode] = None
+    message: str
+
 # -- Session Metrics & Detail --
 class SessionMetrics(UtcAwareBaseModel):
     session_id: int
@@ -65,6 +70,7 @@ class SessionMetrics(UtcAwareBaseModel):
     average_engagement: float
     recent_logs: List[BehaviorLog]
     alerts: List[Alert]
+    mode_events: List[ModeEvent]
 
 class SessionMetricRow(UtcAwareBaseModel):
     id: int

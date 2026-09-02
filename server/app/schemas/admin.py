@@ -143,6 +143,13 @@ class AdminBehaviorLogPoint(BaseModel):
     total_detected: int
 
 
+class AdminModeEvent(BaseModel):
+    timestamp: datetime
+    activity_mode: str
+    previous_mode: Optional[str] = None
+    message: str
+
+
 class AdminMetricPoint(BaseModel):
     window_start: datetime
     window_end: datetime
@@ -160,6 +167,7 @@ class AdminSessionDetail(BaseModel):
     total_alerts: int
     unread_alerts: int
     logs: list[AdminBehaviorLogPoint]
+    mode_events: list[AdminModeEvent]
     metrics_rollup: list[AdminMetricPoint]
 
 
@@ -612,7 +620,6 @@ class AdminWeightsSet(BaseModel):
 
 class AdminSettingsEngagementWeights(BaseModel):
     LECTURE: AdminWeightsSet
-    COLLABORATION: AdminWeightsSet
     EXAM: AdminWeightsSet
 
 

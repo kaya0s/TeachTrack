@@ -154,18 +154,19 @@ def stop_session(db: Session, session_id: int, current_user, stop_detector_fn) -
     stop_detector_fn(session_id)
 
     if session.activity_mode == "EXAM":
-        # Only fully discard if the session was purely exam the entire time
-        # (i.e. no lecture/collaboration behavior logs exist).
-        has_non_exam_logs = (
-            db.query(BehaviorLog)
+        # Exam observations are not persisted, so use mode history to determine
+        # whether this session ever had a retainable Lecture period.
+        has_non_exam_period = (
+            db.query(SessionHistory)
             .filter(
-                BehaviorLog.session_id == session_id,
-                BehaviorLog.activity_mode != "EXAM",
+                SessionHistory.session_id == session_id,
+                SessionHistory.change_type == "MODE_SWITCH",
+                SessionHistory.prev_activity_mode != "EXAM",
             )
             .first()
         )
 
-        if not has_non_exam_logs:
+        if not has_non_exam_period:
             # Pure exam session — discard fully per volatile privacy policy
             final_session_data = {
                 "id": session.id,
@@ -234,7 +235,7 @@ def stop_session(db: Session, session_id: int, current_user, stop_detector_fn) -
             return SessionSchema(**final_session_data)
 
         else:
-            # Mixed session (had lecture/collaboration segments too) — keep the session,
+            # Mixed session (had a Lecture segment too) — keep the session,
             # but purge only the exam-tagged behavior logs and metrics for privacy.
             db.query(BehaviorLog).filter(
                 BehaviorLog.session_id == session_id,
