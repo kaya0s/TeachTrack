@@ -375,8 +375,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 onSelected: (mode) => _changeMode(context, session, mode),
                 itemBuilder: (context) => const [
                   PopupMenuItem(value: 'LECTURE', child: Text('Lecture')),
-                  PopupMenuItem(
-                      value: 'COLLABORATION', child: Text('Collaboration')),
                   PopupMenuItem(value: 'EXAM', child: Text('Exam')),
                 ],
                 child: Padding(
@@ -550,10 +548,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         color = Colors.red;
         icon = Icons.assignment_turned_in_rounded;
         break;
-      case 'COLLABORATION':
-        color = Colors.orange;
-        icon = Icons.groups_rounded;
-        break;
       default:
         color = Colors.blue;
         icon = Icons.school_rounded;
@@ -582,6 +576,99 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildModeSelector(
+      BuildContext context, SessionProvider session, String currentMode) {
+    final color = _modeColor(currentMode);
+    final disabled = _switchingMode || session.isSwitchingMode;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: PopupMenuButton<String>(
+        enabled: !disabled,
+        tooltip: 'Change live monitoring mode',
+        onSelected: (mode) => _changeMode(context, session, mode),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        itemBuilder: (context) => [
+          _modeMenuItem(
+              'LECTURE', 'Lecture', Icons.school_rounded, currentMode),
+          _modeMenuItem(
+              'EXAM', 'Exam', Icons.assignment_turned_in_rounded, currentMode),
+        ],
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 112),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withOpacity(0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (disabled)
+                SizedBox(
+                  width: 15,
+                  height: 15,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: color),
+                )
+              else
+                Icon(Icons.tune_rounded, size: 16, color: color),
+              const SizedBox(width: 6),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('MODE',
+                      style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          color: color)),
+                  Text(_modeLabel(currentMode),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: color)),
+                ],
+              ),
+              const SizedBox(width: 3),
+              Icon(Icons.expand_more_rounded, size: 16, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _modeMenuItem(
+      String value, String label, IconData icon, String currentMode) {
+    final selected = value == currentMode;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label)),
+          if (selected) const Icon(Icons.check_rounded, size: 18),
+        ],
+      ),
+    );
+  }
+
+  String _modeLabel(String mode) {
+    return mode;
+  }
+
+  Color _modeColor(String mode) {
+    switch (mode) {
+      case 'EXAM':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
   }
 
   Widget _buildExamAlertPanel(BuildContext context) {

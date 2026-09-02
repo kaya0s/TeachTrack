@@ -139,7 +139,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
                   navigator.pop();
                   return;
                 }
-                final rootNavigator = Navigator.of(context, rootNavigator: true);
+                final rootNavigator =
+                    Navigator.of(context, rootNavigator: true);
                 if (rootNavigator.canPop()) {
                   rootNavigator.pop();
                 }
@@ -157,9 +158,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: ElevatedButton.icon(
-                  onPressed: _metrics == null
-                      ? null
-                      : () => _showExportSheet(context),
+                  onPressed:
+                      _metrics == null ? null : () => _showExportSheet(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
@@ -167,8 +167,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   ),
                   icon: const Icon(Icons.upload_rounded, size: 18),
                   label: const Text('Export',
@@ -376,9 +376,12 @@ class _MetadataCard extends StatelessWidget {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.55),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.18)),
+                    border: Border.all(
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.18)),
                   ),
                   child: Icon(
                     Icons.info_outline_rounded,
@@ -390,7 +393,8 @@ class _MetadataCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Session Info',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -490,9 +494,6 @@ class _InfoRow extends StatelessWidget {
       switch (value) {
         case 'EXAM':
           color = Colors.red;
-          break;
-        case 'COLLABORATION':
-          color = Colors.orange;
           break;
         default:
           color = Colors.blue;
@@ -755,8 +756,7 @@ class _BehaviorChartCard extends StatelessWidget {
                               if (event is FlTapUpEvent ||
                                   event is FlPointerHoverEvent) {
                                 final idx = pieTouchResponse
-                                    ?.touchedSection
-                                    ?.touchedSectionIndex;
+                                    ?.touchedSection?.touchedSectionIndex;
                                 onTouch(idx ?? -1);
                               }
                               if (event is FlLongPressEnd ||
@@ -775,9 +775,8 @@ class _BehaviorChartCard extends StatelessWidget {
                               value: values[i] * chartAnim.value,
                               color: _behaviorColors[i],
                               radius: isTouched ? 44 : 36,
-                              title: isTouched
-                                  ? '${pct.toStringAsFixed(1)}%'
-                                  : '',
+                              title:
+                                  isTouched ? '${pct.toStringAsFixed(1)}%' : '',
                               titleStyle: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
@@ -1036,7 +1035,8 @@ class _AlertsCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.55),
+                  color:
+                      theme.colorScheme.errorContainer.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: theme.colorScheme.error.withValues(alpha: 0.18),
@@ -1058,7 +1058,8 @@ class _AlertsCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(999),
@@ -1116,9 +1117,13 @@ class _AlertsCard extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  alert.alertType.isEmpty ? 'ALERT' : alert.alertType,
+                                  alert.alertType.isEmpty
+                                      ? 'ALERT'
+                                      : alert.alertType,
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: unread ? FontWeight.w900 : FontWeight.w800,
+                                    fontWeight: unread
+                                        ? FontWeight.w900
+                                        : FontWeight.w800,
                                     letterSpacing: 0.2,
                                   ),
                                 ),
@@ -1126,7 +1131,8 @@ class _AlertsCard extends StatelessWidget {
                               Text(
                                 fmt.format(alert.triggeredAt),
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.65),
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -1136,7 +1142,8 @@ class _AlertsCard extends StatelessWidget {
                           Text(
                             alert.message,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.75),
                               height: 1.25,
                             ),
                           ),
@@ -1222,15 +1229,18 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     buffer.writeln('Section,${s.sectionName}');
     buffer.writeln('Activity Mode,${s.activityMode}');
     buffer.writeln('Start Time,${fmt.format(s.startTime)}');
-    buffer.writeln('End Time,${s.endTime != null ? fmt.format(s.endTime!) : "In Progress"}');
-    buffer.writeln('Average Engagement,${s.averageEngagement.toStringAsFixed(2)}%');
+    buffer.writeln(
+        'End Time,${s.endTime != null ? fmt.format(s.endTime!) : "In Progress"}');
+    buffer.writeln(
+        'Average Engagement,${s.averageEngagement.toStringAsFixed(2)}%');
 
     if (m != null) {
       buffer.writeln('Students Present,${m.studentsPresent}');
       buffer.writeln('Total Logs,${m.totalLogs}');
       buffer.writeln('');
       buffer.writeln('--- BEHAVIOR LOGS ---');
-      buffer.writeln('Timestamp,On Task,Sleeping,Using Phone,off_task,Not Visible,Total Detected');
+      buffer.writeln(
+          'Timestamp,On Task,Sleeping,Using Phone,off_task,Not Visible,Total Detected');
       for (final log in m.recentLogs) {
         buffer.writeln(
           '${fmt.format(log.timestamp)},${log.onTask},${log.sleeping},${log.usingPhone},${log.offTask},${log.notVisible},${log.totalDetected}',
@@ -1242,7 +1252,8 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     final bytes = Uint8List.fromList(buffer.toString().codeUnits);
     await Printing.sharePdf(
       bytes: bytes,
-      filename: 'session_${s.id}_${DateFormat("yyyyMMdd").format(s.startTime)}.csv',
+      filename:
+          'session_${s.id}_${DateFormat("yyyyMMdd").format(s.startTime)}.csv',
     );
   }
 
@@ -1569,17 +1580,19 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     );
   }
 
-  pw.TableRow _pdfTableRowRich(String label, String value, SessionMetricsModel? m) {
+  pw.TableRow _pdfTableRowRich(
+      String label, String value, SessionMetricsModel? m) {
     String avgPerLog = '0.00';
     String avgPerStudent = '0.00';
     if (m != null && m.totalLogs > 0) {
       final val = double.tryParse(value) ?? 0;
       avgPerLog = (val / m.totalLogs).toStringAsFixed(2);
       if (m.studentsPresent > 0) {
-        avgPerStudent = (val / m.totalLogs / m.studentsPresent).toStringAsFixed(2);
+        avgPerStudent =
+            (val / m.totalLogs / m.studentsPresent).toStringAsFixed(2);
       }
     }
-    
+
     return pw.TableRow(children: [
       _pdfTableCell(label),
       _pdfTableCell(value),
@@ -1648,8 +1661,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
               padding: const EdgeInsets.all(32),
               child: Column(
                 children: [
-                  CircularProgressIndicator(
-                      color: theme.colorScheme.primary),
+                  CircularProgressIndicator(color: theme.colorScheme.primary),
                   const SizedBox(height: 12),
                   Text('Generating report...',
                       style: theme.textTheme.bodySmall
@@ -1665,7 +1677,10 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
               color: const Color(0xFF00C9A7),
               onTap: _exportCsv,
             ),
-            Divider(height: 1, indent: 24, endIndent: 24,
+            Divider(
+                height: 1,
+                indent: 24,
+                endIndent: 24,
                 color: theme.dividerColor),
             _ExportOption(
               icon: Icons.picture_as_pdf_rounded,
@@ -1727,8 +1742,8 @@ class _ExportOption extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.secondary)),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.secondary)),
                 ],
               ),
             ),

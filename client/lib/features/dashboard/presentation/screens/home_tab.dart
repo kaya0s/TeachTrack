@@ -13,7 +13,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:teachtrack/core/widgets/hierarchy_meta_row.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
-  
+
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
@@ -36,7 +36,7 @@ class _HomeTabState extends State<HomeTab> {
     if (!mounted) return;
     final session = context.read<SessionProvider>();
     final classroom = context.read<ClassroomProvider>();
-    
+
     // Fetch both classroom data (subjects/sections) AND session history
     await Future.wait([
       classroom.fetchClassroomData(),
@@ -65,7 +65,7 @@ class _HomeTabState extends State<HomeTab> {
     // Determine department - Prioritize explicit department info from User Profile
     String? departmentName = user?.departmentName;
     String? departmentCoverImageUrl = user?.departmentCoverImageUrl;
-    
+
     // If user's college info is not in the profile, fall back to inferring from subjects
     if (user?.collegeName == null || user!.collegeName!.trim().isEmpty) {
       if (classroom.subjects.isNotEmpty) {
@@ -78,7 +78,8 @@ class _HomeTabState extends State<HomeTab> {
           }
         }
         if (counts.isNotEmpty) {
-          final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          final sorted = counts.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
           collegeName = sorted.first.key;
           collegeLogoPath = logos[collegeName];
         }
@@ -97,7 +98,8 @@ class _HomeTabState extends State<HomeTab> {
           }
         }
         if (counts.isNotEmpty) {
-          final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          final sorted = counts.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
           departmentName = sorted.first.key;
           departmentCoverImageUrl = coverUrls[departmentName];
         }
@@ -128,7 +130,7 @@ class _HomeTabState extends State<HomeTab> {
       final Map<String, List<double>> sectionScores = {};
       final Map<String, String> sectionSubjects = {};
       final Map<String, String> sectionNames = {};
-      
+
       for (final s in completedSessions) {
         final key = '${s.subjectId}-${s.sectionName}';
         sectionScores.putIfAbsent(key, () => []).add(s.averageEngagement);
@@ -150,9 +152,8 @@ class _HomeTabState extends State<HomeTab> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final weekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisWeekSessions = completedSessions
-        .where((s) => s.startTime.isAfter(weekStart))
-        .length;
+    final thisWeekSessions =
+        completedSessions.where((s) => s.startTime.isAfter(weekStart)).length;
 
     final isLoading = session.historyLoading || classroom.isLoading;
 
@@ -168,7 +169,7 @@ class _HomeTabState extends State<HomeTab> {
             const SliverToBoxAdapter(
               child: LinearProgressIndicator(minHeight: 2),
             ),
-            
+
           // ── Hero header ─────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: _HeroHeader(
@@ -188,8 +189,6 @@ class _HomeTabState extends State<HomeTab> {
               theme: theme,
             ),
           ),
-
-
 
           // ── Stats grid ───────────────────────────────────────────────────────
           SliverPadding(
@@ -259,7 +258,8 @@ class _HomeTabState extends State<HomeTab> {
                             );
                           },
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 0),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
@@ -282,8 +282,6 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     const SizedBox(height: 20),
                   ],
-
-
                 ],
               ),
             ),
@@ -344,7 +342,9 @@ class _HeroHeader extends StatelessWidget {
         ? [const Color(0xFF18181B), const Color(0xFF09090B)]
         : [Colors.white, Colors.white];
     final textColor = isDark ? Colors.white : theme.textTheme.bodyLarge?.color;
-    final subColor = isDark ? Colors.white.withOpacity(0.7) : theme.textTheme.bodyMedium?.color;
+    final subColor = isDark
+        ? Colors.white.withOpacity(0.7)
+        : theme.textTheme.bodyMedium?.color;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -355,10 +355,15 @@ class _HeroHeader extends StatelessWidget {
           colors: cardBg,
         ),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : colorScheme.primary.withOpacity(0.1)),
+        border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : colorScheme.primary.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.2) : colorScheme.primary.withOpacity(0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : colorScheme.primary.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -372,7 +377,9 @@ class _HeroHeader extends StatelessWidget {
             top: -20,
             child: Opacity(
               opacity: isDark ? 0.05 : 0.03,
-              child: Icon(Icons.school_rounded, size: 160, color: isDark ? Colors.white : colorScheme.primary),
+              child: Icon(Icons.school_rounded,
+                  size: 160,
+                  color: isDark ? Colors.white : colorScheme.primary),
             ),
           ),
           Padding(
@@ -384,36 +391,41 @@ class _HeroHeader extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.12) : colorScheme.primary.withOpacity(0.08),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.12)
+                            : colorScheme.primary.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today_rounded, size: 12, color: isDark ? Colors.white.withOpacity(0.8) : colorScheme.primary),
+                          Icon(Icons.calendar_today_rounded,
+                              size: 12,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.8)
+                                  : colorScheme.primary),
                           const SizedBox(width: 8),
-                          Text(
-                            dateStr, 
-                            style: TextStyle(
-                              color: isDark ? Colors.white : colorScheme.primary, 
-                              fontSize: 10, 
-                              fontWeight: FontWeight.w800, 
-                              letterSpacing: 0.5
-                            )
-                          ),
+                          Text(dateStr,
+                              style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white
+                                      : colorScheme.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5)),
                         ],
                       ),
                     ),
-                    Text(
-                      timeStr, 
-                      style: TextStyle(
-                        color: isDark ? Colors.white.withOpacity(0.8) : colorScheme.primary.withOpacity(0.8), 
-                        fontSize: 12, 
-                        fontWeight: FontWeight.w900, 
-                        letterSpacing: 1.0
-                      )
-                    ),
+                    Text(timeStr,
+                        style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.8)
+                                : colorScheme.primary.withOpacity(0.8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0)),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -454,13 +466,17 @@ class _HeroHeader extends StatelessWidget {
                             children: [
                               Container(
                                 decoration: BoxDecoration(
-                                  color: isDark ? Colors.blueAccent.withOpacity(0.2) : colorScheme.primary.withOpacity(0.05),
+                                  color: isDark
+                                      ? Colors.blueAccent.withOpacity(0.2)
+                                      : colorScheme.primary.withOpacity(0.05),
                                   shape: BoxShape.circle,
                                 ),
                                 child: _CollegeLogo(
                                   logoPath: collegeLogoPath,
                                   size: 18,
-                                  placeholderText: collegeName.isNotEmpty ? collegeName[0] : 'C',
+                                  placeholderText: collegeName.isNotEmpty
+                                      ? collegeName[0]
+                                      : 'C',
                                   theme: theme,
                                 ),
                               ),
@@ -483,24 +499,34 @@ class _HeroHeader extends StatelessWidget {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                if (resolveImageUrl(departmentCoverImageUrl) != null) ...[
+                                if (resolveImageUrl(departmentCoverImageUrl) !=
+                                    null) ...[
                                   Container(
                                     width: 22,
                                     height: 16,
                                     decoration: BoxDecoration(
-                                      color: isDark ? Colors.white.withOpacity(0.12) : colorScheme.primary.withOpacity(0.05),
+                                      color: isDark
+                                          ? Colors.white.withOpacity(0.12)
+                                          : colorScheme.primary
+                                              .withOpacity(0.05),
                                       borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+                                      border: Border.all(
+                                          color: theme.dividerColor
+                                              .withOpacity(0.35)),
                                     ),
                                     clipBehavior: Clip.antiAlias,
                                     child: Image.network(
                                       resolveImageUrl(departmentCoverImageUrl)!,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Icon(Icons.apartment_rounded, size: 16, color: subColor),
+                                      errorBuilder: (_, __, ___) => Icon(
+                                          Icons.apartment_rounded,
+                                          size: 16,
+                                          color: subColor),
                                     ),
                                   ),
                                 ] else
-                                  Icon(Icons.apartment_rounded, size: 16, color: subColor),
+                                  Icon(Icons.apartment_rounded,
+                                      size: 16, color: subColor),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -528,30 +554,44 @@ class _HeroHeader extends StatelessWidget {
                     onTap: () => context.read<NavigationProvider>().setIndex(2),
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.greenAccent.withOpacity(0.1) : Colors.green.withOpacity(0.05),
+                        color: isDark
+                            ? Colors.greenAccent.withOpacity(0.1)
+                            : Colors.green.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: (isDark ? Colors.greenAccent : Colors.green).withOpacity(0.2)),
+                        border: Border.all(
+                            color: (isDark ? Colors.greenAccent : Colors.green)
+                                .withOpacity(0.2)),
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: BoxDecoration(color: isDark ? Colors.greenAccent : Colors.green, shape: BoxShape.circle),
+                            decoration: BoxDecoration(
+                                color:
+                                    isDark ? Colors.greenAccent : Colors.green,
+                                shape: BoxShape.circle),
                           ),
                           const SizedBox(width: 12),
                           Text(
                             'Active Class Session in Progress',
                             style: TextStyle(
-                              color: isDark ? Colors.greenAccent : Colors.green[700],
+                              color: isDark
+                                  ? Colors.greenAccent
+                                  : Colors.green[700],
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                           const Spacer(),
-                          Icon(Icons.arrow_forward_ios_rounded, size: 10, color: isDark ? Colors.greenAccent : Colors.green[700]),
+                          Icon(Icons.arrow_forward_ios_rounded,
+                              size: 10,
+                              color: isDark
+                                  ? Colors.greenAccent
+                                  : Colors.green[700]),
                         ],
                       ),
                     ),
@@ -688,8 +728,6 @@ class _CollegeLogo extends StatelessWidget {
 }
 
 // ── Quick Actions ─────────────────────────────────────────────────────────────
-
-
 
 // ── Stats Grid ───────────────────────────────────────────────────────────────
 
@@ -934,7 +972,8 @@ class _MiniAnalyticsCard extends StatelessWidget {
     // Group last 7 days by day of week
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final last7 = List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
+    final last7 =
+        List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
 
     final Map<int, int> byDay = {};
     for (int i = 0; i < 7; i++) {
@@ -942,7 +981,8 @@ class _MiniAnalyticsCard extends StatelessWidget {
     }
 
     for (final s in sessions) {
-      final sessionDate = DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
+      final sessionDate =
+          DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
       final diff = today.difference(sessionDate).inDays;
       if (diff >= 0 && diff < 7) {
         byDay[6 - diff] = (byDay[6 - diff] ?? 0) + 1;
@@ -1003,7 +1043,8 @@ class _MiniAnalyticsCard extends StatelessWidget {
             SizedBox(
               height: 140,
               child: Center(
-                child: Text('No sessions recorded this week.', style: TextStyle(color: theme.colorScheme.secondary)),
+                child: Text('No sessions recorded this week.',
+                    style: TextStyle(color: theme.colorScheme.secondary)),
               ),
             )
           else
@@ -1024,8 +1065,10 @@ class _MiniAnalyticsCard extends StatelessWidget {
                   ),
                   titlesData: FlTitlesData(
                     show: true,
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -1037,7 +1080,8 @@ class _MiniAnalyticsCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.secondary.withOpacity(0.8),
+                              color:
+                                  theme.colorScheme.secondary.withOpacity(0.8),
                             ),
                             textAlign: TextAlign.center,
                           );
@@ -1059,8 +1103,12 @@ class _MiniAnalyticsCard extends StatelessWidget {
                               _dayAbbr(day.weekday),
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                color: isToday ? theme.colorScheme.primary : theme.colorScheme.secondary,
+                                fontWeight: isToday
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isToday
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.secondary,
                               ),
                             ),
                           );
@@ -1139,7 +1187,8 @@ class _BestSectionCard extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(Icons.star_rounded, color: Colors.white, size: 28),
+            child:
+                const Icon(Icons.star_rounded, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1168,7 +1217,8 @@ class _BestSectionCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (engagement >= 70)
-                    const Icon(Icons.trending_up_rounded, color: Color(0xFF00C9A7), size: 16),
+                    const Icon(Icons.trending_up_rounded,
+                        color: Color(0xFF00C9A7), size: 16),
                   if (engagement >= 70) const SizedBox(width: 4),
                   Text(
                     '${engagement.toStringAsFixed(1)}%',
@@ -1242,9 +1292,10 @@ class _RecentSessionsList extends StatelessWidget {
           final logoPath = (s.collegeLogoPath?.trim().isNotEmpty == true)
               ? s.collegeLogoPath
               : subject?.collegeLogoPath;
-          final coverImageUrl = (s.subjectCoverImageUrl?.trim().isNotEmpty == true)
-              ? s.subjectCoverImageUrl
-              : subject?.coverImageUrl;
+          final coverImageUrl =
+              (s.subjectCoverImageUrl?.trim().isNotEmpty == true)
+                  ? s.subjectCoverImageUrl
+                  : subject?.coverImageUrl;
           final majorLabel = (s.majorCode?.trim().isNotEmpty == true)
               ? s.majorCode
               : (s.majorName ?? subject?.majorCode ?? subject?.majorName);
@@ -1267,8 +1318,8 @@ class _RecentSessionsList extends StatelessWidget {
                             bottom: Radius.circular(18))
                         : BorderRadius.zero,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
                     children: [
                       // College logo or engagement-colored icon
@@ -1284,48 +1335,50 @@ class _RecentSessionsList extends StatelessWidget {
                           children: [
                             Text(
                               s.subjectName,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700),
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             HierarchyMetaRow(
-                              collegeName: s.collegeName ?? subject?.collegeName,
-                              departmentName: s.departmentName ?? subject?.departmentName,
+                              collegeName:
+                                  s.collegeName ?? subject?.collegeName,
+                              departmentName:
+                                  s.departmentName ?? subject?.departmentName,
                               majorLabel: majorLabel,
                               collegeLogoPath: logoPath,
                             ),
                             const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.groups_rounded,
-                                        size: 11,
-                                        color: theme.colorScheme.secondary),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      s.sectionName,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                          color: theme.colorScheme.secondary),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    _buildModeChip(s.activityMode),
-                                  ],
+                            Row(
+                              children: [
+                                Icon(Icons.groups_rounded,
+                                    size: 11,
+                                    color: theme.colorScheme.secondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  s.sectionName,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.secondary),
                                 ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.schedule_rounded,
-                                        size: 11,
-                                        color: theme.colorScheme.secondary),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _formatDate(s.startTime),
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                          color: theme.colorScheme.secondary),
-                                    ),
-                                  ],
+                                const SizedBox(width: 12),
+                                _buildModeChip(s.activityMode),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.schedule_rounded,
+                                    size: 11,
+                                    color: theme.colorScheme.secondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _formatDate(s.startTime),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.secondary),
                                 ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -1385,10 +1438,6 @@ class _RecentSessionsList extends StatelessWidget {
       case 'EXAM':
         color = Colors.red;
         icon = Icons.assignment_turned_in_rounded;
-        break;
-      case 'COLLABORATION':
-        color = Colors.orange;
-        icon = Icons.groups_rounded;
         break;
       default:
         color = Colors.blue;
@@ -1486,8 +1535,6 @@ class _SessionCardLeading extends StatelessWidget {
 }
 
 // ── Empty State ───────────────────────────────────────────────────────────────
-
-
 
 // ── Section Header ────────────────────────────────────────────────────────────
 
