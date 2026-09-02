@@ -672,7 +672,6 @@ export default function SessionsPage() {
                 options={[
                   { value: "all", label: "All Modes" },
                   { value: "LECTURE", label: "Lecture" },
-                  { value: "COLLABORATION", label: "Collaboration" },
                   { value: "EXAM", label: "Exam" },
                 ]}
                 onChange={(value) => setActivityModeFilter(value as string)}

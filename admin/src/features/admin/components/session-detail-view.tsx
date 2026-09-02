@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileDown, Download } from "lucide-react";
+import { ArrowLeftRight, FileDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SessionTrendChart } from "@/components/session-trend-chart";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { AdminSessionDetail } from "../types";
+import { AdminSessionDetail, SessionLogPoint, SessionModeEvent } from "../types";
 
 type BehaviorLogChartRow = {
     time: string;
@@ -15,6 +15,10 @@ type BehaviorLogChartRow = {
     off_task: number;
     not_visible: number;
 };
+
+type BehaviorStreamEntry =
+    | { kind: "log"; timestamp: string; log: SessionLogPoint }
+    | { kind: "mode"; timestamp: string; event: SessionModeEvent };
 
 type BehaviorPieSlice = {
     label: string;
@@ -173,6 +177,12 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
     }, [detail]);
 
     const pieSource = hoveredLogRow ?? overallSessionBehaviorTotals;
+    const behaviorStream = useMemo<BehaviorStreamEntry[]>(() => {
+        return [
+            ...detail.logs.map((log) => ({ kind: "log" as const, timestamp: log.timestamp, log })),
+            ...detail.mode_events.map((event) => ({ kind: "mode" as const, timestamp: event.timestamp, event })),
+        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [detail.logs, detail.mode_events]);
     const behaviorPieSlices = useMemo<BehaviorPieSlice[]>(() => {
         if (!pieSource) return [];
         return [
@@ -274,24 +284,32 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
 
             <div className="rounded-xl border border-border bg-card">
                 <div className="border-b border-border px-4 py-3 bg-muted/20">
-                    <h4 className="text-sm font-semibold">Behavior stream logs ({detail.logs.length} entries)</h4>
+                    <h4 className="text-sm font-semibold">Behavior stream logs ({behaviorStream.length} entries)</h4>
                 </div>
                 <div className="max-h-96 overflow-y-auto p-0">
-                    {detail.logs.length ? (
+                    {behaviorStream.length ? (
                         <Table>
                             <THead className="sticky top-0 bg-card z-10 shadow-sm">
                                 <TR><TH className="px-4">Time</TH><TH>Task</TH><TH>Sleep</TH><TH>Phone</TH><TH>Off Task</TH><TH>Invisible</TH><TH className="pr-4">Total</TH></TR>
                             </THead>
                             <TBody>
-                                {[...detail.logs].reverse().map((log, idx) => (
-                                    <TR key={`${log.timestamp}-${idx}`}>
-                                        <TD className="px-4 text-xs font-mono">{new Date(log.timestamp).toLocaleTimeString()}</TD>
-                                        <TD>{log.on_task}</TD>
-                                        <TD>{log.sleeping}</TD>
-                                        <TD>{log.using_phone}</TD>
-                                        <TD>{log.off_task}</TD>
-                                        <TD className="text-muted-foreground">{log.not_visible}</TD>
-                                        <TD className="pr-4 font-semibold">{log.total_detected}</TD>
+                                {behaviorStream.map((entry, idx) => entry.kind === "mode" ? (
+                                    <TR key={`${entry.timestamp}-mode-${idx}`} className="bg-warning/5">
+                                        <TD colSpan={7} className="px-4 py-3 text-sm font-bold uppercase text-amber-700 dark:text-amber-300">
+                                            <ArrowLeftRight className="mr-2 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
+                                            {entry.event.message}
+                                            <span className="ml-3 text-xs font-mono font-normal text-muted-foreground">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                                        </TD>
+                                    </TR>
+                                ) : (
+                                    <TR key={`${entry.timestamp}-log-${idx}`}>
+                                        <TD className="px-4 text-xs font-mono">{new Date(entry.timestamp).toLocaleTimeString()}</TD>
+                                        <TD>{entry.log.on_task}</TD>
+                                        <TD>{entry.log.sleeping}</TD>
+                                        <TD>{entry.log.using_phone}</TD>
+                                        <TD>{entry.log.off_task}</TD>
+                                        <TD className="text-muted-foreground">{entry.log.not_visible}</TD>
+                                        <TD className="pr-4 font-semibold">{entry.log.total_detected}</TD>
                                     </TR>
                                 ))}
                             </TBody>
@@ -301,6 +319,7 @@ export function SessionDetailView({ detail }: { detail: AdminSessionDetail }) {
                     )}
                 </div>
             </div>
+
         </div>
     );
 }

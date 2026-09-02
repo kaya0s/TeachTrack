@@ -1002,7 +1002,6 @@ export default function DashboardPage() {
             >
               <option value="all">All Modes</option>
               <option value="LECTURE">Lecture</option>
-              <option value="COLLABORATION">Collaboration</option>
             </select>
           </div>
 
