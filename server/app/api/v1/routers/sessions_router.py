@@ -12,6 +12,8 @@ from app.schemas.session import (
     BehaviorLogCreate,
     ModelSelectionRequest,
     ModelSelectionResponse,
+    ModeSwitchRequest,
+    ModeSwitchResponse,
     Session as SessionSchema,
     SessionCreate,
     SessionHistory as SessionHistorySchema,
@@ -45,6 +47,22 @@ def stop_session(
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
     return session_lifecycle_service.stop_session(db, session_id, current_user, detector_service.stop_detector_if_running)
+
+
+@router.patch("/{session_id}/mode", response_model=ModeSwitchResponse)
+def switch_session_mode(
+    session_id: int,
+    request: ModeSwitchRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> Any:
+    """Switch the activity mode of a running session (LECTURE ↔ EXAM ↔ COLLABORATION).
+
+    The detector keeps running uninterrupted. All behavior logs captured after
+    this call will be stamped with the new mode. A MODE_SWITCH entry is written
+    to session_history and an audit log entry is created.
+    """
+    return session_lifecycle_service.switch_session_mode(db, session_id, request, current_user)
 
 
 @router.get("/active", response_model=SessionSchema)

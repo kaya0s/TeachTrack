@@ -21,6 +21,19 @@ class SessionModel {
     required this.activityMode,
   });
 
+  SessionModel copyWith({String? activityMode}) {
+    return SessionModel(
+      id: id,
+      subjectId: subjectId,
+      sectionId: sectionId,
+      studentsPresent: studentsPresent,
+      startTime: startTime,
+      endTime: endTime,
+      isActive: isActive,
+      activityMode: activityMode ?? this.activityMode,
+    );
+  }
+
   factory SessionModel.fromJson(Map<String, dynamic> json) {
     final startRaw = json['start_time'];
     final endRaw = json['end_time'];
@@ -64,9 +77,8 @@ class BehaviorLogModel {
     final ts = json['timestamp'];
     return BehaviorLogModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      timestamp: ts != null
-          ? ApiDateUtils.parse(ts.toString())
-          : DateTime.now(),
+      timestamp:
+          ts != null ? ApiDateUtils.parse(ts.toString()) : DateTime.now(),
       onTask: (json['on_task'] as num?)?.toInt() ?? 0,
       sleeping: (json['sleeping'] as num?)?.toInt() ?? 0,
       usingPhone: (json['using_phone'] as num?)?.toInt() ?? 0,
@@ -220,8 +232,7 @@ class SessionSummaryModel {
       startTime: startRaw != null
           ? ApiDateUtils.parse(startRaw.toString())
           : DateTime.now(),
-      endTime:
-          endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
+      endTime: endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
       isActive: json['is_active'] == true,
       activityMode: json['activity_mode'] as String? ?? 'LECTURE',
       averageEngagement:

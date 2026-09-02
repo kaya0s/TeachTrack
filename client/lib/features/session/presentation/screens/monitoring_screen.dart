@@ -11,7 +11,6 @@ import '../widgets/engagement_card.dart';
 import '../widgets/session_kpi_grid_view.dart';
 import '../widgets/behavior_snapshot_chart.dart';
 import '../widgets/behavior_trend_chart.dart';
-import '../widgets/session_summary_dialog.dart';
 import 'package:intl/intl.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
 
@@ -19,7 +18,8 @@ class MonitoringScreen extends StatefulWidget {
   final int sessionId;
   final bool isEmbedded;
 
-  const MonitoringScreen({super.key, required this.sessionId, this.isEmbedded = false});
+  const MonitoringScreen(
+      {super.key, required this.sessionId, this.isEmbedded = false});
 
   @override
   State<MonitoringScreen> createState() => _MonitoringScreenState();
@@ -27,6 +27,7 @@ class MonitoringScreen extends StatefulWidget {
 
 class _MonitoringScreenState extends State<MonitoringScreen> {
   Timer? _heartbeatTimer;
+  bool _switchingMode = false;
 
   int? _lastAlertId;
   AlertModel? _latestAlertWithSnapshot;
@@ -35,21 +36,22 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   void initState() {
     super.initState();
     _startDetectorAndHeartbeat();
-     
+
     // Listen for metrics changes to check for new alerts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
     });
   }
-  
+
   void _onSessionChanged() {
-    final metrics = Provider.of<SessionProvider>(context, listen: false).metrics;
+    final metrics =
+        Provider.of<SessionProvider>(context, listen: false).metrics;
     if (metrics != null) {
       _checkForNewAlerts(metrics);
     }
   }
-  
+
   @override
   void dispose() {
     _heartbeatTimer?.cancel();
@@ -61,10 +63,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   void _checkForNewAlerts(SessionMetricsModel metrics) {
     if (metrics.alerts.isEmpty) return;
     final latestAlert = metrics.alerts.last;
-    
+
     if (_lastAlertId != latestAlert.id) {
       _lastAlertId = latestAlert.id;
-      
+
       // Update snapshot if available
       if (latestAlert.snapshotUrl != null) {
         setState(() {
@@ -83,7 +85,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     if (!mounted) return;
     final size = MediaQuery.of(context).size;
     final topPadding = MediaQuery.of(context).viewPadding.top;
-    
+
     // Clear previous snackbars to avoid stacking
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
@@ -114,15 +116,18 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                     offset: const Offset(0, 10),
                   ),
                 ],
-                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                border:
+                    Border.all(color: Colors.white.withOpacity(0.3), width: 1),
               ),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                  onTap: () =>
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar(),
                   borderRadius: BorderRadius.circular(20),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
                         Container(
@@ -131,7 +136,8 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                             color: Colors.white.withOpacity(0.2),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+                          child: const Icon(Icons.warning_amber_rounded,
+                              color: Colors.white, size: 24),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -160,7 +166,9 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                alert.alertType.replaceAll('_', ' ').toUpperCase(),
+                                alert.alertType
+                                    .replaceAll('_', ' ')
+                                    .toUpperCase(),
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                   fontSize: 11,
@@ -170,7 +178,8 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                        const Icon(Icons.chevron_right_rounded,
+                            color: Colors.white54),
                       ],
                     ),
                   ),
@@ -202,19 +211,62 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("End Session?"),
-        content: const Text("This will stop real-time monitoring and save behavioral analytics for this session."),
+        content: const Text(
+            "This will stop real-time monitoring and save behavioral analytics for this session."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCEL")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("CANCEL")),
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx); // Close dialog
               await session.stopSession();
               // Auto-pop logic in builder will trigger once session.activeSession is null
             },
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
             child: const Text("STOP SESSION"),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _changeMode(
+      BuildContext context, SessionProvider session, String mode) async {
+    if (session.activeSession?.activityMode == mode || _switchingMode) return;
+
+    if (mode == 'EXAM') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Switch to exam mode?'),
+          content: const Text(
+            'Enhanced tracking will apply to all new detections. The session will remain live.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('SWITCH'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    setState(() => _switchingMode = true);
+    final changed = await session.switchSessionMode(mode);
+    if (!mounted) return;
+    setState(() => _switchingMode = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(changed
+            ? 'Live mode changed to $mode.'
+            : (session.error ?? 'Unable to change live mode.')),
       ),
     );
   }
@@ -245,12 +297,13 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
         final metrics = session.metrics;
         final active = session.activeSession!;
-        
+
         // Don't call _checkForNewAlerts here - it will be called when metrics change
 
         SubjectModel? subject;
         try {
-          subject = classroom.subjects.firstWhere((s) => s.id == active.subjectId);
+          subject =
+              classroom.subjects.firstWhere((s) => s.id == active.subjectId);
         } catch (_) {
           subject = null;
         }
@@ -258,14 +311,16 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         SectionModel? section;
         if (subject != null) {
           try {
-            section = subject.sections.firstWhere((s) => s.id == active.sectionId);
+            section =
+                subject.sections.firstWhere((s) => s.id == active.sectionId);
           } catch (_) {
             section = null;
           }
         }
         if (section == null) {
           try {
-            section = classroom.sections.firstWhere((s) => s.id == active.sectionId);
+            section =
+                classroom.sections.firstWhere((s) => s.id == active.sectionId);
           } catch (_) {
             section = null;
           }
@@ -285,20 +340,26 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: active.activityMode == 'EXAM' ? Colors.orange : Colors.red, 
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (active.activityMode == 'EXAM' ? Colors.orange : Colors.red).withOpacity(0.4),
-                        blurRadius: 4,
-                        spreadRadius: 2,
-                      )
-                    ]
-                  ),
+                      color: active.activityMode == 'EXAM'
+                          ? Colors.orange
+                          : Colors.red,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (active.activityMode == 'EXAM'
+                                  ? Colors.orange
+                                  : Colors.red)
+                              .withOpacity(0.4),
+                          blurRadius: 4,
+                          spreadRadius: 2,
+                        )
+                      ]),
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  active.activityMode == 'EXAM' ? "EXAM MONITORING" : "LIVE AI MONITORING",
+                  active.activityMode == 'EXAM'
+                      ? "EXAM MONITORING"
+                      : "LIVE AI MONITORING",
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
@@ -308,6 +369,36 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
               ],
             ),
             actions: [
+              PopupMenuButton<String>(
+                enabled: !_switchingMode && !session.isSwitchingMode,
+                tooltip: 'Change live mode',
+                onSelected: (mode) => _changeMode(context, session, mode),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'LECTURE', child: Text('Lecture')),
+                  PopupMenuItem(
+                      value: 'COLLABORATION', child: Text('Collaboration')),
+                  PopupMenuItem(value: 'EXAM', child: Text('Exam')),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_switchingMode)
+                        const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        const Icon(Icons.tune_rounded, size: 18),
+                      const SizedBox(width: 4),
+                      Text(active.activityMode,
+                          style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
                 child: FilledButton.icon(
@@ -315,15 +406,25 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   icon: const Icon(Icons.stop_rounded, size: 16),
                   label: const Text(
                     "STOP",
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error.withOpacity(0.12),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.error.withOpacity(0.12),
                     foregroundColor: Theme.of(context).colorScheme.error,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                    side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.25), width: 1),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(100)),
+                    side: BorderSide(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .error
+                            .withOpacity(0.25),
+                        width: 1),
                   ),
                 ),
               ),
@@ -335,8 +436,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (active.activityMode == 'EXAM')
-                   _buildExamAlertPanel(context),
-                
+                  _buildExamAlertPanel(context),
                 if (subject != null || section != null) ...[
                   Card(
                     elevation: 0,
@@ -351,7 +451,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                               Expanded(
                                 child: Text(
                                   subject?.name ?? 'Class Session',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
                                         fontWeight: FontWeight.w800,
                                       ),
                                 ),
@@ -362,15 +465,23 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.groups_rounded, size: 14, color: Theme.of(context).colorScheme.secondary),
+                              Icon(Icons.groups_rounded,
+                                  size: 14,
+                                  color:
+                                      Theme.of(context).colorScheme.secondary),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   section?.name ?? 'Section',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.secondary,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary,
                                         fontWeight: FontWeight.w600,
                                       ),
                                 ),
@@ -390,12 +501,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-
                 if (_latestAlertWithSnapshot != null) ...[
-                   _buildDetectionSnapshot(context, _latestAlertWithSnapshot!),
-                   const SizedBox(height: 20),
+                  _buildDetectionSnapshot(context, _latestAlertWithSnapshot!),
+                  const SizedBox(height: 20),
                 ],
-
                 _buildStatusBanner(context, active.activityMode),
                 const SizedBox(height: 16),
                 if (metrics == null)
@@ -403,14 +512,20 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 else ...[
                   SessionKpiGridView(metrics: metrics),
                   const SizedBox(height: 24),
-                  const Text("Engagement", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text("Engagement",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   EngagementCard(metrics: metrics),
                   const SizedBox(height: 24),
-                  const Text("Behaviors", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text("Behaviors",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   BehaviorSnapshotChart(
-                    latestLog: metrics.recentLogs.isEmpty ? null : metrics.recentLogs.last,
+                    latestLog: metrics.recentLogs.isEmpty
+                        ? null
+                        : metrics.recentLogs.last,
                     studentsPresent: metrics.studentsPresent,
                   ),
                   const SizedBox(height: 24),
@@ -429,7 +544,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   Widget _buildModeBadge(BuildContext context, String mode) {
     Color color;
     IconData icon;
-    
+
     switch (mode) {
       case 'EXAM':
         color = Colors.red;
@@ -485,7 +600,8 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
           const Expanded(
             child: Text(
               'EXAM MODE ACTIVE: Enhanced tracking for prohibited items and off-task behaviors.',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.red),
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: Colors.red),
             ),
           ),
         ],
@@ -507,16 +623,24 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
             color: Colors.red.shade900,
             child: Row(
               children: [
-                const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                const Icon(Icons.camera_alt_rounded,
+                    color: Colors.white, size: 18),
                 const SizedBox(width: 10),
                 const Text(
                   "LATEST DETECTION SNAPSHOT",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                      letterSpacing: 0.5),
                 ),
                 const Spacer(),
                 Text(
                   "${alert.triggeredAt.hour}:${alert.triggeredAt.minute.toString().padLeft(2, '0')}:${alert.triggeredAt.second.toString().padLeft(2, '0')}",
-                  style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -532,28 +656,36 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   errorBuilder: (_, __, ___) => Container(
                     height: 200,
                     color: Colors.grey.shade200,
-                    child: const Center(child: Icon(Icons.broken_image_rounded, size: 48, color: Colors.grey)),
+                    child: const Center(
+                        child: Icon(Icons.broken_image_rounded,
+                            size: 48, color: Colors.grey)),
                   ),
                 ),
                 Positioned(
                   bottom: 12,
                   left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       alert.alertType.toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
             )
           else
-             const SizedBox(height: 200, child: Center(child: Text("Waiting for detection..."))),
+            const SizedBox(
+                height: 200,
+                child: Center(child: Text("Waiting for detection..."))),
         ],
       ),
     );
@@ -564,12 +696,16 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     final isExam = mode == 'EXAM';
 
     return Card(
-      color: isExam ? Colors.orange.withOpacity(0.12) : cs.primaryContainer.withOpacity(0.5),
+      color: isExam
+          ? Colors.orange.withOpacity(0.12)
+          : cs.primaryContainer.withOpacity(0.5),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isExam ? Colors.orange.withOpacity(0.2) : cs.primary.withOpacity(0.1),
+          color: isExam
+              ? Colors.orange.withOpacity(0.2)
+              : cs.primary.withOpacity(0.1),
         ),
       ),
       child: Padding(
@@ -589,7 +725,8 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: isExam ? Colors.orange.shade900 : cs.onPrimaryContainer,
+                  color:
+                      isExam ? Colors.orange.shade900 : cs.onPrimaryContainer,
                 ),
               ),
             ),
@@ -600,17 +737,19 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   Widget _buildAlertList(BuildContext context, SessionMetricsModel? metrics) {
-    if (metrics == null || metrics.alerts.isEmpty) return const SizedBox.shrink();
+    if (metrics == null || metrics.alerts.isEmpty)
+      return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Recent Alerts", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text("Recent Alerts",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         ...metrics.alerts.reversed.map((alert) {
           final imageUrl = resolveImageUrl(alert.snapshotUrl);
-          
+
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
             elevation: 0,
@@ -631,18 +770,21 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: Colors.grey.withOpacity(0.1),
-                        child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                        child: const Icon(Icons.broken_image_rounded,
+                            color: Colors.grey),
                       ),
                     ),
                   ),
                 ListTile(
                   leading: CircleAvatar(
                     backgroundColor: cs.error.withOpacity(0.2),
-                    child: Icon(Icons.warning_amber_rounded, color: cs.error, size: 20),
+                    child: Icon(Icons.warning_amber_rounded,
+                        color: cs.error, size: 20),
                   ),
                   title: Text(
                     alert.message,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   subtitle: Text(
                     "${alert.alertType} · ${DateFormat('HH:mm').format(alert.triggeredAt)}",

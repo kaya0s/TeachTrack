@@ -65,7 +65,11 @@ def _avg_engagement_from_snapshot_logs(
             BehaviorLog.total_detected,
             BehaviorLog.timestamp,
         )
-        .filter(BehaviorLog.session_id == session_id)
+        .filter(
+            BehaviorLog.session_id == session_id,
+            # Exclude exam-mode logs — exam periods have no engagement score
+            BehaviorLog.activity_mode != "EXAM",
+        )
         .all()
     )
     if not rows:
@@ -122,6 +126,8 @@ def process_behavior_log(
         off_task=log_in.off_task,
         not_visible=not_visible,
         total_detected=total,
+        # Stamp the mode active at capture time so historical analysis stays accurate
+        activity_mode=session.activity_mode,
         # Snapshot the current headcount so the engagement formula stays
         # accurate even if the teacher changes students_present later.
         students_present_snapshot=session.students_present,
@@ -317,3 +323,5 @@ def _update_session_metrics(db: Session, session_id: int, log_time: datetime) ->
     metrics.off_task_avg = round(off_task_sum / log_count, 2)
     metrics.not_visible_avg = round(not_visible_sum / log_count, 2)
     metrics.engagement_score = engagement_score
+    # Tag this window with the mode it was computed under
+    metrics.activity_mode = session.activity_mode

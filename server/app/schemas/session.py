@@ -38,6 +38,7 @@ class BehaviorLog(BehaviorLogBase):
     session_id: int
     timestamp: datetime
     total_detected: int
+    activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -78,6 +79,7 @@ class SessionMetricRow(UtcAwareBaseModel):
     not_visible_avg: float
     engagement_score: float
     computed_at: datetime
+    activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -122,6 +124,8 @@ class SessionHistory(UtcAwareBaseModel):
     prev_start_time: Optional[datetime] = None
     prev_end_time: Optional[datetime] = None
     prev_is_active: Optional[bool] = None
+    # Populated on MODE_SWITCH events
+    prev_activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -138,6 +142,18 @@ class AlertHistory(UtcAwareBaseModel):
 
     class Config:
         from_attributes = True
+
+# -- Mode Switching --
+class ModeSwitchRequest(UtcAwareBaseModel):
+    activity_mode: ActivityMode
+    reason: Optional[str] = None
+
+class ModeSwitchResponse(UtcAwareBaseModel):
+    session_id: int
+    activity_mode: ActivityMode
+    previous_mode: ActivityMode
+    switched_at: datetime
+    reason: Optional[str] = None
 
 # -- AI Model Management --
 class ModelOption(UtcAwareBaseModel):

@@ -1,5 +1,4 @@
 import 'package:teachtrack/core/network/api_client.dart';
-import 'package:teachtrack/features/classroom/domain/models/classroom_models.dart';
 import 'package:teachtrack/features/session/domain/models/session_models.dart';
 
 class SessionRepository {
@@ -36,6 +35,22 @@ class SessionRepository {
       throw Exception('Invalid session response');
     }
     return SessionModel.fromJson(data);
+  }
+
+  Future<String> switchSessionMode(int sessionId, String activityMode,
+      {String? reason}) async {
+    final response = await _apiClient.patch(
+      '/sessions/$sessionId/mode',
+      data: {
+        'activity_mode': activityMode,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic> || data['activity_mode'] is! String) {
+      throw Exception('Invalid mode switch response');
+    }
+    return data['activity_mode'] as String;
   }
 
   Future<SessionModel?> getActiveSession() async {
@@ -136,4 +151,3 @@ class SessionRepository {
     return MlModelSelectionModel.fromJson(data);
   }
 }
-
