@@ -152,7 +152,10 @@ run_backup_task = perform_backup
 
 
 def _upload_to_drive(file_path: str, filename: str) -> dict:
-    scopes = ["https://www.googleapis.com/auth/drive.file"]
+    scopes = [
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive",
+    ]
     creds = None
 
     service_account_path = (settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE or "").strip()
@@ -193,7 +196,8 @@ def _upload_to_drive(file_path: str, filename: str) -> dict:
     file = service.files().create(
         body=file_metadata,
         media_body=media,
-        fields='id, webViewLink'
+        fields='id, webViewLink',
+        supportsAllDrives=True
     ).execute()
     
     return file
