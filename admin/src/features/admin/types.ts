@@ -255,6 +255,14 @@ export type SessionLogPoint = {
   off_task: number;
   not_visible: number;
   total_detected: number;
+  activity_mode?: string | null;
+};
+
+export type SessionModeEvent = {
+  timestamp: string;
+  activity_mode: string;
+  previous_mode: string | null;
+  message: string;
 };
 
 export type SessionMetricPoint = {
@@ -274,6 +282,7 @@ export type AdminSessionDetail = {
   total_alerts: number;
   unread_alerts: number;
   logs: SessionLogPoint[];
+  mode_events: SessionModeEvent[];
   metrics_rollup: SessionMetricPoint[];
 };
 
@@ -343,7 +352,6 @@ export type AdminSettings = {
   };
   engagement_weights: {
     LECTURE: AdminWeightsSet;
-    COLLABORATION: AdminWeightsSet;
     EXAM: AdminWeightsSet;
   };
   exam_proctoring: {

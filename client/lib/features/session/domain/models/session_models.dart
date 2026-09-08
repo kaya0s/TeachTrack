@@ -21,6 +21,19 @@ class SessionModel {
     required this.activityMode,
   });
 
+  SessionModel copyWith({String? activityMode}) {
+    return SessionModel(
+      id: id,
+      subjectId: subjectId,
+      sectionId: sectionId,
+      studentsPresent: studentsPresent,
+      startTime: startTime,
+      endTime: endTime,
+      isActive: isActive,
+      activityMode: activityMode ?? this.activityMode,
+    );
+  }
+
   factory SessionModel.fromJson(Map<String, dynamic> json) {
     final startRaw = json['start_time'];
     final endRaw = json['end_time'];
@@ -64,9 +77,8 @@ class BehaviorLogModel {
     final ts = json['timestamp'];
     return BehaviorLogModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      timestamp: ts != null
-          ? ApiDateUtils.parse(ts.toString())
-          : DateTime.now(),
+      timestamp:
+          ts != null ? ApiDateUtils.parse(ts.toString()) : DateTime.now(),
       onTask: (json['on_task'] as num?)?.toInt() ?? 0,
       sleeping: (json['sleeping'] as num?)?.toInt() ?? 0,
       usingPhone: (json['using_phone'] as num?)?.toInt() ?? 0,
@@ -115,6 +127,29 @@ class AlertModel {
   }
 }
 
+class SessionModeEventModel {
+  final DateTime timestamp;
+  final String activityMode;
+  final String? previousMode;
+  final String message;
+
+  SessionModeEventModel({
+    required this.timestamp,
+    required this.activityMode,
+    this.previousMode,
+    required this.message,
+  });
+
+  factory SessionModeEventModel.fromJson(Map<String, dynamic> json) {
+    return SessionModeEventModel(
+      timestamp: ApiDateUtils.parse(json['timestamp'].toString()),
+      activityMode: json['activity_mode'] as String? ?? 'LECTURE',
+      previousMode: json['previous_mode'] as String?,
+      message: json['message'] as String? ?? 'MODE ACTIVATED',
+    );
+  }
+}
+
 class SessionMetricsModel {
   final int sessionId;
   final int studentsPresent;
@@ -122,6 +157,7 @@ class SessionMetricsModel {
   final double averageEngagement;
   final List<BehaviorLogModel> recentLogs;
   final List<AlertModel> alerts;
+  final List<SessionModeEventModel> modeEvents;
 
   SessionMetricsModel({
     required this.sessionId,
@@ -130,11 +166,13 @@ class SessionMetricsModel {
     required this.averageEngagement,
     required this.recentLogs,
     required this.alerts,
+    required this.modeEvents,
   });
 
   factory SessionMetricsModel.fromJson(Map<String, dynamic> json) {
     final recentLogsRaw = json['recent_logs'] as List<dynamic>? ?? [];
     final alertsRaw = json['alerts'] as List<dynamic>? ?? [];
+    final modeEventsRaw = json['mode_events'] as List<dynamic>? ?? [];
     return SessionMetricsModel(
       sessionId: (json['session_id'] as num?)?.toInt() ?? 0,
       studentsPresent: (json['students_present'] as num?)?.toInt() ?? 1,
@@ -148,6 +186,10 @@ class SessionMetricsModel {
       alerts: alertsRaw
           .whereType<Map<String, dynamic>>()
           .map(AlertModel.fromJson)
+          .toList(),
+      modeEvents: modeEventsRaw
+          .whereType<Map<String, dynamic>>()
+          .map(SessionModeEventModel.fromJson)
           .toList(),
     );
   }
@@ -220,8 +262,7 @@ class SessionSummaryModel {
       startTime: startRaw != null
           ? ApiDateUtils.parse(startRaw.toString())
           : DateTime.now(),
-      endTime:
-          endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
+      endTime: endRaw != null ? ApiDateUtils.parse(endRaw.toString()) : null,
       isActive: json['is_active'] == true,
       activityMode: json['activity_mode'] as String? ?? 'LECTURE',
       averageEngagement:

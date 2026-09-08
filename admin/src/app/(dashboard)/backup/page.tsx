@@ -28,6 +28,23 @@ import { AdminBackupRun } from "@/features/admin/types";
 import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
+function GoogleDriveIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 87.3 78"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M6.6 66.85L10.45 73.5C11.25 74.9 12.4 76 13.75 76.8L27.5 53H0C0 54.55 0.4 56.1 1.2 57.5L6.6 66.85Z" fill="#0066DA" />
+      <path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.5C0.4 49.9 0 51.45 0 53H27.5L43.65 25Z" fill="#00AC47" />
+      <path d="M73.55 76.8C74.9 76 76.05 74.9 76.85 73.5L86.1 57.5C86.9 56.1 87.3 54.55 87.3 53H59.8L73.55 76.8Z" fill="#EA4335" />
+      <path d="M43.65 25L57.4 1.2C56.05 0.4 54.5 0 52.9 0H34.4C32.8 0 31.25 0.45 29.9 1.2L43.65 25Z" fill="#00832D" />
+      <path d="M59.8 53H27.5L13.75 76.8C15.1 77.6 16.65 78 18.25 78H69.05C70.65 78 72.2 77.55 73.55 76.8L59.8 53Z" fill="#26842C" />
+      <path d="M73.4 26.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25L59.8 53H87.3C87.3 51.45 86.9 49.9 86.1 48.5L73.4 26.5Z" fill="#FFBA00" />
+    </svg>
+  );
+}
+
 export default function BackupPage() {
   const [backups, setBackups] = useState<AdminBackupRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,10 +57,6 @@ export default function BackupPage() {
     try {
       const data = await getBackups();
       setBackups(data);
-
-      // Check if any run is still "running"
-      const isAnyRunning = data.some((b: AdminBackupRun) => b.status === "running");
-      setRunning(isAnyRunning);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load backup history."));
     } finally {
@@ -55,17 +68,6 @@ export default function BackupPage() {
     fetchBackups();
   }, [fetchBackups]);
 
-  // Polling while running
-  useEffect(() => {
-    if (!running) return;
-
-    const interval = setInterval(() => {
-      fetchBackups(true);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [running, fetchBackups]);
-
   const handleRunBackup = async () => {
     setRunning(true);
     setError(null);
@@ -73,7 +75,8 @@ export default function BackupPage() {
       await runBackup();
       await fetchBackups(true);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to start backup process."));
+      setError(getErrorMessage(err, "A server error occurred while processing the backup. Please check the server logs for details."));
+    } finally {
       setRunning(false);
     }
   };
@@ -104,7 +107,6 @@ export default function BackupPage() {
 
   const lastBackup = backups[0];
   const totalRuns = backups.length;
-  const successfulRuns = backups.filter((b: AdminBackupRun) => b.status === "success").length;
 
   return (
     <div className="space-y-6">
@@ -138,14 +140,14 @@ export default function BackupPage() {
 
       {error && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
-          <CardContent className="flex items-center gap-3 p-4 text-red-800 dark:text-red-400">
-            <AlertCircle className="h-5 w-5 flex-shrink-0" />
-            <div className="text-sm font-medium">{error}</div>
+          <CardContent className="flex items-start sm:items-center gap-3 p-4 text-red-800 dark:text-red-400">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-sm font-medium flex-1 whitespace-pre-wrap break-words">{error}</div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setError(null)}
-              className="ml-auto hover:bg-red-100 dark:hover:bg-red-900/20"
+              className="ml-auto hover:bg-red-100 dark:hover:bg-red-900/20 flex-shrink-0"
             >
               Dismiss
             </Button>
@@ -172,25 +174,22 @@ export default function BackupPage() {
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Successful</p>
-              <p className="text-2xl font-black">{successfulRuns}</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Latest Backup</p>
+              <p className="text-sm font-black">
+                {lastBackup ? `${formatDate(lastBackup.created_at).date}` : "No backups yet"}
+              </p>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50 backdrop-blur-sm">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className={cn(
-              "p-3 rounded-2xl",
-              lastBackup?.status === "success" ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" :
-                lastBackup?.status === "failed" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
-                  "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-            )}>
-              <Clock className="h-6 w-6" />
+            <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+              <HardDrive className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Last Run Status</p>
-              <p className="text-lg font-black capitalize">
-                {lastBackup ? lastBackup.status : "No runs yet"}
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Latest File Size</p>
+              <p className="text-lg font-black">
+                {lastBackup ? formatSize(lastBackup.file_size_bytes) : "—"}
               </p>
             </div>
           </CardContent>
@@ -272,7 +271,7 @@ export default function BackupPage() {
                     <TD className="text-right">
                       {run.drive_link ? (
                         <div className="flex items-center justify-end gap-2">
-                          <img src="https://logo.svgcdn.com/logos/google-drive.png" alt="Drive" className="h-4 w-4 opacity-80 group-hover:opacity-100 transition-opacity" />
+                          <GoogleDriveIcon className="h-4 w-4 opacity-80 group-hover:opacity-100 transition-opacity" />
                           <Button
                             variant="ghost"
                             size="icon"
@@ -420,7 +419,7 @@ export default function BackupPage() {
                 className="w-full shadow-md"
                 onClick={() => window.open(selectedBackup.drive_link!, "_blank")}
               >
-                <img src="https://logo.svgcdn.com/logos/google-drive.png" alt="Drive" className="h-4 w-4 mr-2" />
+                <GoogleDriveIcon className="h-4 w-4 mr-2" />
                 View in Google Drive
               </Button>
             )}

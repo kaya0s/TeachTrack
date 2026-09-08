@@ -212,6 +212,118 @@ def create_teacher(db: Session, payload: dict[str, Any], actor_user_id: int) -> 
     return teacher
 
 
+def update_teacher(db: Session, teacher_id: int, payload: dict[str, Any], actor_user_id: int) -> User:
+    teacher = (
+        db.query(User)
+        .options(joinedload(User.college), joinedload(User.department))
+        .filter(User.id == teacher_id, User.is_superuser == False, User.role == UserRole.TEACHER.value)
+        .first()
+    )
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found.")
+
+    before = {
+        "firstname": teacher.firstname,
+        "lastname": teacher.lastname,
+        "age": teacher.age,
+        "email": teacher.email,
+        "username": teacher.username,
+        "college_id": teacher.college_id,
+        "department_id": teacher.department_id,
+        "is_active": teacher.is_active,
+    }
+
+    if "firstname" in payload and payload["firstname"] is not None:
+        first = str(payload["firstname"]).strip()
+        if not first:
+            raise HTTPException(status_code=400, detail="First name cannot be empty.")
+        teacher.firstname = first
+
+    if "lastname" in payload and payload["lastname"] is not None:
+        last = str(payload["lastname"]).strip()
+        if not last:
+            raise HTTPException(status_code=400, detail="Last name cannot be empty.")
+        teacher.lastname = last
+
+    if "age" in payload and payload["age"] is not None:
+        age_val = int(payload["age"])
+        if age_val < 1 or age_val > 120:
+            raise HTTPException(status_code=400, detail="Age must be between 1 and 120.")
+        teacher.age = age_val
+
+    if "email" in payload and payload["email"] is not None:
+        new_email = str(payload["email"]).strip().lower()
+        if not new_email:
+            raise HTTPException(status_code=400, detail="Email cannot be empty.")
+        if new_email != teacher.email:
+            exists = db.query(User).filter(User.email == new_email, User.id != teacher.id).first()
+            if exists:
+                raise HTTPException(status_code=400, detail="Email is already in use.")
+            teacher.email = new_email
+
+    if "username" in payload and payload["username"] is not None:
+        new_username = str(payload["username"]).strip()
+        if not new_username:
+            raise HTTPException(status_code=400, detail="Username cannot be empty.")
+        if new_username != teacher.username:
+            exists = db.query(User).filter(User.username == new_username, User.id != teacher.id).first()
+            if exists:
+                raise HTTPException(status_code=400, detail="Username is already in use.")
+            teacher.username = new_username
+
+    target_college_id = payload.get("college_id", teacher.college_id)
+    if "college_id" in payload and payload["college_id"] is not None:
+        college = db.query(College).filter(College.id == int(payload["college_id"])).first()
+        if not college:
+            raise HTTPException(status_code=404, detail="College not found.")
+        teacher.college_id = college.id
+        target_college_id = college.id
+
+    if "department_id" in payload and payload["department_id"] is not None:
+        dept_filter = [Department.id == int(payload["department_id"])]
+        if target_college_id is not None:
+            dept_filter.append(Department.college_id == target_college_id)
+        department = db.query(Department).filter(*dept_filter).first()
+        if not department:
+            raise HTTPException(status_code=404, detail="Department not found for selected college.")
+        teacher.department_id = department.id
+
+    if "is_active" in payload and payload["is_active"] is not None:
+        teacher.is_active = bool(payload["is_active"])
+
+    db.add(teacher)
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=actor_user_id,
+        actor_username=_get_actor_username(db, actor_user_id),
+        action="TEACHER_UPDATE",
+        entity_type="User",
+        entity_id=teacher.id,
+        details={
+            "before": before,
+            "after": {
+                "firstname": teacher.firstname,
+                "lastname": teacher.lastname,
+                "age": teacher.age,
+                "email": teacher.email,
+                "username": teacher.username,
+                "college_id": teacher.college_id,
+                "department_id": teacher.department_id,
+                "is_active": teacher.is_active,
+            },
+        },
+    )
+    db.commit()
+    db.refresh(teacher)
+    teacher = (
+        db.query(User)
+        .options(joinedload(User.college), joinedload(User.department))
+        .filter(User.id == teacher.id)
+        .first()
+    )
+    return teacher
+
+
 def update_user(db: Session, user_id: int, payload: dict[str, Any], actor_user_id: int) -> User:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

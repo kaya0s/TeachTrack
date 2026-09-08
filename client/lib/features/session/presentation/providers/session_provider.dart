@@ -12,6 +12,8 @@ class SessionProvider extends ChangeNotifier {
   SessionModel? _activeSession;
   SessionMetricsModel? _metrics;
   bool _isLoading = false;
+  bool _isSwitchingMode = false;
+  bool _metricsRequestInFlight = false;
   String? _error;
   Timer? _metricsTimer;
   List<SessionSummaryModel> _history = [];
@@ -27,6 +29,7 @@ class SessionProvider extends ChangeNotifier {
   SessionModel? get activeSession => _activeSession;
   SessionMetricsModel? get metrics => _metrics;
   bool get isLoading => _isLoading;
+  bool get isSwitchingMode => _isSwitchingMode;
   String? get error => _error;
   List<SessionSummaryModel> get history => _history;
   bool get historyLoading => _historyLoading;
@@ -105,11 +108,40 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> switchSessionMode(String activityMode, {String? reason}) async {
+    final activeSession = _activeSession;
+    if (activeSession == null || activeSession.activityMode == activityMode) {
+      return true;
+    }
+
+    _isSwitchingMode = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final updatedMode = await _repository.switchSessionMode(
+        activeSession.id,
+        activityMode,
+        reason: reason,
+      );
+      _activeSession = activeSession.copyWith(activityMode: updatedMode);
+      await ForegroundSessionService.startOrUpdate(session: _activeSession!);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      return false;
+    } finally {
+      _isSwitchingMode = false;
+      notifyListeners();
+    }
+  }
+
   void clearSessionState() {
     _activeSession = null;
     _metrics = null;
     _metricsTimer?.cancel();
     _isLoading = false;
+    _isSwitchingMode = false;
+    _metricsRequestInFlight = false;
     _error = null;
     _history = [];
     _historyLoading = false;
@@ -133,9 +165,14 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> fetchMetrics() async {
-    if (_activeSession == null) return;
+    final activeSession = _activeSession;
+    if (activeSession == null || _metricsRequestInFlight) return;
+
+    _metricsRequestInFlight = true;
     try {
-      _metrics = await _repository.getSessionMetrics(_activeSession!.id);
+      final metrics = await _repository.getSessionMetrics(activeSession.id);
+      if (_activeSession?.id != activeSession.id) return;
+      _metrics = metrics;
       await ForegroundSessionService.startOrUpdate(
         session: _activeSession!,
         metrics: _metrics,
@@ -143,6 +180,8 @@ class SessionProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching metrics: $e");
+    } finally {
+      _metricsRequestInFlight = false;
     }
   }
 

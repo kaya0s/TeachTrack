@@ -5,10 +5,10 @@ import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.session import ClassSession, SessionHistory
+from app.models.session import BehaviorLog, ClassSession, SessionHistory, SessionMetrics
 from app.models.classroom import ClassSection, SectionSubjectAssignment, Subject
 from app.repositories.session_repository import SessionRepository
-from app.schemas.session import SessionCreate, Session as SessionSchema
+from app.schemas.session import ModeSwitchRequest, ModeSwitchResponse, SessionCreate, Session as SessionSchema
 from app.services import audit_service
 from app.services.admin import settings_service
 from app.utils.datetime import utc_now
@@ -154,76 +154,108 @@ def stop_session(db: Session, session_id: int, current_user, stop_detector_fn) -
     stop_detector_fn(session_id)
 
     if session.activity_mode == "EXAM":
-        # For exam sessions, return a final session object before deletion
-        # This allows the Flutter app to properly close monitoring
-        final_session_data = {
-            "id": session.id,
-            "subject_id": session.subject_id,
-            "section_id": session.section_id,
-            "subject_name": session.subject.name if session.subject else "Unknown",
-            "section_name": session.section.name if session.section else "Unknown",
-            "college_id": (
-                session.section.major.department.college_id
-                if session.section and session.section.major and session.section.major.department
-                else None
-            ),
-            "college_name": (
-                session.section.major.department.college.name
-                if session.section
-                and session.section.major
-                and session.section.major.department
-                and session.section.major.department.college
-                else None
-            ),
-            "college_logo_path": (
-                session.section.major.department.college.logo_path
-                if session.section
-                and session.section.major
-                and session.section.major.department
-                and session.section.major.department.college
-                else None
-            ),
-            "department_id": (
-                session.section.major.department_id
-                if session.section and session.section.major
-                else None
-            ),
-            "department_name": (
-                session.section.major.department.name
-                if session.section and session.section.major and session.section.major.department
-                else None
-            ),
-            "department_code": (
-                session.section.major.department.code
-                if session.section and session.section.major and session.section.major.department
-                else None
-            ),
-            "major_id": session.section.major_id if session.section else None,
-            "major_name": session.section.major.name if session.section and session.section.major else None,
-            "major_code": session.section.major.code if session.section and session.section.major else None,
-            "start_time": session.start_time,
-            "end_time": utc_now(),  # Set end time for final response
-            "is_active": False,  # Mark as inactive
-            "activity_mode": session.activity_mode,
-            "average_engagement": float(session.average_engagement) if session.average_engagement else 0.0
-        }
-        
-        # Now delete the session
-        db.delete(session)
-        db.commit()
-        audit_service.write_audit_log(
-            db,
-            actor_user_id=current_user.id,
-            actor_username=getattr(current_user, "username", None),
-            action="TEACHER_EXAM_SESSION_DISCARDED",
-            entity_type="ClassSession",
-            entity_id=session_id,
-            details={"msg": "Exam session ended and discarded per volatile policy"},
+        # Exam observations are not persisted, so use mode history to determine
+        # whether this session ever had a retainable Lecture period.
+        has_non_exam_period = (
+            db.query(SessionHistory)
+            .filter(
+                SessionHistory.session_id == session_id,
+                SessionHistory.change_type == "MODE_SWITCH",
+                SessionHistory.prev_activity_mode != "EXAM",
+            )
+            .first()
         )
-        db.commit()
-        
-        # Return the final session data for Flutter app to properly close monitoring
-        return SessionSchema(**final_session_data)
+
+        if not has_non_exam_period:
+            # Pure exam session — discard fully per volatile privacy policy
+            final_session_data = {
+                "id": session.id,
+                "subject_id": session.subject_id,
+                "section_id": session.section_id,
+                "subject_name": session.subject.name if session.subject else "Unknown",
+                "section_name": session.section.name if session.section else "Unknown",
+                "college_id": (
+                    session.section.major.department.college_id
+                    if session.section and session.section.major and session.section.major.department
+                    else None
+                ),
+                "college_name": (
+                    session.section.major.department.college.name
+                    if session.section
+                    and session.section.major
+                    and session.section.major.department
+                    and session.section.major.department.college
+                    else None
+                ),
+                "college_logo_path": (
+                    session.section.major.department.college.logo_path
+                    if session.section
+                    and session.section.major
+                    and session.section.major.department
+                    and session.section.major.department.college
+                    else None
+                ),
+                "department_id": (
+                    session.section.major.department_id
+                    if session.section and session.section.major
+                    else None
+                ),
+                "department_name": (
+                    session.section.major.department.name
+                    if session.section and session.section.major and session.section.major.department
+                    else None
+                ),
+                "department_code": (
+                    session.section.major.department.code
+                    if session.section and session.section.major and session.section.major.department
+                    else None
+                ),
+                "major_id": session.section.major_id if session.section else None,
+                "major_name": session.section.major.name if session.section and session.section.major else None,
+                "major_code": session.section.major.code if session.section and session.section.major else None,
+                "start_time": session.start_time,
+                "end_time": utc_now(),
+                "is_active": False,
+                "activity_mode": session.activity_mode,
+                "average_engagement": float(session.average_engagement) if session.average_engagement else 0.0,
+            }
+
+            db.delete(session)
+            db.commit()
+            audit_service.write_audit_log(
+                db,
+                actor_user_id=current_user.id,
+                actor_username=getattr(current_user, "username", None),
+                action="TEACHER_EXAM_SESSION_DISCARDED",
+                entity_type="ClassSession",
+                entity_id=session_id,
+                details={"msg": "Pure exam session ended and discarded per volatile policy"},
+            )
+            db.commit()
+            return SessionSchema(**final_session_data)
+
+        else:
+            # Mixed session (had a Lecture segment too) — keep the session,
+            # but purge only the exam-tagged behavior logs and metrics for privacy.
+            db.query(BehaviorLog).filter(
+                BehaviorLog.session_id == session_id,
+                BehaviorLog.activity_mode == "EXAM",
+            ).delete(synchronize_session=False)
+            db.query(SessionMetrics).filter(
+                SessionMetrics.session_id == session_id,
+                SessionMetrics.activity_mode == "EXAM",
+            ).delete(synchronize_session=False)
+            db.commit()
+            audit_service.write_audit_log(
+                db,
+                actor_user_id=current_user.id,
+                actor_username=getattr(current_user, "username", None),
+                action="TEACHER_EXAM_SEGMENTS_DISCARDED",
+                entity_type="ClassSession",
+                entity_id=session_id,
+                details={"msg": "Exam-tagged logs/metrics purged from mixed session per volatile policy"},
+            )
+            db.commit()
 
     # Commit the status change first to ensure it sticks
     db.commit()
@@ -511,3 +543,83 @@ def _record_session_history(db: Session, session: ClassSession, user_id: int, ch
         prev_is_active=session.is_active,
     )
     db.add(history)
+
+
+def switch_session_mode(
+    db: Session,
+    session_id: int,
+    request: ModeSwitchRequest,
+    current_user,
+) -> ModeSwitchResponse:
+    """Atomically switch the activity_mode of a running session.
+
+    - The detector keeps running; no restart is needed.
+    - Records a MODE_SWITCH entry in session_history.
+    - Writes an audit log entry.
+    - Returns the new mode and switch timestamp.
+    """
+    session = db.query(ClassSession).filter(
+        ClassSession.id == session_id,
+        ClassSession.teacher_id == current_user.id,
+        ClassSession.is_active == True,
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Active session not found")
+
+    new_mode = request.activity_mode.value
+    old_mode = session.activity_mode
+
+    if old_mode == new_mode:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Session is already in {new_mode} mode",
+        )
+
+    switched_at = utc_now()
+
+    # Record the mode switch in session history
+    history = SessionHistory(
+        session_id=session.id,
+        changed_by=current_user.id,
+        change_type="MODE_SWITCH",
+        prev_start_time=session.start_time,
+        prev_end_time=session.end_time,
+        prev_is_active=session.is_active,
+        prev_activity_mode=old_mode,
+    )
+    db.add(history)
+
+    # Apply the new mode
+    session.activity_mode = new_mode
+    db.add(session)
+
+    audit_service.write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        actor_username=getattr(current_user, "username", None),
+        action="TEACHER_SESSION_MODE_SWITCH",
+        entity_type="ClassSession",
+        entity_id=session.id,
+        details={
+            "from_mode": old_mode,
+            "to_mode": new_mode,
+            "reason": request.reason,
+            "switched_at": switched_at.isoformat(),
+        },
+    )
+    db.flush()
+    db.commit()
+
+    logger.info(
+        f"Session {session_id} mode switched: {old_mode} → {new_mode} "
+        f"by teacher={current_user.username}"
+    )
+
+    return ModeSwitchResponse(
+        session_id=session_id,
+        activity_mode=new_mode,
+        previous_mode=old_mode,
+        switched_at=switched_at,
+        reason=request.reason,
+    )

@@ -571,6 +571,23 @@ def get_session_detail(
         }
         for row in logs
     ]
+    history = db.query(SessionHistory).filter(
+        SessionHistory.session_id == session_id,
+        SessionHistory.change_type == "MODE_SWITCH",
+    ).order_by(SessionHistory.changed_at.asc()).all()
+    mode_events = []
+    for index, event in enumerate(history):
+        next_mode = (
+            history[index + 1].prev_activity_mode
+            if index + 1 < len(history)
+            else session.activity_mode
+        )
+        mode_events.append({
+            "timestamp": event.changed_at,
+            "activity_mode": next_mode,
+            "previous_mode": event.prev_activity_mode,
+            "message": f"{next_mode} MODE ACTIVATED",
+        })
 
     # For ended sessions, use the session end timestamp as the anchor so
     # historical sessions still return chartable metrics data.
@@ -621,6 +638,7 @@ def get_session_detail(
         "total_alerts": total_alerts,
         "unread_alerts": unread_alerts,
         "logs": logs_points,
+        "mode_events": mode_events,
         "metrics_rollup": metrics_rollup,
     }
 

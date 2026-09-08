@@ -14,6 +14,7 @@ from app.schemas.admin import (
     PaginatedUsersResponse,
     PaginatedTeachersResponse,
     AdminTeacherCreate,
+    AdminTeacherUpdate,
     AdminTeacherSummary,
 )
 from app.services import admin_service
@@ -102,3 +103,18 @@ def create_admin_teacher(
         send_welcome_email, email=teacher.email, username=teacher.username, password=payload.password
     )
     return teacher
+
+
+@router.patch("/teachers/{teacher_id}", response_model=AdminTeacherSummary)
+def update_admin_teacher(
+    teacher_id: int,
+    payload: AdminTeacherUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.update_teacher(
+        db,
+        teacher_id=teacher_id,
+        payload=payload.model_dump(exclude_unset=True),
+        actor_user_id=current_user.id,
+    )

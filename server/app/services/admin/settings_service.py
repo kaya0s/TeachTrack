@@ -34,13 +34,6 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
             "off_task": env_settings.W_OFF_TASK,
             "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
         },
-        "COLLABORATION": {
-            "on_task": env_settings.W_ON_TASK,
-            "using_phone": env_settings.W_USING_PHONE,
-            "sleeping": env_settings.W_SLEEPING,
-            "off_task": 0.0, # Zero off_task penalty
-            "not_visible": getattr(env_settings, "W_NOT_VISIBLE", 0.0),
-        },
         "EXAM": {
             "on_task": env_settings.W_ON_TASK,
             "using_phone": env_settings.W_USING_PHONE * 2.0, # Double phone penalty
@@ -64,7 +57,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
 
 _ALLOWED_KEYS = {
     "detection": set(_DEFAULT_SETTINGS["detection"].keys()),
-    "engagement_weights": {"LECTURE", "COLLABORATION", "EXAM"},
+    "engagement_weights": {"LECTURE", "EXAM"},
     "admin_ops": set(_DEFAULT_SETTINGS["admin_ops"].keys()),
     "exam_proctoring": set(_DEFAULT_SETTINGS["exam_proctoring"].keys()),
     "security": set(_DEFAULT_SETTINGS["security"].keys()),
@@ -155,7 +148,7 @@ def _validate_effective(effective: dict[str, Any]) -> None:
 
     weights_by_mode = effective["engagement_weights"]
     for mode, weights in weights_by_mode.items():
-        if mode not in ("LECTURE", "COLLABORATION", "EXAM"):
+        if mode not in ("LECTURE", "EXAM"):
             continue
         
         for key in ("on_task", "using_phone", "sleeping", "off_task", "not_visible"):

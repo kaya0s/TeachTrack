@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BookMarked, Building2, ChevronDown, GraduationCap, KeyRound, Mail, Search, ShieldCheck, ShieldOff, User, UserPlus, Users } from "lucide-react";
+import { BookMarked, Building2, ChevronDown, Eye, GraduationCap, KeyRound, Mail, MoreVertical, Pencil, Search, ShieldCheck, ShieldOff, User, UserPlus, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +26,111 @@ import {
   patchUser,
   resetPassword,
   updateClass,
+  updateTeacher,
 } from "@/features/admin/api";
 import type { AdminClassAssignment, AdminCollege, AdminDepartment, AdminMajor, AdminSession, AdminSessionDetail, AdminTeacher } from "@/features/admin/types";
 import { getCurrentActorUserId } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
 import { Drawer } from "@/components/ui/drawer";
 import { SessionDetailView } from "@/features/admin/components/session-detail-view";
+
+function TeacherActionMenu({
+  onViewDetails,
+  onEdit,
+  onResetPassword,
+  onToggleStatus,
+  isActive,
+}: {
+  onViewDetails: () => void;
+  onEdit: () => void;
+  onResetPassword: () => void;
+  onToggleStatus: () => void;
+  isActive: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        title="Teacher options"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-sm animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5 text-primary" /> Edit Teacher
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+            onClick={() => {
+              setOpen(false);
+              onViewDetails();
+            }}
+          >
+            <Eye className="h-3.5 w-3.5 text-muted-foreground" /> View Details
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+            onClick={() => {
+              setOpen(false);
+              onResetPassword();
+            }}
+          >
+            <KeyRound className="h-3.5 w-3.5 text-amber-500" /> Reset Password
+          </button>
+          <div className="my-1 border-t border-border/50" />
+          <button
+            type="button"
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+              isActive ? "text-destructive hover:bg-destructive/10" : "text-success hover:bg-success/10"
+            }`}
+            onClick={() => {
+              setOpen(false);
+              onToggleStatus();
+            }}
+          >
+            {isActive ? (
+              <>
+                <ShieldOff className="h-3.5 w-3.5 text-destructive" /> Disable Account
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-3.5 w-3.5 text-success" /> Enable Account
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function teacherName(teacher: { fullname?: string | null; username?: string | null } | null): string {
   if (!teacher) return "Teacher";
@@ -86,6 +185,17 @@ export default function TeachersPage() {
   const [password, setPassword] = useState("");
   const [createCollegeId, setCreateCollegeId] = useState("");
   const [createDepartmentId, setCreateDepartmentId] = useState("");
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<AdminTeacher | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editAge, setEditAge] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editCollegeId, setEditCollegeId] = useState("");
+  const [editDepartmentId, setEditDepartmentId] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [updating, setUpdating] = useState(false);
 
   const [assignmentQuery, setAssignmentQuery] = useState("");
   const [busyAssign, setBusyAssign] = useState<string | null>(null);
@@ -242,6 +352,68 @@ export default function TeachersPage() {
     }
   }
 
+  const filteredEditDepartments = useMemo(() => {
+    if (!editCollegeId) return [];
+    return departments.filter((department) => department.college_id === Number(editCollegeId));
+  }, [editCollegeId, departments]);
+
+  useEffect(() => {
+    if (!editCollegeId || filteredEditDepartments.some((row) => row.id === Number(editDepartmentId))) return;
+    setEditDepartmentId("");
+  }, [editCollegeId, editDepartmentId, filteredEditDepartments]);
+
+  function openEditTeacher(teacher: AdminTeacher) {
+    setEditingTeacher(teacher);
+    setEditFirstName(teacher.firstname || "");
+    setEditLastName(teacher.lastname || "");
+    setEditAge(teacher.age ? String(teacher.age) : "");
+    setEditEmail(teacher.email || "");
+    setEditCollegeId(teacher.college_id ? String(teacher.college_id) : "");
+    setEditDepartmentId(teacher.department_id ? String(teacher.department_id) : "");
+    setEditIsActive(teacher.is_active);
+    setEditOpen(true);
+  }
+
+  async function onUpdateTeacher(event: FormEvent) {
+    event.preventDefault();
+    if (!editingTeacher) return;
+    if (!editFirstName.trim() || !editLastName.trim() || !editAge.trim() || !editEmail.trim() || !editCollegeId || !editDepartmentId) {
+      notify({ tone: "danger", title: "Missing fields", description: "Complete all required fields." });
+      return;
+    }
+
+    const parsedAge = Number(editAge);
+    if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+      notify({ tone: "danger", title: "Invalid age", description: "Age must be between 1 and 120." });
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const updated = await updateTeacher(editingTeacher.id, {
+        firstname: editFirstName.trim(),
+        lastname: editLastName.trim(),
+        age: parsedAge,
+        email: editEmail.trim(),
+        college_id: Number(editCollegeId),
+        department_id: Number(editDepartmentId),
+        is_active: editIsActive,
+      });
+
+      notify({ tone: "success", title: "Teacher updated", description: "Teacher details updated successfully." });
+      setEditOpen(false);
+      setEditingTeacher(null);
+      if (activeTeacher && activeTeacher.id === updated.id) {
+        setActiveTeacher(updated);
+      }
+      await load();
+    } catch (err) {
+      notify({ tone: "danger", title: "Update failed", description: getErrorMessage(err, "Could not update teacher.") });
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   async function openDetails(row: AdminTeacher) {
     setActiveTeacher(row);
     setDetailsOpen(true);
@@ -395,7 +567,7 @@ export default function TeachersPage() {
               <div className="space-y-2">{[1, 2, 3, 4].map((index) => <Skeleton key={index} className="h-11 w-full" />)}</div>
             ) : (
               <Table>
-                <THead><TR><TH>ID</TH><TH><User className="h-4 w-4 mr-2 inline" />Name</TH><TH><Mail className="h-4 w-4 mr-2 inline" />Email</TH><TH><Building2 className="h-4 w-4 mr-2 inline" />College</TH><TH><GraduationCap className="h-4 w-4 mr-2 inline" />Department</TH><TH><BookMarked className="h-4 w-4 mr-2 inline" />Assignments</TH><TH><ShieldCheck className="h-4 w-4 mr-2 inline" />Status</TH></TR></THead>
+                <THead><TR><TH>ID</TH><TH><User className="h-4 w-4 mr-2 inline" />Name</TH><TH><Mail className="h-4 w-4 mr-2 inline" />Email</TH><TH><Building2 className="h-4 w-4 mr-2 inline" />College</TH><TH><GraduationCap className="h-4 w-4 mr-2 inline" />Department</TH><TH><BookMarked className="h-4 w-4 mr-2 inline" />Assignments</TH><TH><ShieldCheck className="h-4 w-4 mr-2 inline" />Status</TH><TH className="text-right pr-4">Actions</TH></TR></THead>
                 <TBody>
                   {filteredItems.map((row) => {
                     const classCount = assignmentMaps.classMap.get(row.id)?.length ?? 0;
@@ -424,6 +596,22 @@ export default function TeachersPage() {
                         <TD>{row.department_name ?? "-"}</TD>
                         <TD><Badge tone={classCount > 0 ? "success" : "default"}>{classCount}</Badge></TD>
                         <TD><Badge tone={row.is_active ? "success" : "danger"}>{row.is_active ? "Active" : "Disabled"}</Badge></TD>
+                        <TD className="text-right pr-2" onClick={(e) => e.stopPropagation()}>
+                          <TeacherActionMenu
+                            onViewDetails={() => openDetails(row)}
+                            onEdit={() => openEditTeacher(row)}
+                            onResetPassword={() => {
+                              setActiveTeacher(row);
+                              setResetOpen(true);
+                            }}
+                            onToggleStatus={() => {
+                              setActiveTeacher(row);
+                              setPendingActiveState(!row.is_active);
+                              setConfirmStatusOpen(true);
+                            }}
+                            isActive={row.is_active}
+                          />
+                        </TD>
                       </TR>
                     );
                   })}
@@ -455,6 +643,10 @@ export default function TeachersPage() {
               </div>
 
               <div className="mt-4 space-y-2">
+                <Button className="w-full justify-center" variant="outline" onClick={() => openEditTeacher(activeTeacher)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Teacher
+                </Button>
                 <Button className="w-full justify-center" variant="outline" onClick={() => setResetOpen(true)}>
                   <KeyRound className="mr-2 h-4 w-4" />
                   Reset Password
@@ -614,6 +806,82 @@ export default function TeachersPage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
             <Button type="submit" disabled={creating}>{creating ? "Creating..." : "Create Teacher"}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={editOpen}
+        onClose={() => !updating && setEditOpen(false)}
+        title={editingTeacher ? `Edit Teacher: ${teacherName(editingTeacher)}` : "Edit Teacher"}
+        description="Update teacher details, college/department hierarchy, or account status."
+        className="max-w-xl"
+      >
+        <form className="space-y-3" onSubmit={onUpdateTeacher}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">First Name</label>
+              <Input value={editFirstName} onChange={(event) => setEditFirstName(event.target.value)} placeholder="First Name" required />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Last Name</label>
+              <Input value={editLastName} onChange={(event) => setEditLastName(event.target.value)} placeholder="Last Name" required />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Age</label>
+              <Input type="number" value={editAge} onChange={(event) => setEditAge(event.target.value)} placeholder="Age" min={1} max={120} required />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Email</label>
+              <Input type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} placeholder="Email" required />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">College</label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={editCollegeId}
+                onChange={(event) => {
+                  setEditCollegeId(event.target.value);
+                  setEditDepartmentId("");
+                }}
+                required
+              >
+                <option value="">Select college</option>
+                {colleges.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Department</label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={editDepartmentId}
+                onChange={(event) => setEditDepartmentId(event.target.value)}
+                disabled={!editCollegeId}
+                required
+              >
+                <option value="">Select department</option>
+                {filteredEditDepartments.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Account Status</label>
+            <select
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={editIsActive ? "active" : "disabled"}
+              onChange={(event) => setEditIsActive(event.target.value === "active")}
+            >
+              <option value="active">Active (Account can sign in)</option>
+              <option value="disabled">Disabled (Access restricted)</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={updating}>Cancel</Button>
+            <Button type="submit" disabled={updating}>{updating ? "Saving..." : "Save Changes"}</Button>
           </div>
         </form>
       </Modal>

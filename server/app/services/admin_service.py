@@ -24,6 +24,7 @@ from app.services.admin import (
 list_users = _users.list_users
 list_teachers = _users.list_teachers
 create_teacher = _users.create_teacher
+update_teacher = _users.update_teacher
 update_user = _users.update_user
 admin_reset_user_password = _users.admin_reset_user_password
 
@@ -74,6 +75,7 @@ select_model = _sessions.select_model
 
 # --- Backup ---
 get_backup_runs = _backup.get_backup_runs
+perform_backup = _backup.perform_backup
 create_backup_run = _backup.create_backup_run
 run_backup_task = _backup.run_backup_task
 
@@ -140,6 +142,7 @@ __all__ = [
     "list_users",
     "list_teachers",
     "create_teacher",
+    "update_teacher",
     "update_user",
     "admin_reset_user_password",
     # colleges/majors
@@ -190,6 +193,7 @@ __all__ = [
     "update_settings",
     # backup
     "get_backup_runs",
+    "perform_backup",
     "create_backup_run",
     "run_backup_task",
     # media

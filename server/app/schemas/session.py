@@ -6,7 +6,6 @@ from app.schemas.base import UtcAwareBaseModel
 
 class ActivityMode(str, Enum):
     LECTURE = "LECTURE"
-    COLLABORATION = "COLLABORATION"
     EXAM = "EXAM"
 
 class SessionCreate(UtcAwareBaseModel):
@@ -38,6 +37,7 @@ class BehaviorLog(BehaviorLogBase):
     session_id: int
     timestamp: datetime
     total_detected: int
+    activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -56,6 +56,12 @@ class Alert(UtcAwareBaseModel):
     class Config:
         from_attributes = True
 
+class ModeEvent(UtcAwareBaseModel):
+    timestamp: datetime
+    activity_mode: ActivityMode
+    previous_mode: Optional[ActivityMode] = None
+    message: str
+
 # -- Session Metrics & Detail --
 class SessionMetrics(UtcAwareBaseModel):
     session_id: int
@@ -64,6 +70,7 @@ class SessionMetrics(UtcAwareBaseModel):
     average_engagement: float
     recent_logs: List[BehaviorLog]
     alerts: List[Alert]
+    mode_events: List[ModeEvent]
 
 class SessionMetricRow(UtcAwareBaseModel):
     id: int
@@ -78,6 +85,7 @@ class SessionMetricRow(UtcAwareBaseModel):
     not_visible_avg: float
     engagement_score: float
     computed_at: datetime
+    activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -122,6 +130,8 @@ class SessionHistory(UtcAwareBaseModel):
     prev_start_time: Optional[datetime] = None
     prev_end_time: Optional[datetime] = None
     prev_is_active: Optional[bool] = None
+    # Populated on MODE_SWITCH events
+    prev_activity_mode: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -138,6 +148,18 @@ class AlertHistory(UtcAwareBaseModel):
 
     class Config:
         from_attributes = True
+
+# -- Mode Switching --
+class ModeSwitchRequest(UtcAwareBaseModel):
+    activity_mode: ActivityMode
+    reason: Optional[str] = None
+
+class ModeSwitchResponse(UtcAwareBaseModel):
+    session_id: int
+    activity_mode: ActivityMode
+    previous_mode: ActivityMode
+    switched_at: datetime
+    reason: Optional[str] = None
 
 # -- AI Model Management --
 class ModelOption(UtcAwareBaseModel):

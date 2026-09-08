@@ -60,7 +60,8 @@ class FilterState {
       engagements: engagements ?? this.engagements,
       timesOfDay: timesOfDay ?? this.timesOfDay,
       sortMode: sortMode ?? this.sortMode,
-      customDateRange: clearDate ? null : (customDateRange ?? this.customDateRange),
+      customDateRange:
+          clearDate ? null : (customDateRange ?? this.customDateRange),
       quickDate: clearDate ? null : (quickDate ?? this.quickDate),
     );
   }
@@ -112,7 +113,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         : 'Unknown';
   }
 
-  String _getDepartmentForSession(SessionSummaryModel session, List<SubjectModel> subjects) {
+  String _getDepartmentForSession(
+      SessionSummaryModel session, List<SubjectModel> subjects) {
     final direct = session.departmentName?.trim();
     if (direct != null && direct.isNotEmpty) return direct;
     final subj = _findSubject(session.subjectId, subjects);
@@ -120,7 +122,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     return (fallback != null && fallback.isNotEmpty) ? fallback : 'Unknown';
   }
 
-  String _getMajorForSession(SessionSummaryModel session, List<SubjectModel> subjects) {
+  String _getMajorForSession(
+      SessionSummaryModel session, List<SubjectModel> subjects) {
     final directCode = session.majorCode?.trim();
     if (directCode != null && directCode.isNotEmpty) return directCode;
     final directName = session.majorName?.trim();
@@ -129,14 +132,17 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     final fallbackCode = subj?.majorCode?.trim();
     if (fallbackCode != null && fallbackCode.isNotEmpty) return fallbackCode;
     final fallbackName = subj?.majorName?.trim();
-    return (fallbackName != null && fallbackName.isNotEmpty) ? fallbackName : 'Unknown';
+    return (fallbackName != null && fallbackName.isNotEmpty)
+        ? fallbackName
+        : 'Unknown';
   }
 
   List<SessionSummaryModel> _applyFilters(
       List<SessionSummaryModel> history, List<SubjectModel> subjects) {
     var filtered = history.where((s) {
       final status = s.isActive ? 'Active' : 'Completed';
-      if (_filter.statuses.isNotEmpty && !_filter.statuses.contains(status)) return false;
+      if (_filter.statuses.isNotEmpty && !_filter.statuses.contains(status))
+        return false;
 
       if (_filter.colleges.isNotEmpty) {
         final cName = _getCollegeForSubject(s.subjectId, subjects);
@@ -153,8 +159,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         if (!_filter.majors.contains(mLabel)) return false;
       }
 
-      if (_filter.subjects.isNotEmpty && !_filter.subjects.contains(s.subjectName)) return false;
-      if (_filter.sections.isNotEmpty && !_filter.sections.contains(s.sectionName)) return false;
+      if (_filter.subjects.isNotEmpty &&
+          !_filter.subjects.contains(s.subjectName)) return false;
+      if (_filter.sections.isNotEmpty &&
+          !_filter.sections.contains(s.sectionName)) return false;
 
       if (_filter.engagements.isNotEmpty) {
         String engLevel = 'Low';
@@ -179,53 +187,83 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
       if (_filter.quickDate != null) {
         final now = DateTime.now();
-        final sessionDate = DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
+        final sessionDate =
+            DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
         final today = DateTime(now.year, now.month, now.day);
-        
+
         if (_filter.quickDate == 'Today') {
           if (sessionDate != today) return false;
         } else if (_filter.quickDate == 'This Week') {
           final weekStart = today.subtract(Duration(days: now.weekday - 1));
           if (sessionDate.isBefore(weekStart)) return false;
         } else if (_filter.quickDate == 'This Month') {
-          if (sessionDate.year != today.year || sessionDate.month != today.month) return false;
+          if (sessionDate.year != today.year ||
+              sessionDate.month != today.month) return false;
         }
       } else if (_filter.customDateRange != null) {
-        final sessionDate = DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
-        final rStart = DateTime(_filter.customDateRange!.start.year,
-            _filter.customDateRange!.start.month, _filter.customDateRange!.start.day);
-        final rEnd = DateTime(_filter.customDateRange!.end.year,
-            _filter.customDateRange!.end.month, _filter.customDateRange!.end.day);
-        if (sessionDate.isBefore(rStart) || sessionDate.isAfter(rEnd)) return false;
+        final sessionDate =
+            DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
+        final rStart = DateTime(
+            _filter.customDateRange!.start.year,
+            _filter.customDateRange!.start.month,
+            _filter.customDateRange!.start.day);
+        final rEnd = DateTime(
+            _filter.customDateRange!.end.year,
+            _filter.customDateRange!.end.month,
+            _filter.customDateRange!.end.day);
+        if (sessionDate.isBefore(rStart) || sessionDate.isAfter(rEnd))
+          return false;
       }
 
       return true;
     }).toList();
 
     filtered.sort((a, b) {
-      if (_filter.sortMode == 'newest') return b.startTime.compareTo(a.startTime);
-      if (_filter.sortMode == 'oldest') return a.startTime.compareTo(b.startTime);
-      if (_filter.sortMode == 'highest') return b.averageEngagement.compareTo(a.averageEngagement);
-      if (_filter.sortMode == 'lowest') return a.averageEngagement.compareTo(b.averageEngagement);
+      if (_filter.sortMode == 'newest')
+        return b.startTime.compareTo(a.startTime);
+      if (_filter.sortMode == 'oldest')
+        return a.startTime.compareTo(b.startTime);
+      if (_filter.sortMode == 'highest')
+        return b.averageEngagement.compareTo(a.averageEngagement);
+      if (_filter.sortMode == 'lowest')
+        return a.averageEngagement.compareTo(b.averageEngagement);
       return 0;
     });
 
     return filtered;
   }
 
-  void _showFilters(BuildContext context, List<SubjectModel> subjects, List<SessionSummaryModel> history) async {
+  void _showFilters(BuildContext context, List<SubjectModel> subjects,
+      List<SessionSummaryModel> history) async {
     // Extract available filter options dynamically
-    final availableSubjects = history.map((e) => e.subjectName).toSet().toList()..sort();
-    final availableSections = history.map((e) => e.sectionName).toSet().toList()..sort();
-    final availableColleges = history.map((e) {
-      return _getCollegeForSubject(e.subjectId, subjects);
-    }).where((c) => c != 'Unknown').toSet().toList()..sort();
-    final availableDepartments = history.map((e) {
-      return _getDepartmentForSession(e, subjects);
-    }).where((d) => d != 'Unknown').toSet().toList()..sort();
-    final availableMajors = history.map((e) {
-      return _getMajorForSession(e, subjects);
-    }).where((m) => m != 'Unknown').toSet().toList()..sort();
+    final availableSubjects = history.map((e) => e.subjectName).toSet().toList()
+      ..sort();
+    final availableSections = history.map((e) => e.sectionName).toSet().toList()
+      ..sort();
+    final availableColleges = history
+        .map((e) {
+          return _getCollegeForSubject(e.subjectId, subjects);
+        })
+        .where((c) => c != 'Unknown')
+        .toSet()
+        .toList()
+      ..sort();
+    final availableDepartments = history
+        .map((e) {
+          return _getDepartmentForSession(e, subjects);
+        })
+        .where((d) => d != 'Unknown')
+        .toSet()
+        .toList()
+      ..sort();
+    final availableMajors = history
+        .map((e) {
+          return _getMajorForSession(e, subjects);
+        })
+        .where((m) => m != 'Unknown')
+        .toSet()
+        .toList()
+      ..sort();
 
     final newFilter = await showModalBottomSheet<FilterState>(
       context: context,
@@ -262,7 +300,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
           decoration: BoxDecoration(
             color: theme.colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+            border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -288,11 +327,13 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     }
 
     if (_filter.quickDate != null) {
-      addChip('Date: ${_filter.quickDate}', () => setState(() => _filter = _filter.copyWith(clearDate: true)));
+      addChip('Date: ${_filter.quickDate}',
+          () => setState(() => _filter = _filter.copyWith(clearDate: true)));
     } else if (_filter.customDateRange != null) {
       final s = DateFormat('MM/dd').format(_filter.customDateRange!.start);
       final e = DateFormat('MM/dd').format(_filter.customDateRange!.end);
-      addChip('Range: $s - $e', () => setState(() => _filter = _filter.copyWith(clearDate: true)));
+      addChip('Range: $s - $e',
+          () => setState(() => _filter = _filter.copyWith(clearDate: true)));
     }
 
     if (_filter.sortMode != 'newest') {
@@ -301,7 +342,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         'highest': 'Highest Engagement',
         'lowest': 'Lowest Engagement',
       }[_filter.sortMode]!;
-      addChip('Sort: $sortLabel', () => setState(() => _filter = _filter.copyWith(sortMode: 'newest')));
+      addChip('Sort: $sortLabel',
+          () => setState(() => _filter = _filter.copyWith(sortMode: 'newest')));
     }
 
     for (var s in _filter.statuses) {
@@ -362,12 +404,15 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             margin: const EdgeInsets.only(right: 8, bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              // Simple text appearance, no border
-            ),
+                // Simple text appearance, no border
+                ),
             alignment: Alignment.center,
             child: Text(
               'Clear All',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.error),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.error),
             ),
           ),
         ),
@@ -381,24 +426,28 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     final theme = Theme.of(context);
     final sessionManager = context.watch<SessionProvider>();
     final classroomManager = context.watch<ClassroomProvider>();
-    
+
     final allHistory = sessionManager.history;
     final subjects = classroomManager.subjects;
-    
+
     final filteredSessions = _applyFilters(allHistory, subjects);
-    
+
     // Quick analytics preview
-    final avgEng = filteredSessions.isEmpty ? 0.0 : filteredSessions.fold(0.0, (s, e) => s + e.averageEngagement) / filteredSessions.length;
+    final avgEng = filteredSessions.isEmpty
+        ? 0.0
+        : filteredSessions.fold(0.0, (s, e) => s + e.averageEngagement) /
+            filteredSessions.length;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Session History', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Session History',
+            style: TextStyle(fontWeight: FontWeight.w700)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.filter_list_rounded, 
-              color: !_filter.isDefault ? theme.colorScheme.primary : null),
+            icon: Icon(Icons.filter_list_rounded,
+                color: !_filter.isDefault ? theme.colorScheme.primary : null),
             onPressed: () => _showFilters(context, subjects, allHistory),
             tooltip: 'Filter & Sort',
           ),
@@ -412,12 +461,14 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              color: theme.scaffoldBackgroundColor, // Ensure consistent background
+              color:
+                  theme.scaffoldBackgroundColor, // Ensure consistent background
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start, // Align to top safely
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start, // Align to top safely
                   children: _buildFilterChips(),
                 ),
               ),
@@ -442,7 +493,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 if (filteredSessions.isNotEmpty)
                   Row(
                     children: [
-                      Icon(Icons.analytics_rounded, size: 14, color: theme.colorScheme.primary),
+                      Icon(Icons.analytics_rounded,
+                          size: 14, color: theme.colorScheme.primary),
                       const SizedBox(width: 4),
                       Text(
                         'Avg. Eng: ${avgEng.toStringAsFixed(1)}%',
@@ -464,7 +516,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 : filteredSessions.isEmpty
                     ? _buildEmptyState(theme, !_filter.isDefault)
                     : RefreshIndicator(
-                        onRefresh: () => sessionManager.fetchSessionHistory(includeActive: false),
+                        onRefresh: () => sessionManager.fetchSessionHistory(
+                            includeActive: false),
                         color: theme.colorScheme.primary,
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -472,20 +525,32 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                           itemCount: filteredSessions.length,
                           itemBuilder: (context, index) {
                             final session = filteredSessions[index];
-                            final subjModel = _findSubject(session.subjectId, subjects);
-                            final majorLabel = (session.majorCode?.trim().isNotEmpty == true)
-                                ? session.majorCode
-                                : (session.majorName ?? subjModel?.majorCode ?? subjModel?.majorName);
+                            final subjModel =
+                                _findSubject(session.subjectId, subjects);
+                            final majorLabel =
+                                (session.majorCode?.trim().isNotEmpty == true)
+                                    ? session.majorCode
+                                    : (session.majorName ??
+                                        subjModel?.majorCode ??
+                                        subjModel?.majorName);
                             return _SessionListCard(
                               session: session,
-                              logoPath: (session.collegeLogoPath?.trim().isNotEmpty == true)
-                                  ? session.collegeLogoPath
-                                  : subjModel?.collegeLogoPath,
-                              subjectCoverImageUrl: (session.subjectCoverImageUrl?.trim().isNotEmpty == true)
+                              logoPath:
+                                  (session.collegeLogoPath?.trim().isNotEmpty ==
+                                          true)
+                                      ? session.collegeLogoPath
+                                      : subjModel?.collegeLogoPath,
+                              subjectCoverImageUrl: (session
+                                          .subjectCoverImageUrl
+                                          ?.trim()
+                                          .isNotEmpty ==
+                                      true)
                                   ? session.subjectCoverImageUrl
                                   : subjModel?.coverImageUrl,
-                              collegeName: session.collegeName ?? subjModel?.collegeName,
-                              departmentName: session.departmentName ?? subjModel?.departmentName,
+                              collegeName:
+                                  session.collegeName ?? subjModel?.collegeName,
+                              departmentName: session.departmentName ??
+                                  subjModel?.departmentName,
                               majorLabel: majorLabel,
                               theme: theme,
                             );
@@ -578,7 +643,8 @@ class _SessionListCard extends StatelessWidget {
     final now = DateTime.now();
     final diff = now.difference(d);
     if (diff.inDays == 0) return 'Today at ${DateFormat('h:mm a').format(d)}';
-    if (diff.inDays == 1) return 'Yesterday at ${DateFormat('h:mm a').format(d)}';
+    if (diff.inDays == 1)
+      return 'Yesterday at ${DateFormat('h:mm a').format(d)}';
     return DateFormat('MMM d, yyyy · h:mm a').format(d);
   }
 
@@ -586,9 +652,14 @@ class _SessionListCard extends StatelessWidget {
     Color color;
     IconData icon;
     switch (mode) {
-      case 'EXAM': color = Colors.red; icon = Icons.security_rounded; break;
-      case 'COLLABORATION': color = Colors.orange; icon = Icons.groups_rounded; break;
-      default: color = Colors.teal; icon = Icons.sensors_rounded; break;
+      case 'EXAM':
+        color = Colors.red;
+        icon = Icons.security_rounded;
+        break;
+      default:
+        color = Colors.teal;
+        icon = Icons.sensors_rounded;
+        break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -604,7 +675,11 @@ class _SessionListCard extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             mode,
-            style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+            style: TextStyle(
+                color: color,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5),
           ),
         ],
       ),
@@ -615,7 +690,7 @@ class _SessionListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _engagementColor(session.averageEngagement);
     final coverUrl = resolveImageUrl(subjectCoverImageUrl);
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -624,7 +699,8 @@ class _SessionListCard extends StatelessWidget {
         border: Border.all(color: theme.dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? 0.2 : 0.03),
+            color: Colors.black.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.2 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -637,7 +713,8 @@ class _SessionListCard extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => SessionDetailScreen(session: session)),
+              MaterialPageRoute(
+                  builder: (_) => SessionDetailScreen(session: session)),
             );
           },
           child: Padding(
@@ -655,15 +732,16 @@ class _SessionListCard extends StatelessWidget {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.network(coverUrl, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildFallback(color)),
+                      child: Image.network(coverUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildFallback(color)),
                     ),
                   )
                 else
                   _buildFallback(color),
-                
+
                 const SizedBox(width: 14),
-                
+
                 // Details
                 Expanded(
                   child: Column(
@@ -671,7 +749,8 @@ class _SessionListCard extends StatelessWidget {
                     children: [
                       Text(
                         session.subjectName,
-                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -687,19 +766,23 @@ class _SessionListCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.groups_rounded, size: 12, color: theme.colorScheme.secondary),
+                          Icon(Icons.groups_rounded,
+                              size: 12, color: theme.colorScheme.secondary),
                           const SizedBox(width: 4),
                           Text(
                             session.sectionName,
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.colorScheme.secondary),
                           ),
                           const SizedBox(width: 8),
-                          Icon(Icons.schedule_rounded, size: 12, color: theme.colorScheme.secondary),
+                          Icon(Icons.schedule_rounded,
+                              size: 12, color: theme.colorScheme.secondary),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               _formatDate(session.startTime),
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.secondary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -710,14 +793,16 @@ class _SessionListCard extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),
                           child: Text(
-                            'Status: Active', 
-                            style: theme.textTheme.labelSmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold),
+                            'Status: Active',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                     ],
                   ),
                 ),
-                
+
                 // Engagement Badge
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -730,7 +815,8 @@ class _SessionListCard extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       margin: const EdgeInsets.only(top: 2),
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.12),
@@ -747,9 +833,10 @@ class _SessionListCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(width: 6),
-                Icon(Icons.chevron_right_rounded, size: 20, color: theme.colorScheme.secondary),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: theme.colorScheme.secondary),
               ],
             ),
           ),
@@ -770,7 +857,6 @@ class _SessionListCard extends StatelessWidget {
     );
   }
 }
-
 
 // ── Filter Bottom Sheet ───────────────────────────────────────────────────────
 
@@ -804,7 +890,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
     _state = widget.initialState.copyWith(); // Clone
   }
 
-  void _toggleSetItem(Set<String> current, String item, void Function(Set<String>) update) {
+  void _toggleSetItem(
+      Set<String> current, String item, void Function(Set<String>) update) {
     final newSet = Set<String>.from(current);
     if (newSet.contains(item)) {
       newSet.remove(item);
@@ -835,7 +922,9 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
         selectedColor: theme.colorScheme.primary.withValues(alpha: 0.15),
         labelStyle: TextStyle(
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? theme.colorScheme.primary : theme.textTheme.bodyMedium?.color,
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.textTheme.bodyMedium?.color,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -853,7 +942,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
     final theme = Theme.of(context);
 
     return Container(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -876,13 +966,16 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              
+
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Text('Filter & Sort',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
                     IconButton(
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.pop(context),
@@ -891,29 +984,74 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                 ),
               ),
               const Divider(height: 1),
-              
+
               Expanded(
                 child: ListView(
                   controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   children: [
                     _buildSectionHeader('Sort By'),
                     Wrap(
                       children: [
-                        _buildChoiceChip('Newest First', _state.sortMode == 'newest', () => setState(() => _state = _state.copyWith(sortMode: 'newest'))),
-                        _buildChoiceChip('Oldest First', _state.sortMode == 'oldest', () => setState(() => _state = _state.copyWith(sortMode: 'oldest'))),
-                        _buildChoiceChip('Highest Engagement', _state.sortMode == 'highest', () => setState(() => _state = _state.copyWith(sortMode: 'highest'))),
-                        _buildChoiceChip('Lowest Engagement', _state.sortMode == 'lowest', () => setState(() => _state = _state.copyWith(sortMode: 'lowest'))),
+                        _buildChoiceChip(
+                            'Newest First',
+                            _state.sortMode == 'newest',
+                            () => setState(() =>
+                                _state = _state.copyWith(sortMode: 'newest'))),
+                        _buildChoiceChip(
+                            'Oldest First',
+                            _state.sortMode == 'oldest',
+                            () => setState(() =>
+                                _state = _state.copyWith(sortMode: 'oldest'))),
+                        _buildChoiceChip(
+                            'Highest Engagement',
+                            _state.sortMode == 'highest',
+                            () => setState(() =>
+                                _state = _state.copyWith(sortMode: 'highest'))),
+                        _buildChoiceChip(
+                            'Lowest Engagement',
+                            _state.sortMode == 'lowest',
+                            () => setState(() =>
+                                _state = _state.copyWith(sortMode: 'lowest'))),
                       ],
                     ),
-
                     _buildSectionHeader('Date'),
                     Wrap(
                       children: [
-                        _buildChoiceChip('Today', _state.quickDate == 'Today', () => setState(() => _state = _state.copyWith(quickDate: _state.quickDate == 'Today' ? null : 'Today', clearDate: _state.quickDate == 'Today' ? true : false))),
-                        _buildChoiceChip('This Week', _state.quickDate == 'This Week', () => setState(() => _state = _state.copyWith(quickDate: _state.quickDate == 'This Week' ? null : 'This Week', clearDate: _state.quickDate == 'This Week' ? true : false))),
-                        _buildChoiceChip('This Month', _state.quickDate == 'This Month', () => setState(() => _state = _state.copyWith(quickDate: _state.quickDate == 'This Month' ? null : 'This Month', clearDate: _state.quickDate == 'This Month' ? true : false))),
-                        _buildChoiceChip('Custom Range', _state.customDateRange != null, () async {
+                        _buildChoiceChip(
+                            'Today',
+                            _state.quickDate == 'Today',
+                            () => setState(() => _state = _state.copyWith(
+                                quickDate: _state.quickDate == 'Today'
+                                    ? null
+                                    : 'Today',
+                                clearDate: _state.quickDate == 'Today'
+                                    ? true
+                                    : false))),
+                        _buildChoiceChip(
+                            'This Week',
+                            _state.quickDate == 'This Week',
+                            () => setState(() => _state = _state.copyWith(
+                                quickDate: _state.quickDate == 'This Week'
+                                    ? null
+                                    : 'This Week',
+                                clearDate: _state.quickDate == 'This Week'
+                                    ? true
+                                    : false))),
+                        _buildChoiceChip(
+                            'This Month',
+                            _state.quickDate == 'This Month',
+                            () => setState(() => _state = _state.copyWith(
+                                quickDate: _state.quickDate == 'This Month'
+                                    ? null
+                                    : 'This Month',
+                                clearDate: _state.quickDate == 'This Month'
+                                    ? true
+                                    : false))),
+                        _buildChoiceChip(
+                            'Custom Range', _state.customDateRange != null,
+                            () async {
                           final range = await showDateRangePicker(
                             context: context,
                             firstDate: DateTime(2020),
@@ -921,103 +1059,185 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                             initialDateRange: _state.customDateRange,
                           );
                           if (range != null) {
-                            setState(() => _state = _state.copyWith(customDateRange: range, quickDate: null));
+                            setState(() => _state = _state.copyWith(
+                                customDateRange: range, quickDate: null));
                           } else if (_state.customDateRange != null) {
                             // User cancelled, maybe clear if they untoggled? Let's leave it.
                           }
                         }),
                       ],
                     ),
-
                     _buildSectionHeader('Status'),
                     Wrap(
                       children: [
-                        _buildChoiceChip('Active', _state.statuses.contains('Active'), () => _toggleSetItem(_state.statuses, 'Active', (s) => setState(() => _state = _state.copyWith(statuses: s)))),
-                        _buildChoiceChip('Completed', _state.statuses.contains('Completed'), () => _toggleSetItem(_state.statuses, 'Completed', (s) => setState(() => _state = _state.copyWith(statuses: s)))),
+                        _buildChoiceChip(
+                            'Active',
+                            _state.statuses.contains('Active'),
+                            () => _toggleSetItem(
+                                _state.statuses,
+                                'Active',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(statuses: s)))),
+                        _buildChoiceChip(
+                            'Completed',
+                            _state.statuses.contains('Completed'),
+                            () => _toggleSetItem(
+                                _state.statuses,
+                                'Completed',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(statuses: s)))),
                       ],
                     ),
-
                     _buildSectionHeader('Engagement Level'),
                     Wrap(
                       children: [
-                        _buildChoiceChip('High (≥70%)', _state.engagements.contains('High'), () => _toggleSetItem(_state.engagements, 'High', (s) => setState(() => _state = _state.copyWith(engagements: s)))),
-                        _buildChoiceChip('Medium (45-69%)', _state.engagements.contains('Medium'), () => _toggleSetItem(_state.engagements, 'Medium', (s) => setState(() => _state = _state.copyWith(engagements: s)))),
-                        _buildChoiceChip('Low (<45%)', _state.engagements.contains('Low'), () => _toggleSetItem(_state.engagements, 'Low', (s) => setState(() => _state = _state.copyWith(engagements: s)))),
+                        _buildChoiceChip(
+                            'High (≥70%)',
+                            _state.engagements.contains('High'),
+                            () => _toggleSetItem(
+                                _state.engagements,
+                                'High',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(engagements: s)))),
+                        _buildChoiceChip(
+                            'Medium (45-69%)',
+                            _state.engagements.contains('Medium'),
+                            () => _toggleSetItem(
+                                _state.engagements,
+                                'Medium',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(engagements: s)))),
+                        _buildChoiceChip(
+                            'Low (<45%)',
+                            _state.engagements.contains('Low'),
+                            () => _toggleSetItem(
+                                _state.engagements,
+                                'Low',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(engagements: s)))),
                       ],
                     ),
-
                     _buildSectionHeader('Time of Day'),
                     Wrap(
                       children: [
-                        _buildChoiceChip('Morning', _state.timesOfDay.contains('Morning'), () => _toggleSetItem(_state.timesOfDay, 'Morning', (s) => setState(() => _state = _state.copyWith(timesOfDay: s)))),
-                        _buildChoiceChip('Afternoon', _state.timesOfDay.contains('Afternoon'), () => _toggleSetItem(_state.timesOfDay, 'Afternoon', (s) => setState(() => _state = _state.copyWith(timesOfDay: s)))),
-                        _buildChoiceChip('Evening', _state.timesOfDay.contains('Evening'), () => _toggleSetItem(_state.timesOfDay, 'Evening', (s) => setState(() => _state = _state.copyWith(timesOfDay: s)))),
+                        _buildChoiceChip(
+                            'Morning',
+                            _state.timesOfDay.contains('Morning'),
+                            () => _toggleSetItem(
+                                _state.timesOfDay,
+                                'Morning',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(timesOfDay: s)))),
+                        _buildChoiceChip(
+                            'Afternoon',
+                            _state.timesOfDay.contains('Afternoon'),
+                            () => _toggleSetItem(
+                                _state.timesOfDay,
+                                'Afternoon',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(timesOfDay: s)))),
+                        _buildChoiceChip(
+                            'Evening',
+                            _state.timesOfDay.contains('Evening'),
+                            () => _toggleSetItem(
+                                _state.timesOfDay,
+                                'Evening',
+                                (s) => setState(() =>
+                                    _state = _state.copyWith(timesOfDay: s)))),
                       ],
                     ),
-
                     if (widget.availableColleges.isNotEmpty) ...[
                       _buildSectionHeader('College'),
                       Wrap(
-                        children: widget.availableColleges.map((c) => _buildChoiceChip(
-                          c, _state.colleges.contains(c),
-                          () => _toggleSetItem(_state.colleges, c, (s) => setState(() => _state = _state.copyWith(colleges: s)))
-                        )).toList(),
+                        children: widget.availableColleges
+                            .map((c) => _buildChoiceChip(
+                                c,
+                                _state.colleges.contains(c),
+                                () => _toggleSetItem(
+                                    _state.colleges,
+                                    c,
+                                    (s) => setState(() => _state =
+                                        _state.copyWith(colleges: s)))))
+                            .toList(),
                       ),
                     ],
-
                     if (widget.availableDepartments.isNotEmpty) ...[
                       _buildSectionHeader('Department'),
                       Wrap(
-                        children: widget.availableDepartments.map((d) => _buildChoiceChip(
-                          d, _state.departments.contains(d),
-                          () => _toggleSetItem(_state.departments, d, (s) => setState(() => _state = _state.copyWith(departments: s)))
-                        )).toList(),
+                        children: widget.availableDepartments
+                            .map((d) => _buildChoiceChip(
+                                d,
+                                _state.departments.contains(d),
+                                () => _toggleSetItem(
+                                    _state.departments,
+                                    d,
+                                    (s) => setState(() => _state =
+                                        _state.copyWith(departments: s)))))
+                            .toList(),
                       ),
                     ],
-
                     if (widget.availableMajors.isNotEmpty) ...[
                       _buildSectionHeader('Major'),
                       Wrap(
-                        children: widget.availableMajors.map((m) => _buildChoiceChip(
-                          m, _state.majors.contains(m),
-                          () => _toggleSetItem(_state.majors, m, (s) => setState(() => _state = _state.copyWith(majors: s)))
-                        )).toList(),
+                        children: widget.availableMajors
+                            .map((m) => _buildChoiceChip(
+                                m,
+                                _state.majors.contains(m),
+                                () => _toggleSetItem(
+                                    _state.majors,
+                                    m,
+                                    (s) => setState(() =>
+                                        _state = _state.copyWith(majors: s)))))
+                            .toList(),
                       ),
                     ],
-
                     if (widget.availableSubjects.isNotEmpty) ...[
                       _buildSectionHeader('Subject / Class'),
                       Wrap(
-                        children: widget.availableSubjects.map((s) => _buildChoiceChip(
-                          s, _state.subjects.contains(s),
-                          () => _toggleSetItem(_state.subjects, s, (st) => setState(() => _state = _state.copyWith(subjects: st)))
-                        )).toList(),
+                        children: widget.availableSubjects
+                            .map((s) => _buildChoiceChip(
+                                s,
+                                _state.subjects.contains(s),
+                                () => _toggleSetItem(
+                                    _state.subjects,
+                                    s,
+                                    (st) => setState(() => _state =
+                                        _state.copyWith(subjects: st)))))
+                            .toList(),
                       ),
                     ],
-
                     if (widget.availableSections.isNotEmpty) ...[
                       _buildSectionHeader('Section'),
                       Wrap(
-                        children: widget.availableSections.map((sec) => _buildChoiceChip(
-                          sec, _state.sections.contains(sec),
-                          () => _toggleSetItem(_state.sections, sec, (st) => setState(() => _state = _state.copyWith(sections: st)))
-                        )).toList(),
+                        children: widget.availableSections
+                            .map((sec) => _buildChoiceChip(
+                                sec,
+                                _state.sections.contains(sec),
+                                () => _toggleSetItem(
+                                    _state.sections,
+                                    sec,
+                                    (st) => setState(() => _state =
+                                        _state.copyWith(sections: st)))))
+                            .toList(),
                       ),
                     ],
-                    
                     const SizedBox(height: 32),
                   ],
                 ),
               ),
-              
+
               // Bottom Action Bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   border: Border(top: BorderSide(color: theme.dividerColor)),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, -4))
                   ],
                 ),
                 child: Row(
@@ -1026,7 +1246,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                       onPressed: () {
                         setState(() => _state = FilterState());
                       },
-                      child: const Text('Clear All', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Clear All',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1035,13 +1256,16 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                           backgroundColor: theme.colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
                         onPressed: () {
                           Navigator.pop(context, _state);
                         },
-                        child: const Text('Apply Filters', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: const Text('Apply Filters',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
