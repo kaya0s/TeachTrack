@@ -13,10 +13,10 @@ export default function Hero() {
         offset: ["start end", "end start"],
     });
 
-    const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.8, 1, 0.8]);
-    const opacity = useTransform(scrollYProgress, [0, 0.3, 1], [1, 0.5, 0]);
+    const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.85, 1, 0.85]);
+    const opacity = useTransform(scrollYProgress, [0, 0.3, 1], [1, 0.6, 0]);
     const y = useTransform(scrollYProgress, [0, 1], [0, -50]);
-    const imgY = useTransform(scrollYProgress, [0, 1], [0, 100]);
+    const imgY = useTransform(scrollYProgress, [0, 1], [0, 60]);
 
     const handleDownloadClick = (event: MouseEvent<HTMLAnchorElement>) => {
         event.preventDefault();
@@ -48,7 +48,7 @@ export default function Hero() {
                 </span>
             </motion.div>
 
-            <div className="container relative z-10 mx-auto px-6 sm:px-8 md:px-16 lg:px-32 flex flex-col md:flex-row items-center justify-between gap-10 sm:gap-12 md:gap-24">
+            <div className="container relative z-10 mx-auto px-6 sm:px-8 md:px-16 lg:px-28 flex flex-col md:flex-row items-center justify-between gap-12 sm:gap-14 md:gap-16">
 
                 {/* Left Content (Text) */}
                 <motion.div
@@ -61,14 +61,13 @@ export default function Hero() {
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-accent">Documentation</span>
                         </div>
 
-                        <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] uppercase">
+                        <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[0.9] uppercase">
                             TeachTrack <br />
                             <span className="text-outline-accent text-transparent">User Guide</span>
                         </h1>
 
-                        <p className="max-w-md text-sm md:text-base leading-relaxed text-foreground/50 font-light tracking-wide">
-                            Learn what the app can do and follow a clear step-by-step guide.
-                            Download the Android APK when it becomes available.
+                        <p className="max-w-md text-sm md:text-base leading-relaxed text-foreground/60 font-light tracking-wide">
+                            Learn what the app can do, explore live activity modes & exam gadget proctoring, and follow the step-by-step guide.
                         </p>
 
                         <div className="pt-2 space-y-4">
@@ -82,7 +81,7 @@ export default function Hero() {
                                     onClick={handleDownloadClick}
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
-                                    className="flex items-center justify-center gap-3 bg-foreground py-3 sm:py-4 text-[11px] sm:text-sm font-semibold text-background transition-opacity hover:opacity-90"
+                                    className="flex items-center justify-center gap-3 bg-foreground py-3.5 sm:py-4 text-[11px] sm:text-sm font-semibold text-background transition-opacity hover:opacity-90 shadow-md"
                                 >
                                     <Smartphone size={16} className="sm:hidden" />
                                     <Smartphone size={18} className="hidden sm:block" />
@@ -93,7 +92,7 @@ export default function Hero() {
                                     onClick={handleDownloadClick}
                                     whileHover={{ scale: 1.02, backgroundColor: "rgba(var(--foreground), 0.05)" }}
                                     whileTap={{ scale: 0.98 }}
-                                    className="flex items-center justify-center gap-3 border border-foreground/10 py-3 sm:py-4 text-[11px] sm:text-sm font-semibold transition-colors"
+                                    className="flex items-center justify-center gap-3 border border-foreground/15 py-3.5 sm:py-4 text-[11px] sm:text-sm font-semibold transition-colors"
                                 >
                                     <Apple size={16} className="sm:hidden" />
                                     <Apple size={18} className="hidden sm:block" />
@@ -108,14 +107,14 @@ export default function Hero() {
                 {/* Right Content (Creative Photo) */}
                 <motion.div
                     style={{ opacity, scale, y: imgY }}
-                    className="relative flex-1 order-1 md:order-2"
+                    className="relative flex-1 order-1 md:order-2 flex justify-center w-full"
                 >
-                    <div className="relative aspect-[4/5] w-full max-w-[360px] sm:max-w-[420px] md:max-w-[450px] mx-auto overflow-hidden border border-foreground/5 bg-foreground/[0.02] collage-mask">
+                    <div className="relative aspect-[4/5] w-full max-w-[340px] sm:max-w-[390px] md:max-w-[430px] lg:max-w-[470px] overflow-hidden border border-foreground/10 bg-foreground/[0.02] shadow-xl collage-mask">
                         {/* Main Profile Photo Placeholder */}
                         <motion.div
-                            initial={{ scale: 1.2, opacity: 0 }}
+                            initial={{ scale: 1.1, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                            transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
                             className="h-full w-full"
                         >
                             <img
@@ -127,17 +126,15 @@ export default function Hero() {
 
                         {/* Decorative Glitch/Editorial Overlays */}
                         <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute top-0 right-0 h-32 w-32 border-t border-r border-accent/30" />
-                            <div className="absolute bottom-0 left-0 h-32 w-32 border-b border-l border-accent/20" />
+                            <div className="absolute top-0 right-0 h-32 w-32 border-t border-r border-accent/40" />
+                            <div className="absolute bottom-0 left-0 h-32 w-32 border-b border-l border-accent/30" />
                             <div className="absolute top-1/2 left-0 w-full h-[1px] bg-foreground/5" />
                         </div>
-
-                        {/* Floating Info Tag */}
                     </div>
 
                     {/* Background Text behind photo */}
                     <div className="absolute -top-10 -left-10 z-[-1] pointer-events-none hidden lg:block">
-                        <span className="text-[12rem] font-bold text-foreground/[0.02] italic select-none">匠</span>
+                        <span className="text-[14rem] font-bold text-foreground/[0.02] italic select-none">匠</span>
                     </div>
                 </motion.div>
 

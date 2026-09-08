@@ -1,66 +1,100 @@
 "use client";
 
 import Section from "./Section";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import {
-    ArrowUpRight,
     Activity,
     BarChart3,
-    Bell,
     History,
     ShieldCheck,
     Wrench,
+    Smartphone,
+    Cloud,
+    Sliders,
+    ChevronRight,
 } from "lucide-react";
 
 const skillCategories = [
     {
         id: "01",
-        title: "Secure Access",
-        icon: <ShieldCheck size={20} />,
+        badge: "SESSION MODES",
+        title: "Live Mode Switching",
+        icon: <Sliders size={22} />,
         description:
-            "Authenticate with email/password or Google. Use verification-code reset if you forget your password.",
-        skills: ["Sign In", "Register", "Google Sign-In", "Password Reset"],
+            "Seamlessly switch between Lecture and Exam modes in real time without stopping or resetting the active camera feed.",
+        skills: ["Lecture Mode", "Exam Mode", "Zero-Downtime Switch", "Mode Timeline"],
+        highlight: "Switch anytime during class",
     },
     {
         id: "02",
-        title: "Live AI Monitoring",
-        icon: <Activity size={20} />,
+        badge: "PROCTORING AI",
+        title: "Exam Gadget Detection",
+        icon: <Smartphone size={22} />,
         description:
-            "Run monitoring sessions with real-time behavior breakdown, engagement scoring, and alerting during class.",
-        skills: ["Start/Stop Session", "Live Metrics", "Behavior Logs", "Smart Alerts"],
+            "YOLO-powered proctoring detects unauthorized phone and gadget usage during exams with instant critical alert notifications and photo evidence.",
+        skills: ["Phone Detection", "Critical Alerts", "Visual Snapshots", "Volatile Privacy"],
+        highlight: "Real-time unauthorized device alerts",
     },
     {
         id: "03",
-        title: "Analytics & History",
-        icon: <BarChart3 size={20} />,
+        badge: "VISION TELEMETRY",
+        title: "Live Student Telemetry",
+        icon: <Activity size={22} />,
         description:
-            "Review dashboard insights, trends, and past sessions. Open a session to see summary details and performance.",
-        skills: ["Dashboard Overview", "Weekly Trend", "Session History", "Session Details"],
+            "Continuous tracking of on-task, off-task, sleeping, and device interaction behaviors with dynamic engagement scoring.",
+        skills: ["Live Engagement", "Behavior Stream", "Smart Alerts", "Live Camera Feed"],
+        highlight: "Adaptive engagement formulas",
     },
     {
         id: "04",
-        title: "Notifications & Alerts",
-        icon: <Bell size={20} />,
+        badge: "DATA RESILIENCE",
+        title: "Cloud Backup & Drive",
+        icon: <Cloud size={22} />,
         description:
-            "Stay updated with a dedicated feed for notifications and alert events, including unread filtering and refresh.",
-        skills: ["Notification Feed", "Alert Center", "Unread Filter", "Auto Refresh"],
+            "Automated & superuser manual database backups safely compressed and synced to Google Drive via OAuth 2.0.",
+        skills: ["Google Drive Sync", "OAuth 2.0 Token", "One-Click Backup", "Audit Logging"],
+        highlight: "Zero local disk overflow",
     },
     {
         id: "05",
-        title: "Classroom Setup",
-        icon: <History size={20} />,
+        badge: "INTELLIGENCE",
+        title: "Analytics & History",
+        icon: <BarChart3 size={22} />,
         description:
-            "Configure your teaching context by managing subjects/sections and keeping classroom info accurate for sessions.",
-        skills: ["Subjects", "Sections", "Covers/Media", "Details View"],
+            "Comprehensive post-session intelligence, multi-week engagement trends, and chronological mode switch event timelines.",
+        skills: ["Dashboard Trends", "Session Details", "Mode History", "Engagement Averages"],
+        highlight: "Granular historical analysis",
     },
     {
         id: "06",
-        title: "Admin Tools",
-        icon: <Wrench size={20} />,
+        badge: "STRUCTURE",
+        title: "Classroom Hierarchy",
+        icon: <History size={22} />,
         description:
-            "For administrators: manage users, oversee sessions, review alerts, and select the active detector model.",
-        skills: ["User Management", "Force Stop Session", "Alert Filters", "Model Selection"],
+            "Organized institutional mapping with Colleges, Departments, Majors, Subjects, and Sections for clear administrative context.",
+        skills: ["College Mapping", "Departments", "Sections & Subjects", "Teacher Rosters"],
+        highlight: "Institutional context mapping",
+    },
+    {
+        id: "07",
+        badge: "SECURITY",
+        title: "Secure Access & Auth",
+        icon: <ShieldCheck size={22} />,
+        description:
+            "Role-based authentication with email/password, Google OAuth, and secure email verification-code password reset.",
+        skills: ["Sign In", "Register", "Google Sign-In", "Password Reset"],
+        highlight: "Role-based authorization",
+    },
+    {
+        id: "08",
+        badge: "OPERATIONS",
+        title: "Admin Portal & Models",
+        icon: <Wrench size={22} />,
+        description:
+            "Full superuser oversight: manage teachers, review audit logs, and dynamically switch active YOLO model weight versions.",
+        skills: ["Teacher Management", "Model Weights Switch", "Audit Logs", "Session Controls"],
+        highlight: "Dynamic model hot-swapping",
     },
 ];
 
@@ -68,105 +102,78 @@ export default function Skills() {
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
     return (
-        <Section id="features" title="Features" subtitle="What You Can Do" verticalTitle="Features">
-            <div className="relative mt-12 border-t border-foreground/5">
-                {skillCategories.map((category, idx) => (
-                    <motion.div
-                        key={category.id}
-                        onMouseEnter={() => setHoveredIdx(idx)}
-                        onMouseLeave={() => setHoveredIdx(null)}
-                        className="group relative border-b border-foreground/5 py-12 md:py-16 overflow-hidden cursor-default"
-                    >
-                        {/* Background Slide Effect */}
+        <Section id="features" title="Features" subtitle="What You Can Do" verticalTitle="Features" className="py-20 md:py-24">
+            {/* Grid of feature cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                {skillCategories.map((category, idx) => {
+                    const isHovered = hoveredIdx === idx;
+                    return (
                         <motion.div
-                            className="absolute inset-0 bg-accent/[0.02] -z-10"
-                            animate={{
-                                x: hoveredIdx === idx ? 0 : "-100%"
-                            }}
-                            transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }}
-                        />
-
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
-                            {/* Title & Info */}
-                            <div className="flex-1 space-y-4">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-[10px] font-black text-accent">{category.id}</span>
-                                    <span className="h-px w-8 bg-accent/20" />
-                                    <span className="text-accent/80">{category.icon}</span>
-                                    <span className="text-[10px] uppercase tracking-widest text-foreground/40">{category.title}</span>
+                            key={category.id}
+                            onMouseEnter={() => setHoveredIdx(idx)}
+                            onMouseLeave={() => setHoveredIdx(null)}
+                            whileHover={{ y: -4 }}
+                            transition={{ duration: 0.25 }}
+                            className={`relative border p-6 md:p-7 flex flex-col justify-between transition-all duration-300 ${
+                                isHovered
+                                    ? "border-accent/60 bg-foreground/[0.03] shadow-lg shadow-accent/5"
+                                    : "border-foreground/10 bg-background hover:border-accent/30"
+                            }`}
+                        >
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="p-3 bg-accent/[0.08] border border-accent/20 text-accent rounded-sm">
+                                        {category.icon}
+                                    </div>
+                                    <span className="text-[10px] font-black tracking-widest text-accent/80 font-mono">
+                                        {category.id}
+                                    </span>
                                 </div>
 
-                                <h3 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none group-hover:text-accent transition-colors duration-500">
-                                    {category.title.split(' ')[0]}
-                                </h3>
-                            </div>
+                                <div className="space-y-1.5">
+                                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-accent/90 block">
+                                        {category.badge}
+                                    </span>
+                                    <h3 className="text-lg md:text-xl font-black uppercase tracking-tight">
+                                        {category.title}
+                                    </h3>
+                                </div>
 
-                            {/* Description - Visible on hover or tablet+ */}
-                            <div className="flex-1 max-w-md">
-                                <motion.p
-                                    className="text-sm md:text-base text-foreground/50 font-light leading-relaxed"
-                                    animate={{
-                                        opacity: hoveredIdx === idx ? 1 : 0.3,
-                                        x: hoveredIdx === idx ? 0 : -10
-                                    }}
-                                >
+                                <p className="text-xs text-foreground/65 font-light leading-relaxed">
                                     {category.description}
-                                </motion.p>
-                            </div>
+                                </p>
 
-                            {/* Skills List - Kinetic Reveal */}
-                            <div className="flex-1 md:flex justify-end hidden">
-                                <AnimatePresence>
-                                    {hoveredIdx === idx && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="flex flex-wrap justify-end gap-3 max-w-sm"
+                                <div className="pt-3 border-t border-foreground/5 flex flex-wrap gap-1.5">
+                                    {category.skills.map((skill) => (
+                                        <span
+                                            key={skill}
+                                            className="px-2 py-0.5 border border-foreground/10 bg-foreground/[0.02] text-[9px] font-semibold text-foreground/75 uppercase tracking-wider"
                                         >
-                                            {category.skills.map((skill) => (
-                                                <span
-                                                    key={skill}
-                                                    className="px-4 py-2 border border-foreground/10 text-[9px] font-black uppercase tracking-widest bg-background hover:bg-accent hover:text-background hover:border-accent transition-all duration-300"
-                                                >
-                                                    {skill}
-                                                </span>
-                                            ))}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                            {skill}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
 
-                            <div className="md:hidden flex flex-wrap gap-2 pt-4">
-                                {category.skills.map((skill) => (
-                                    <span key={skill} className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30">{skill}</span>
-                                ))}
+                            <div className="pt-4 mt-4 border-t border-foreground/5 flex items-center justify-between text-[10px] font-medium text-foreground/50">
+                                <span className="italic">{category.highlight}</span>
+                                <ChevronRight size={14} className="text-accent/70" />
                             </div>
-                        </div>
-
-                        {/* Kinetic Arrow */}
-                        <motion.div
-                            className="absolute top-1/2 -translate-y-1/2 right-0 pointer-events-none hidden md:block"
-                            animate={{
-                                opacity: hoveredIdx === idx ? 0.1 : 0,
-                                x: hoveredIdx === idx ? 0 : 50
-                            }}
-                        >
-                            <ArrowUpRight size={180} strokeWidth={1} className="text-foreground" />
                         </motion.div>
-                    </motion.div>
-                ))}
+                    );
+                })}
             </div>
 
-            {/* Bottom Footer Callout */}
-            <div className="mt-20 flex flex-col md:flex-row items-end justify-between gap-12 border-l-2 border-accent/20 pl-8">
-                <p className="max-w-xl text-lg md:text-xl text-foreground/60 font-light leading-relaxed">
-                    Use TeachTrack as a complete flow: <span className="text-foreground font-black uppercase">secure access</span>, configure classrooms, monitor behavior in real time, and review post-session outcomes.
-                    This guide mirrors the current system behavior.
-                </p>
-                <div className="flex flex-col items-end">
-                    <span className="text-[10px] font-black uppercase tracking-[0.5em] text-accent mb-2">Principle</span>
-                    <span className="text-2xl font-black italic tracking-tighter">Clarity First</span>
+            {/* Bottom Principle Callout */}
+            <div className="mt-14 p-6 md:p-8 border border-accent/20 bg-accent/[0.03] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-accent">Design Philosophy</span>
+                    <p className="text-sm md:text-base text-foreground/80 font-light">
+                        Built for educators: real-time behavioral insights, privacy-compliant proctoring, and cloud reliability without unnecessary friction.
+                    </p>
+                </div>
+                <div className="px-4 py-2 border border-accent/40 bg-accent/10 text-accent text-xs font-black uppercase tracking-widest shrink-0">
+                    Accuracy • Privacy • Durability
                 </div>
             </div>
         </Section>

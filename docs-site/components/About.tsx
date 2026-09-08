@@ -3,6 +3,7 @@
 import Section from "./Section";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+import { Sparkles, Eye, ShieldCheck, BarChart3, Cloud } from "lucide-react";
 
 export default function About() {
   const ref = useRef(null);
@@ -11,70 +12,99 @@ export default function About() {
     offset: ["start end", "end start"],
   });
 
-  const rotate = useTransform(scrollYProgress, [0, 1], [0, 15]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.8, 1, 0.8]);
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.92, 1, 0.92]);
 
   return (
     <Section
       id="overview"
       title="Overview"
-      subtitle="TeachTrack"
+      subtitle="The TeachTrack Platform"
       verticalTitle="Overview"
     >
       <div ref={ref} className="grid gap-12 lg:grid-cols-12 items-center">
-        <div className="lg:col-span-7 space-y-10">
-          <p className="text-2xl md:text-4xl leading-[1.3] text-foreground/90 font-light tracking-tight">
-            TeachTrack helps educators monitor engagement and classroom behavior
-            through <span className="text-accent italic">clear insights</span>{" "}
-            and an easy workflow.
+        {/* Left Column Text Content */}
+        <div className="lg:col-span-7 space-y-8">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 border border-accent/30 bg-accent/[0.08] px-3.5 py-1.5 rounded-sm">
+              <Sparkles size={14} className="text-accent" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/80">
+                Next-Gen Classroom Intelligence
+              </span>
+            </div>
+
+            <h3 className="text-2xl sm:text-3xl md:text-4xl leading-[1.25] text-foreground font-black uppercase tracking-tight">
+              Empowering educators with <span className="text-accent">real-time vision</span>, behavioral analytics, and exam proctoring.
+            </h3>
+          </div>
+
+          <p className="text-sm md:text-base leading-relaxed text-foreground/70 font-light">
+            TeachTrack transforms standard classroom cameras into an intelligent pedagogical assistant. By leveraging state-of-the-art computer vision and deep learning models, TeachTrack measures active student engagement, flags fatigue or distractions, and safeguards academic integrity during exams without invading student privacy.
           </p>
-          <div className="flex gap-12">
-            <div className="space-y-6 flex-1">
-              <p className="text-sm md:text-base leading-relaxed text-foreground/60 font-light">
-                This site is the official user guide for the app: what it does,
-                what you need to get started, and the steps to run a session
-                smoothly. Use it as a quick reference during setup and day-to-day
-                use.
+
+          {/* Key Value Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="p-4 border border-foreground/10 bg-foreground/[0.01] rounded-sm space-y-1.5">
+              <div className="flex items-center gap-2 text-accent">
+                <Eye size={16} />
+                <span className="text-[10px] font-black uppercase tracking-wider">Live Dual Modes</span>
+              </div>
+              <p className="text-xs text-foreground/60 leading-relaxed">
+                Seamlessly toggle between Lecture engagement tracking and strict Exam phone proctoring on the fly.
               </p>
             </div>
-            <div className="space-y-6 flex-1 hidden md:block border-l border-foreground/5 pl-12">
-              <p className="text-sm md:text-base leading-relaxed text-foreground/60 font-light italic">
-                &quot;Simple steps. Clear results.&quot;
-                <br />
-                <span className="text-[10px] mt-2 block opacity-30 not-italic">
-                  — TeachTrack
-                </span>
+
+            <div className="p-4 border border-foreground/10 bg-foreground/[0.01] rounded-sm space-y-1.5">
+              <div className="flex items-center gap-2 text-accent">
+                <ShieldCheck size={16} />
+                <span className="text-[10px] font-black uppercase tracking-wider">Academic Integrity</span>
+              </div>
+              <p className="text-xs text-foreground/60 leading-relaxed">
+                Instant critical alerts and visual snapshots when unauthorized gadgets are detected in exams.
+              </p>
+            </div>
+
+            <div className="p-4 border border-foreground/10 bg-foreground/[0.01] rounded-sm space-y-1.5">
+              <div className="flex items-center gap-2 text-accent">
+                <BarChart3 size={16} />
+                <span className="text-[10px] font-black uppercase tracking-wider">Actionable Analytics</span>
+              </div>
+              <p className="text-xs text-foreground/60 leading-relaxed">
+                Comprehensive weekly engagement trends, behavioral distributions, and mode switch audit histories.
+              </p>
+            </div>
+
+            <div className="p-4 border border-foreground/10 bg-foreground/[0.01] rounded-sm space-y-1.5">
+              <div className="flex items-center gap-2 text-accent">
+                <Cloud size={16} />
+                <span className="text-[10px] font-black uppercase tracking-wider">Cloud Resilient</span>
+              </div>
+              <p className="text-xs text-foreground/60 leading-relaxed">
+                Automated database dumps synced securely to Google Drive via OAuth 2.0 with superuser control.
               </p>
             </div>
           </div>
+
+          <p className="text-xs text-foreground/50 italic border-l-2 border-accent/40 pl-4 py-1">
+            Designed for teachers, trusted by administrators. Simple setup, zero-downtime monitoring, and dependable insights.
+          </p>
         </div>
 
-        <div className="lg:col-span-5 relative group">
+        {/* Right Column Visual Mockup */}
+        <div className="lg:col-span-5 relative group flex justify-center">
           <motion.div
-            style={{ rotate, scale }}
-            className="relative aspect-square overflow-hidden bg-foreground/[0.02] border border-foreground/5 flex items-center justify-center p-8"
+            style={{ scale }}
+            className="relative aspect-square w-full max-w-[420px] overflow-hidden border border-foreground/10 bg-foreground/[0.02] shadow-2xl flex items-center justify-center p-2 rounded-sm"
           >
-            <div className="absolute inset-0 japanese-grid opacity-10" />
             <img
               src="/images/step5.png"
               alt="TeachTrack overview visual"
-              className="absolute inset-0 h-full w-full object-cover"
+              className="h-full w-full object-contain rounded-sm"
             />
-            <div className="absolute inset-0 bg-background/20" />
 
-            <motion.div
-              animate={{ y: [0, -20, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-12 left-12 h-16 w-[1px] bg-accent/20"
-            />
-            <motion.div
-              animate={{ x: [0, 20, 0] }}
-              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute bottom-12 right-12 w-16 h-[1px] bg-accent/20"
-            />
+            {/* Subtle decorative accents */}
+            <div className="absolute top-0 right-0 h-16 w-16 border-t-2 border-r-2 border-accent/40 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 h-16 w-16 border-b-2 border-l-2 border-accent/30 pointer-events-none" />
           </motion.div>
-
-          <div className="absolute -bottom-8 -right-8 h-32 w-32 border border-foreground/5 -z-10 group-hover:translate-x-4 group-hover:translate-y-4 transition-transform duration-700" />
         </div>
       </div>
     </Section>
