@@ -1,6 +1,7 @@
 "use client";
 
 import { httpRequest } from "@/lib/utils";
+import { getToken } from "@/lib/auth";
 
 // Types
 import type {
@@ -207,6 +208,30 @@ export async function getSessionDetectorStatus(
   sessionId: number,
 ): Promise<DetectorStatus> {
   return httpRequest(`/admin/sessions/${sessionId}/detector/status`);
+}
+
+export async function getSessionDetectorPreview(
+  sessionId: number,
+): Promise<Blob | null> {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+  const token = getToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(
+    `${baseUrl}/admin/sessions/${sessionId}/detector/preview?ts=${Date.now()}`,
+    { headers, cache: "no-store" },
+  );
+  if (response.status === 204) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(response.statusText || `HTTP ${response.status}`);
+  }
+  return response.blob();
 }
 
 // College & Major endpoints

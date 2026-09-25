@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SessionTrendChart } from "@/components/session-trend-chart";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { getSessionDetectorPreview } from "../api";
 import {
   AdminSessionDetail,
   DetectorStatus,
@@ -45,8 +46,56 @@ export function SessionDetailView({
 }) {
   const [hoveredLogRow, setHoveredLogRow] =
     useState<BehaviorLogChartRow | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const teacherDisplayName =
     detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
+
+  useEffect(() => {
+    if (!detail.session.is_active) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let currentUrl: string | null = null;
+
+    const refreshPreview = async () => {
+      try {
+        const blob = await getSessionDetectorPreview(detail.session.id);
+        if (cancelled) return;
+        if (!blob) {
+          setPreviewUrl((previousUrl) => {
+            if (previousUrl) URL.revokeObjectURL(previousUrl);
+            return null;
+          });
+          currentUrl = null;
+          return;
+        }
+        const nextUrl = URL.createObjectURL(blob);
+        setPreviewUrl((previousUrl) => {
+          if (previousUrl) URL.revokeObjectURL(previousUrl);
+          return nextUrl;
+        });
+        currentUrl = nextUrl;
+      } catch {
+        if (!cancelled) {
+          setPreviewUrl((previousUrl) => {
+            if (previousUrl) URL.revokeObjectURL(previousUrl);
+            return null;
+          });
+          currentUrl = null;
+        }
+      }
+    };
+
+    refreshPreview();
+    const intervalId = window.setInterval(refreshPreview, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [detail.session.id, detail.session.is_active]);
 
   const exportSingleSessionPDF = () => {
     const { jsPDF } = require("jspdf");
@@ -274,6 +323,10 @@ export function SessionDetailView({
         <DetectorStatusBanner detectorStatus={detectorStatus} />
       ) : null}
 
+      {detail.session.is_active ? (
+        <DetectorPreviewPanel previewUrl={previewUrl} />
+      ) : null}
+
       <div className="flex items-center justify-between gap-4 px-1">
         <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
           Intelligence Snapshot
@@ -498,6 +551,31 @@ export function SessionDetailView({
             </p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DetectorPreviewPanel({ previewUrl }: { previewUrl: string | null }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border/50 bg-muted/10 px-5 py-4">
+        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Camera Preview
+        </h4>
+      </div>
+      <div className="flex aspect-video items-center justify-center bg-muted/30">
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Live detector preview"
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <p className="text-sm font-medium text-muted-foreground">
+            Waiting for camera preview...
+          </p>
+        )}
       </div>
     </div>
   );

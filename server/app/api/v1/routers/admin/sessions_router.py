@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
@@ -86,6 +86,18 @@ def get_admin_session_detector_status(
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
     return admin_service.get_session_detector_status(db, session_id=session_id)
+
+
+@router.get("/sessions/{session_id}/detector/preview")
+def get_admin_session_detector_preview(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Response:
+    frame = admin_service.get_session_detector_preview(db, session_id=session_id)
+    if frame is None:
+        return Response(status_code=204)
+    return Response(content=frame, media_type="image/jpeg")
 
 
 @router.post("/sessions/{session_id}/force-stop", response_model=SessionSchema)

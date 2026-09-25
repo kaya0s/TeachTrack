@@ -38,6 +38,8 @@ _model_lock = threading.Lock()
 _detectors: dict[int, dict] = {}
 _detectors_lock = threading.Lock()
 DETECTOR_RETRY_SECONDS = 3.0
+_preview_frames: dict[int, bytes] = {}
+_preview_lock = threading.Lock()
 
 _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
@@ -129,6 +131,24 @@ def _release_capture(cap: cv2.VideoCapture | None) -> None:
             cap.release()
         except Exception:
             pass
+
+
+def _clear_preview_frame(session_id: int) -> None:
+    with _preview_lock:
+        _preview_frames.pop(session_id, None)
+
+
+def _store_preview_frame(session_id: int, frame: np.ndarray) -> None:
+    ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    if not ok:
+        return
+    with _preview_lock:
+        _preview_frames[session_id] = encoded.tobytes()
+
+
+def get_detector_preview_frame(session_id: int) -> bytes | None:
+    with _preview_lock:
+        return _preview_frames.get(session_id)
 
 
 def _open_camera(camera_index: int) -> cv2.VideoCapture:
@@ -353,11 +373,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             if detection_settings["server_camera_preview"]:
                 try:
                     annotated = results[0].plot()
-                    cv2.imshow("TeachTrack Detector", annotated)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        break
+                    _store_preview_frame(session_id, annotated)
                 except Exception as exc:
                     logger.error(f"Preview error for session {session_id}: {exc}")
+            else:
+                _clear_preview_frame(session_id)
 
             counts = _empty_behavior_counts()
             phone_detections = []
@@ -440,12 +460,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             last_send_time = current_time
     finally:
         _release_capture(cap)
-        detection_settings = _runtime_detection_settings()
-        if detection_settings.get("server_camera_preview"):
-            try:
-                cv2.destroyAllWindows()
-            except Exception:
-                pass
+        _clear_preview_frame(session_id)
         _set_detector_status(session_id, "stopped", "Detection stopped")
 
 
@@ -488,6 +503,7 @@ def stop_webcam_detector(session_id: int) -> str:
     # Reset phone log counter for this session
     with _phone_log_lock:
         _phone_log_count.pop(session_id, None)
+    _clear_preview_frame(session_id)
     return "stopped"
 
 
@@ -532,3 +548,4 @@ def stop_detector_if_running(session_id: int) -> None:
     # Reset phone log counter for this session
     with _phone_log_lock:
         _phone_log_count.pop(session_id, None)
+    _clear_preview_frame(session_id)
