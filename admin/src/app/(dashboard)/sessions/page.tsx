@@ -1071,7 +1071,7 @@ export default function SessionsPage() {
         onClose={() => setIsDetailOpen(false)}
         title={`Intelligence View #${selectedSessionId ?? "-"}`}
         description="Detailed behavior analytics and historical trends."
-        widthClassName="max-w-5xl"
+        widthClassName={detail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingDetail ? (
           <div className="space-y-3">
@@ -1080,7 +1080,11 @@ export default function SessionsPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : detail ? (
-          <SessionDetailView detail={detail} detectorStatus={detectorStatus} />
+          <SessionDetailView
+            detail={detail}
+            detectorStatus={detectorStatus}
+            showDetectorPreview
+          />
         ) : (
           <p className="text-sm text-muted-foreground">No detail available.</p>
         )}

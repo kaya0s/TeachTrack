@@ -921,7 +921,7 @@ export default function TeachersPage() {
         onClose={() => setIsSessionDrawerOpen(false)}
         title="Session Intelligence View"
         description="Detailed behavior analytics and historical trends."
-        widthClassName="max-w-5xl"
+        widthClassName={selectedSessionDetail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingSessionDetail ? (
           <div className="space-y-3">
@@ -930,7 +930,7 @@ export default function TeachersPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : selectedSessionDetail ? (
-          <SessionDetailView detail={selectedSessionDetail} />
+          <SessionDetailView detail={selectedSessionDetail} showDetectorPreview />
         ) : (
           <p className="text-sm text-muted-foreground">No detail available.</p>
         )}

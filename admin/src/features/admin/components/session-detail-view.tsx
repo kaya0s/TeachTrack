@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SessionTrendChart } from "@/components/session-trend-chart";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { getSessionDetectorStreamUrl } from "../api";
 import {
   AdminSessionDetail,
   DetectorStatus,
@@ -39,14 +40,46 @@ type BehaviorPieSlice = {
 export function SessionDetailView({
   detail,
   detectorStatus,
+  showDetectorPreview = false,
 }: {
   detail: AdminSessionDetail;
   detectorStatus?: DetectorStatus | null;
+  showDetectorPreview?: boolean;
 }) {
   const [hoveredLogRow, setHoveredLogRow] =
     useState<BehaviorLogChartRow | null>(null);
+  const [previewStreamUrl, setPreviewStreamUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const teacherDisplayName =
     detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
+
+  useEffect(() => {
+    if (!showDetectorPreview || !detail.session.is_active) {
+      setPreviewStreamUrl(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPreviewStream = async () => {
+      try {
+        setPreviewLoading(true);
+        const streamUrl = await getSessionDetectorStreamUrl(detail.session.id);
+        if (cancelled) return;
+        setPreviewStreamUrl(streamUrl);
+      } catch {
+        if (!cancelled) setPreviewStreamUrl(null);
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    };
+
+    loadPreviewStream();
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.session.id, detail.session.is_active, showDetectorPreview]);
 
   const exportSingleSessionPDF = () => {
     const { jsPDF } = require("jspdf");
@@ -224,6 +257,8 @@ export function SessionDetailView({
     }, [detail]);
 
   const pieSource = hoveredLogRow ?? overallSessionBehaviorTotals;
+  const hasLiveDetectorPreview =
+    showDetectorPreview && detail.session.is_active;
   const behaviorStream = useMemo<BehaviorStreamEntry[]>(() => {
     return [
       ...detail.logs.map((log) => ({
@@ -270,234 +305,290 @@ export function SessionDetailView({
 
   return (
     <div className="space-y-6">
-      {detail.session.is_active ? (
+      {detail.session.is_active && detectorStatus ? (
         <DetectorStatusBanner detectorStatus={detectorStatus} />
       ) : null}
 
-      <div className="flex items-center justify-between gap-4 px-1">
-        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-          Intelligence Snapshot
-        </h3>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 gap-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm"
-          onClick={exportSingleSessionPDF}
-        >
-          <FileDown className="h-4 w-4" />
-          Download PDF Report
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Teacher</p>
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
-              {detail.session.teacher_profile_picture_url ? (
-                <img
-                  src={detail.session.teacher_profile_picture_url}
-                  alt={teacherDisplayName}
-                  className="h-full w-full object-cover"
-                />
+      <div
+        className={
+          hasLiveDetectorPreview
+            ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)]"
+            : "space-y-6"
+        }
+      >
+        {hasLiveDetectorPreview ? (
+          <div className="xl:sticky xl:top-0 xl:self-start">
+            <DetectorPreviewPanel
+              streamUrl={previewStreamUrl}
+              loading={previewLoading}
+            />
+          </div>
+        ) : null}
+
+        <div className="space-y-6">
+          <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              Intelligence Snapshot
+            </h3>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm"
+              onClick={exportSingleSessionPDF}
+            >
+              <FileDown className="h-4 w-4" />
+              Download PDF Report
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Teacher</p>
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                  {detail.session.teacher_profile_picture_url ? (
+                    <img
+                      src={detail.session.teacher_profile_picture_url}
+                      alt={teacherDisplayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[8px] font-bold uppercase text-muted-foreground">
+                      {teacherDisplayName.charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <p className="font-medium">{teacherDisplayName}</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Subject</p>
+              <p className="font-medium">{detail.session.subject_name}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Section</p>
+              <p className="font-medium">{detail.session.section_name}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p className="font-medium font-semibold text-primary">
+                {detail.session.is_active ? "Active" : "Completed"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Duration</p>
+              <p className="font-medium">{detailDurationLabel}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Students present</p>
+              <p className="font-medium">{detail.session.students_present}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">
+                Overall engagement
+              </p>
+              <p className="font-medium">
+                {detail.session.average_engagement.toFixed(2)}%
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">
+                Total behavior logs
+              </p>
+              <p className="font-medium">{detail.total_logs}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Activity mode</p>
+              <p className="font-medium font-bold text-primary uppercase">
+                {detail.session.activity_mode}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-card/70 p-3">
+              <p className="text-xs text-muted-foreground">Alerts (unread)</p>
+              <p className="font-medium font-semibold text-warning">
+                {detail.total_alerts} ({detail.unread_alerts})
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <BehaviorPieCard
+              title="Behavior Distribution"
+              subtitle={
+                hoveredLogRow
+                  ? `Log data at ${hoveredLogRow.time}`
+                  : "Summary for the entire session"
+              }
+              slices={behaviorPieSlices}
+              totalLabel={hoveredLogRow ? "Scan logs" : "Total logs"}
+            />
+
+            <SessionTrendChart
+              title="Behavior Timeline"
+              data={chartLogData}
+              xLabel={(row) => String(row.time)}
+              hoverMode="x-axis"
+              showHoverLine
+              onHoverRowChange={(row) =>
+                setHoveredLogRow(row as BehaviorLogChartRow | null)
+              }
+              centerMode="mean"
+              smoothCurves
+              showPoints={false}
+              lines={[
+                {
+                  key: "on_task",
+                  label: "On task",
+                  colorClass: "bg-success",
+                  stroke: "hsl(var(--success))",
+                },
+                {
+                  key: "sleeping",
+                  label: "Sleeping",
+                  colorClass: "bg-danger",
+                  stroke: "hsl(var(--danger))",
+                },
+                {
+                  key: "using_phone",
+                  label: "Using Phone",
+                  colorClass: "bg-warning",
+                  stroke: "hsl(var(--warning))",
+                },
+                {
+                  key: "off_task",
+                  label: "Off Task",
+                  colorClass: "bg-primary",
+                  stroke: "hsl(var(--primary))",
+                },
+              ]}
+              heightClassName="h-72"
+            />
+
+            <SessionTrendChart
+              title="Engagement Score Over Time (per minute)"
+              data={detail.metrics_rollup.map((row) => ({
+                time: new Date(row.window_start).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                engagement: row.engagement_score,
+              }))}
+              xLabel={(row) => String(row.time)}
+              centerMode="mean"
+              smoothCurves
+              lines={[
+                {
+                  key: "engagement",
+                  label: "Engagement %",
+                  colorClass: "bg-primary",
+                  stroke: "hsl(var(--primary))",
+                },
+              ]}
+              heightClassName="h-72"
+            />
+          </div>
+
+          <div className="rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-4 py-3 bg-muted/20">
+              <h4 className="text-sm font-semibold">
+                Behavior stream logs ({behaviorStream.length} entries)
+              </h4>
+            </div>
+            <div className="max-h-96 overflow-y-auto p-0">
+              {behaviorStream.length ? (
+                <Table>
+                  <THead className="sticky top-0 bg-card z-10 shadow-sm">
+                    <TR>
+                      <TH className="px-4">Time</TH>
+                      <TH>Task</TH>
+                      <TH>Sleep</TH>
+                      <TH>Phone</TH>
+                      <TH>Off Task</TH>
+                      <TH>Invisible</TH>
+                      <TH className="pr-4">Total</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {behaviorStream.map((entry, idx) =>
+                      entry.kind === "mode" ? (
+                        <TR
+                          key={`${entry.timestamp}-mode-${idx}`}
+                          className="bg-warning/5"
+                        >
+                          <TD
+                            colSpan={7}
+                            className="px-4 py-3 text-sm font-bold uppercase text-amber-700 dark:text-amber-300"
+                          >
+                            <ArrowLeftRight
+                              className="mr-2 inline-block h-4 w-4 align-[-2px]"
+                              aria-hidden="true"
+                            />
+                            {entry.event.message}
+                            <span className="ml-3 text-xs font-mono font-normal text-muted-foreground">
+                              {new Date(entry.timestamp).toLocaleTimeString()}
+                            </span>
+                          </TD>
+                        </TR>
+                      ) : (
+                        <TR key={`${entry.timestamp}-log-${idx}`}>
+                          <TD className="px-4 text-xs font-mono">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </TD>
+                          <TD>{entry.log.on_task}</TD>
+                          <TD>{entry.log.sleeping}</TD>
+                          <TD>{entry.log.using_phone}</TD>
+                          <TD>{entry.log.off_task}</TD>
+                          <TD className="text-muted-foreground">
+                            {entry.log.not_visible}
+                          </TD>
+                          <TD className="pr-4 font-semibold">
+                            {entry.log.total_detected}
+                          </TD>
+                        </TR>
+                      ),
+                    )}
+                  </TBody>
+                </Table>
               ) : (
-                <span className="text-[8px] font-bold uppercase text-muted-foreground">
-                  {teacherDisplayName.charAt(0)}
-                </span>
+                <p className="text-sm text-muted-foreground p-4">
+                  No behavior logs available for this session.
+                </p>
               )}
             </div>
-            <p className="font-medium">{teacherDisplayName}</p>
           </div>
         </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Subject</p>
-          <p className="font-medium">{detail.session.subject_name}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Section</p>
-          <p className="font-medium">{detail.session.section_name}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Status</p>
-          <p className="font-medium font-semibold text-primary">
-            {detail.session.is_active ? "Active" : "Completed"}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Duration</p>
-          <p className="font-medium">{detailDurationLabel}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Students present</p>
-          <p className="font-medium">{detail.session.students_present}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Overall engagement</p>
-          <p className="font-medium">
-            {detail.session.average_engagement.toFixed(2)}%
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Total behavior logs</p>
-          <p className="font-medium">{detail.total_logs}</p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Activity mode</p>
-          <p className="font-medium font-bold text-primary uppercase">
-            {detail.session.activity_mode}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border/70 bg-card/70 p-3">
-          <p className="text-xs text-muted-foreground">Alerts (unread)</p>
-          <p className="font-medium font-semibold text-warning">
-            {detail.total_alerts} ({detail.unread_alerts})
-          </p>
-        </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <BehaviorPieCard
-          title="Behavior Distribution"
-          subtitle={
-            hoveredLogRow
-              ? `Log data at ${hoveredLogRow.time}`
-              : "Summary for the entire session"
-          }
-          slices={behaviorPieSlices}
-          totalLabel={hoveredLogRow ? "Scan logs" : "Total logs"}
-        />
-
-        <SessionTrendChart
-          title="Behavior Timeline"
-          data={chartLogData}
-          xLabel={(row) => String(row.time)}
-          hoverMode="x-axis"
-          showHoverLine
-          onHoverRowChange={(row) =>
-            setHoveredLogRow(row as BehaviorLogChartRow | null)
-          }
-          centerMode="mean"
-          smoothCurves
-          showPoints={false}
-          lines={[
-            {
-              key: "on_task",
-              label: "On task",
-              colorClass: "bg-success",
-              stroke: "hsl(var(--success))",
-            },
-            {
-              key: "sleeping",
-              label: "Sleeping",
-              colorClass: "bg-danger",
-              stroke: "hsl(var(--danger))",
-            },
-            {
-              key: "using_phone",
-              label: "Using Phone",
-              colorClass: "bg-warning",
-              stroke: "hsl(var(--warning))",
-            },
-            {
-              key: "off_task",
-              label: "Off Task",
-              colorClass: "bg-primary",
-              stroke: "hsl(var(--primary))",
-            },
-          ]}
-          heightClassName="h-72"
-        />
-
-        <SessionTrendChart
-          title="Engagement Score Over Time (per minute)"
-          data={detail.metrics_rollup.map((row) => ({
-            time: new Date(row.window_start).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            engagement: row.engagement_score,
-          }))}
-          xLabel={(row) => String(row.time)}
-          centerMode="mean"
-          smoothCurves
-          lines={[
-            {
-              key: "engagement",
-              label: "Engagement %",
-              colorClass: "bg-primary",
-              stroke: "hsl(var(--primary))",
-            },
-          ]}
-          heightClassName="h-72"
-        />
+function DetectorPreviewPanel({
+  streamUrl,
+  loading,
+}: {
+  streamUrl: string | null;
+  loading: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border/50 bg-muted/10 px-5 py-4">
+        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Camera Preview
+        </h4>
       </div>
-
-      <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-4 py-3 bg-muted/20">
-          <h4 className="text-sm font-semibold">
-            Behavior stream logs ({behaviorStream.length} entries)
-          </h4>
-        </div>
-        <div className="max-h-96 overflow-y-auto p-0">
-          {behaviorStream.length ? (
-            <Table>
-              <THead className="sticky top-0 bg-card z-10 shadow-sm">
-                <TR>
-                  <TH className="px-4">Time</TH>
-                  <TH>Task</TH>
-                  <TH>Sleep</TH>
-                  <TH>Phone</TH>
-                  <TH>Off Task</TH>
-                  <TH>Invisible</TH>
-                  <TH className="pr-4">Total</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {behaviorStream.map((entry, idx) =>
-                  entry.kind === "mode" ? (
-                    <TR
-                      key={`${entry.timestamp}-mode-${idx}`}
-                      className="bg-warning/5"
-                    >
-                      <TD
-                        colSpan={7}
-                        className="px-4 py-3 text-sm font-bold uppercase text-amber-700 dark:text-amber-300"
-                      >
-                        <ArrowLeftRight
-                          className="mr-2 inline-block h-4 w-4 align-[-2px]"
-                          aria-hidden="true"
-                        />
-                        {entry.event.message}
-                        <span className="ml-3 text-xs font-mono font-normal text-muted-foreground">
-                          {new Date(entry.timestamp).toLocaleTimeString()}
-                        </span>
-                      </TD>
-                    </TR>
-                  ) : (
-                    <TR key={`${entry.timestamp}-log-${idx}`}>
-                      <TD className="px-4 text-xs font-mono">
-                        {new Date(entry.timestamp).toLocaleTimeString()}
-                      </TD>
-                      <TD>{entry.log.on_task}</TD>
-                      <TD>{entry.log.sleeping}</TD>
-                      <TD>{entry.log.using_phone}</TD>
-                      <TD>{entry.log.off_task}</TD>
-                      <TD className="text-muted-foreground">
-                        {entry.log.not_visible}
-                      </TD>
-                      <TD className="pr-4 font-semibold">
-                        {entry.log.total_detected}
-                      </TD>
-                    </TR>
-                  ),
-                )}
-              </TBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground p-4">
-              No behavior logs available for this session.
-            </p>
-          )}
-        </div>
+      <div className="flex aspect-video items-center justify-center bg-muted/30">
+        {streamUrl ? (
+          <img
+            src={streamUrl}
+            alt="Live detector preview"
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <p className="text-sm font-medium text-muted-foreground">
+            {loading
+              ? "Loading camera preview..."
+              : "Waiting for the next detector frame..."}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -506,9 +597,9 @@ export function SessionDetailView({
 function DetectorStatusBanner({
   detectorStatus,
 }: {
-  detectorStatus?: DetectorStatus | null;
+  detectorStatus: DetectorStatus;
 }) {
-  const state = detectorStatus?.state ?? "initializing";
+  const state = detectorStatus.state;
   const isWaiting =
     state === "waiting" ||
     state === "recovering" ||
@@ -517,7 +608,7 @@ function DetectorStatusBanner({
   const message =
     state === "stopped"
       ? "Waiting for detector..."
-      : (detectorStatus?.message ?? "Initializing detection...");
+      : detectorStatus.message;
 
   return (
     <div

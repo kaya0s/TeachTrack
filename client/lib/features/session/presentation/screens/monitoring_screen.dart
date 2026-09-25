@@ -27,10 +27,13 @@ class MonitoringScreen extends StatefulWidget {
 
 class _MonitoringScreenState extends State<MonitoringScreen> {
   Timer? _heartbeatTimer;
+  Timer? _detectorStatusBannerTimer;
   bool _switchingMode = false;
 
   int? _lastAlertId;
   AlertModel? _latestAlertWithSnapshot;
+  DetectorStatusModel? _visibleDetectorStatus;
+  String? _lastDetectorStatusKey;
 
   @override
   void initState() {
@@ -45,16 +48,34 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   void _onSessionChanged() {
-    final metrics =
-        Provider.of<SessionProvider>(context, listen: false).metrics;
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final metrics = session.metrics;
     if (metrics != null) {
       _checkForNewAlerts(metrics);
     }
+    _showDetectorStatusUpdate(session.detectorStatus);
+  }
+
+  void _showDetectorStatusUpdate(DetectorStatusModel? status) {
+    if (status == null) return;
+    final key =
+        '${status.state}|${status.message}|${status.missing.join(",")}|${status.failureCount}';
+    if (key == _lastDetectorStatusKey) return;
+    _lastDetectorStatusKey = key;
+    _detectorStatusBannerTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _visibleDetectorStatus = status);
+    _detectorStatusBannerTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _visibleDetectorStatus = null);
+      }
+    });
   }
 
   @override
   void dispose() {
     _heartbeatTimer?.cancel();
+    _detectorStatusBannerTimer?.cancel();
     final session = Provider.of<SessionProvider>(context, listen: false);
     session.removeListener(_onSessionChanged);
     super.dispose();
@@ -503,12 +524,14 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   _buildDetectionSnapshot(context, _latestAlertWithSnapshot!),
                   const SizedBox(height: 20),
                 ],
-                _buildStatusBanner(
-                  context,
-                  active.activityMode,
-                  session.detectorStatus,
-                ),
-                const SizedBox(height: 16),
+                if (_visibleDetectorStatus != null) ...[
+                  _buildStatusBanner(
+                    context,
+                    active.activityMode,
+                    _visibleDetectorStatus!,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (metrics == null)
                   const Center(child: CircularProgressIndicator())
                 else ...[
@@ -785,15 +808,12 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   Widget _buildStatusBanner(
     BuildContext context,
     String mode,
-    DetectorStatusModel? detectorStatus,
+    DetectorStatusModel detectorStatus,
   ) {
     final cs = Theme.of(context).colorScheme;
     final isExam = mode == 'EXAM';
-    final isWaiting = detectorStatus?.isWaiting == true;
-    final message = detectorStatus?.message ??
-        (isExam
-            ? "EXAM MONITORING: Enhanced suspicious behavior tracking active."
-            : "AI detection is active. Metrics update automatically.");
+    final isWaiting = detectorStatus.isWaiting;
+    final message = detectorStatus.message;
     final icon = isWaiting
         ? Icons.sync_problem_rounded
         : (isExam ? Icons.security_rounded : Icons.sensors_rounded);

@@ -209,6 +209,21 @@ export async function getSessionDetectorStatus(
   return httpRequest(`/admin/sessions/${sessionId}/detector/status`);
 }
 
+export async function getSessionDetectorStreamUrl(
+  sessionId: number,
+): Promise<string> {
+  const result = await httpRequest(
+    `/admin/sessions/${sessionId}/detector/stream-token`,
+  );
+  const token = result?.token;
+  if (typeof token !== "string" || !token) {
+    throw new Error("Invalid detector stream token");
+  }
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+  return `${baseUrl}/admin/sessions/${sessionId}/detector/stream?token=${encodeURIComponent(token)}`;
+}
+
 // College & Major endpoints
 export async function getColleges(params = "") {
   return httpRequest(`/admin/colleges${params}`);

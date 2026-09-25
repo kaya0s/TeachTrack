@@ -746,7 +746,7 @@ export default function ClassesPage() {
         onClose={() => setIsSessionDetailOpen(false)}
         title={`Session Intelligence #${selectedSessionId ?? "-"}`}
         description="Automated behavior analysis and trend reporting."
-        widthClassName="max-w-5xl"
+        widthClassName={sessionDetail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingSessionDetail ? (
           <div className="space-y-4">
@@ -757,7 +757,7 @@ export default function ClassesPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : sessionDetail ? (
-          <SessionDetailView detail={sessionDetail} />
+          <SessionDetailView detail={sessionDetail} showDetectorPreview />
         ) : (
           <p className="text-sm text-muted-foreground">Unable to load session data.</p>
         )}
