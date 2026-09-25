@@ -2,7 +2,7 @@ import time
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -92,18 +92,6 @@ def get_admin_session_detector_status(
     current_user: UserModel = Depends(deps.get_current_active_superuser),
 ) -> Any:
     return admin_service.get_session_detector_status(db, session_id=session_id)
-
-
-@router.get("/sessions/{session_id}/detector/preview")
-def get_admin_session_detector_preview(
-    session_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(deps.get_current_active_superuser),
-) -> Response:
-    frame = admin_service.get_session_detector_preview(db, session_id=session_id)
-    if frame is None:
-        return Response(status_code=204)
-    return Response(content=frame, media_type="image/jpeg")
 
 
 @router.get("/sessions/{session_id}/detector/stream-token")

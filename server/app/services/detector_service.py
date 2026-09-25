@@ -150,11 +150,6 @@ def _store_preview_frame(session_id: int, frame: np.ndarray) -> None:
         _preview_frames[session_id] = encoded.tobytes()
 
 
-def get_detector_preview_frame(session_id: int) -> bytes | None:
-    with _preview_lock:
-        return _preview_frames.get(session_id)
-
-
 def request_detector_preview_frame(session_id: int) -> bytes | None:
     with _preview_lock:
         _preview_watch_until[session_id] = time.time() + PREVIEW_WATCH_TTL_SECONDS
