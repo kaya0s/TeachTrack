@@ -1,10 +1,14 @@
-from datetime import date
+import time
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi.responses import StreamingResponse
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.api.v1 import deps
+from app.core.config import settings
 from app.db.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.admin import (
@@ -15,9 +19,11 @@ from app.schemas.admin import (
 from app.schemas.classroom import SubjectCoverUploadResponse
 from app.schemas.session import Alert as AlertSchema, ModelSelectionResponse, Session as SessionSchema
 from app.services import admin_service, classroom_service
+from app.services import detector_service
 from app.constants import DEFAULT_PAGE_SIZE
 
 router = APIRouter()
+DETECTOR_STREAM_TOKEN_SECONDS = 90
 
 
 @router.get("/sessions", response_model=PaginatedSessionsResponse)
@@ -98,6 +104,72 @@ def get_admin_session_detector_preview(
     if frame is None:
         return Response(status_code=204)
     return Response(content=frame, media_type="image/jpeg")
+
+
+@router.get("/sessions/{session_id}/detector/stream-token")
+def get_admin_session_detector_stream_token(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> dict[str, str]:
+    admin_service.get_session_detector_status(db, session_id=session_id)
+    expires_at = datetime.utcnow() + timedelta(seconds=DETECTOR_STREAM_TOKEN_SECONDS)
+    token = jwt.encode(
+        {
+            "sub": str(current_user.id),
+            "session_id": session_id,
+            "scope": "detector_preview_stream",
+            "exp": expires_at,
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    return {"token": token}
+
+
+def _verify_detector_stream_token(db: Session, session_id: int, token: str) -> None:
+    credentials_exception = HTTPException(status_code=401, detail="Invalid preview stream token")
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        raise credentials_exception
+
+    if payload.get("scope") != "detector_preview_stream":
+        raise credentials_exception
+    if int(payload.get("session_id", -1)) != session_id:
+        raise credentials_exception
+
+    sub = str(payload.get("sub") or "")
+    if not sub.isdigit():
+        raise credentials_exception
+    user = db.query(UserModel).filter(UserModel.id == int(sub)).first()
+    if not user or not user.is_active or not user.is_superuser:
+        raise credentials_exception
+
+
+@router.get("/sessions/{session_id}/detector/stream")
+def stream_admin_session_detector_preview(
+    session_id: int,
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    _verify_detector_stream_token(db, session_id, token)
+    admin_service.get_session_detector_status(db, session_id=session_id)
+
+    def generate():
+        last_frame: bytes | None = None
+        while True:
+            frame = detector_service.request_detector_preview_frame(session_id)
+            if frame and frame != last_frame:
+                last_frame = frame
+                yield detector_service.build_mjpeg_chunk(frame)
+            time.sleep(0.1)
+
+    return StreamingResponse(
+        generate(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/sessions/{session_id}/force-stop", response_model=SessionSchema)

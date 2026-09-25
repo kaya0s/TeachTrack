@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SessionTrendChart } from "@/components/session-trend-chart";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { getSessionDetectorPreview } from "../api";
+import { getSessionDetectorStreamUrl } from "../api";
 import {
   AdminSessionDetail,
   DetectorStatus,
@@ -48,62 +48,36 @@ export function SessionDetailView({
 }) {
   const [hoveredLogRow, setHoveredLogRow] =
     useState<BehaviorLogChartRow | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewStreamUrl, setPreviewStreamUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const teacherDisplayName =
     detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
 
   useEffect(() => {
     if (!showDetectorPreview || !detail.session.is_active) {
-      setPreviewUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
-        return null;
-      });
+      setPreviewStreamUrl(null);
       setPreviewLoading(false);
       return;
     }
 
     let cancelled = false;
-    let currentUrl: string | null = null;
 
-    const refreshPreview = async () => {
+    const loadPreviewStream = async () => {
       try {
         setPreviewLoading(true);
-        const blob = await getSessionDetectorPreview(detail.session.id);
+        const streamUrl = await getSessionDetectorStreamUrl(detail.session.id);
         if (cancelled) return;
-        if (!blob) {
-          setPreviewUrl((previousUrl) => {
-            if (previousUrl) URL.revokeObjectURL(previousUrl);
-            return null;
-          });
-          currentUrl = null;
-          return;
-        }
-        const nextUrl = URL.createObjectURL(blob);
-        setPreviewUrl((previousUrl) => {
-          if (previousUrl) URL.revokeObjectURL(previousUrl);
-          return nextUrl;
-        });
-        currentUrl = nextUrl;
+        setPreviewStreamUrl(streamUrl);
       } catch {
-        if (!cancelled) {
-          setPreviewUrl((previousUrl) => {
-            if (previousUrl) URL.revokeObjectURL(previousUrl);
-            return null;
-          });
-          currentUrl = null;
-        }
+        if (!cancelled) setPreviewStreamUrl(null);
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
     };
 
-    refreshPreview();
-    const intervalId = window.setInterval(refreshPreview, 2000);
+    loadPreviewStream();
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
     };
   }, [detail.session.id, detail.session.is_active, showDetectorPreview]);
 
@@ -335,7 +309,7 @@ export function SessionDetailView({
 
       {showDetectorPreview && detail.session.is_active ? (
         <DetectorPreviewPanel
-          previewUrl={previewUrl}
+          streamUrl={previewStreamUrl}
           loading={previewLoading}
         />
       ) : null}
@@ -570,10 +544,10 @@ export function SessionDetailView({
 }
 
 function DetectorPreviewPanel({
-  previewUrl,
+  streamUrl,
   loading,
 }: {
-  previewUrl: string | null;
+  streamUrl: string | null;
   loading: boolean;
 }) {
   return (
@@ -584,9 +558,9 @@ function DetectorPreviewPanel({
         </h4>
       </div>
       <div className="flex aspect-video items-center justify-center bg-muted/30">
-        {previewUrl ? (
+        {streamUrl ? (
           <img
-            src={previewUrl}
+            src={streamUrl}
             alt="Live detector preview"
             className="h-full w-full object-contain"
           />

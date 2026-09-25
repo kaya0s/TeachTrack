@@ -42,6 +42,7 @@ _preview_frames: dict[int, bytes] = {}
 _preview_watch_until: dict[int, float] = {}
 _preview_lock = threading.Lock()
 PREVIEW_WATCH_TTL_SECONDS = 6.0
+STREAM_FRAME_MIN_INTERVAL_SECONDS = 0.1
 
 _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
@@ -158,6 +159,16 @@ def request_detector_preview_frame(session_id: int) -> bytes | None:
     with _preview_lock:
         _preview_watch_until[session_id] = time.time() + PREVIEW_WATCH_TTL_SECONDS
         return _preview_frames.get(session_id)
+
+
+def build_mjpeg_chunk(frame: bytes) -> bytes:
+    return (
+        b"--frame\r\n"
+        b"Content-Type: image/jpeg\r\n"
+        b"Cache-Control: no-store\r\n\r\n"
+        + frame
+        + b"\r\n"
+    )
 
 
 def _is_preview_watched(session_id: int) -> bool:
@@ -310,6 +321,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
     cap: cv2.VideoCapture | None = None
     model = None
     last_send_time = 0.0
+    last_preview_time = 0.0
     try:
         _set_detector_status(session_id, "initializing", "Initializing detection...")
         while _detector_should_continue(session_id, stop_event):
@@ -369,6 +381,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 continue
 
             current_time = time.time()
+            if detection_settings["server_camera_preview"] and _is_preview_watched(session_id):
+                if current_time - last_preview_time >= STREAM_FRAME_MIN_INTERVAL_SECONDS:
+                    _store_preview_frame(session_id, frame)
+                    last_preview_time = current_time
+
             if current_time - last_send_time < detection_settings["detect_interval_seconds"]:
                 time.sleep(0.01)
                 continue
