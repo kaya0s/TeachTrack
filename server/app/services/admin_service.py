@@ -65,6 +65,7 @@ unassign_section_teacher = _sections.unassign_section_teacher
 get_dashboard_data = _sessions.get_dashboard_data
 list_sessions = _sessions.list_sessions
 get_session_detail = _sessions.get_session_detail
+get_session_detector_status = _sessions.get_session_detector_status
 force_stop_session = _sessions.force_stop_session
 list_alerts = _sessions.list_alerts
 mark_alert_read = _sessions.mark_alert_read

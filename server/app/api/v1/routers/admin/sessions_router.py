@@ -79,6 +79,15 @@ def get_admin_session_detail(
     return admin_service.get_session_detail(db, session_id=session_id, minutes=minutes, logs_limit=logs_limit)
 
 
+@router.get("/sessions/{session_id}/detector/status")
+def get_admin_session_detector_status(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(deps.get_current_active_superuser),
+) -> Any:
+    return admin_service.get_session_detector_status(db, session_id=session_id)
+
+
 @router.post("/sessions/{session_id}/force-stop", response_model=SessionSchema)
 def force_stop_admin_session(
     session_id: int,

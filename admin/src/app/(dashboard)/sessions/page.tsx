@@ -1,6 +1,13 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowDownUp,
   BarChart3,
@@ -32,8 +39,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { Modal } from "@/components/ui/modal";
-import { getSessionDetail, getSessions, getTeachers, getColleges, getMajors } from "@/features/admin/api";
-import type { AdminSession, AdminSessionDetail, AdminTeacher, AdminCollege, AdminMajor } from "@/features/admin/types";
+import {
+  getSessionDetail,
+  getSessionDetectorStatus,
+  getSessions,
+  getTeachers,
+  getColleges,
+  getMajors,
+} from "@/features/admin/api";
+import type {
+  AdminSession,
+  AdminSessionDetail,
+  AdminTeacher,
+  AdminCollege,
+  AdminMajor,
+  DetectorStatus,
+} from "@/features/admin/types";
 import { TeacherSelect } from "@/features/admin/components/teacher-select";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -80,7 +101,8 @@ function PillDropdown<T extends string | number>({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  const selected =
+    options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
     if (!open) return;
@@ -106,10 +128,19 @@ function PillDropdown<T extends string | number>({
       >
         <span className="text-muted-foreground">{icon}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="truncate text-xs font-semibold text-foreground">{selected?.label ?? "-"}</p>
+          <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className="truncate text-xs font-semibold text-foreground">
+            {selected?.label ?? "-"}
+          </p>
         </div>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
 
       {open ? (
@@ -132,7 +163,9 @@ function PillDropdown<T extends string | number>({
                 }}
                 className={cn(
                   "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors",
-                  isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-accent",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground hover:bg-accent",
                 )}
               >
                 <span className="truncate">{option.label}</span>
@@ -153,8 +186,13 @@ export default function SessionsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(
+    null,
+  );
   const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
+  const [detectorStatus, setDetectorStatus] = useState<DetectorStatus | null>(
+    null,
+  );
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -162,8 +200,12 @@ export default function SessionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"teachers" | "sections">("teachers");
-  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "ended">("all");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "engagement-high" | "engagement-low" | "students-most">("newest");
+  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "ended">(
+    "all",
+  );
+  const [sortBy, setSortBy] = useState<
+    "newest" | "oldest" | "engagement-high" | "engagement-low" | "students-most"
+  >("newest");
   const [teacherFilter, setTeacherFilter] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [colleges, setColleges] = useState<AdminCollege[]>([]);
@@ -183,85 +225,112 @@ export default function SessionsPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const buildQueryString = useCallback((skip: number, limit: number) => {
-    const params = new URLSearchParams();
-    params.set("skip", skip.toString());
-    params.set("limit", limit.toString());
-    if (debouncedSearch) params.set("search", debouncedSearch);
-    if (statusFilter !== "all") params.set("is_active", statusFilter === "live" ? "true" : "false");
-    if (teacherFilter) params.set("teacher_id", teacherFilter.toString());
-    if (collegeFilter) params.set("college_id", collegeFilter.toString());
-    if (majorFilter) params.set("major_id", majorFilter.toString());
-    if (sortBy) params.set("sort", sortBy);
-    if (minEngagement) params.set("min_engagement", minEngagement);
-    if (maxEngagement) params.set("max_engagement", maxEngagement);
-    if (activityModeFilter !== "all") params.set("activity_mode", activityModeFilter);
-    return `?${params.toString()}`;
-  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement, activityModeFilter]);
+  const buildQueryString = useCallback(
+    (skip: number, limit: number) => {
+      const params = new URLSearchParams();
+      params.set("skip", skip.toString());
+      params.set("limit", limit.toString());
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (statusFilter !== "all")
+        params.set("is_active", statusFilter === "live" ? "true" : "false");
+      if (teacherFilter) params.set("teacher_id", teacherFilter.toString());
+      if (collegeFilter) params.set("college_id", collegeFilter.toString());
+      if (majorFilter) params.set("major_id", majorFilter.toString());
+      if (sortBy) params.set("sort", sortBy);
+      if (minEngagement) params.set("min_engagement", minEngagement);
+      if (maxEngagement) params.set("max_engagement", maxEngagement);
+      if (activityModeFilter !== "all")
+        params.set("activity_mode", activityModeFilter);
+      return `?${params.toString()}`;
+    },
+    [
+      debouncedSearch,
+      statusFilter,
+      teacherFilter,
+      collegeFilter,
+      majorFilter,
+      sortBy,
+      minEngagement,
+      maxEngagement,
+      activityModeFilter,
+    ],
+  );
 
-  const load = useCallback(async (reset = false) => {
-    if (reset) {
+  const load = useCallback(
+    async (reset = false) => {
+      if (reset) {
         setLoading(true);
-    } else {
-        setLoadingMore(true);
-    }
-
-    try {
-      const skip = reset ? 0 : items.length;
-      const query = buildQueryString(skip, PAGE_SIZE);
-      
-      const [sessionsRes, teachersRes, collegesRes] = await Promise.all([
-        getSessions(query),
-        getTeachers("?limit=300"),
-        getColleges("?limit=100"),
-      ]);
-
-      if (reset) {
-        setItems(sessionsRes.items);
       } else {
-        setItems(prev => [...prev, ...sessionsRes.items]);
-      }
-      setTotalItems(sessionsRes.total);
-      setTeachers(teachersRes.items);
-      setColleges(collegesRes.items);
-
-      // Also get active sessions for the top card (always latest 50)
-      if (reset) {
-        const activeRes = await getSessions("?is_active=true&limit=50");
-        setActiveItems(activeRes.items);
+        setLoadingMore(true);
       }
 
-    } catch (error) {
-      notify({
-        tone: "danger",
-        title: "Load failed",
-        description: getErrorMessage(error, "Unable to load sessions."),
-      });
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [notify, buildQueryString, items.length]);
+      try {
+        const skip = reset ? 0 : items.length;
+        const query = buildQueryString(skip, PAGE_SIZE);
+
+        const [sessionsRes, teachersRes, collegesRes] = await Promise.all([
+          getSessions(query),
+          getTeachers("?limit=300"),
+          getColleges("?limit=100"),
+        ]);
+
+        if (reset) {
+          setItems(sessionsRes.items);
+        } else {
+          setItems((prev) => [...prev, ...sessionsRes.items]);
+        }
+        setTotalItems(sessionsRes.total);
+        setTeachers(teachersRes.items);
+        setColleges(collegesRes.items);
+
+        // Also get active sessions for the top card (always latest 50)
+        if (reset) {
+          const activeRes = await getSessions("?is_active=true&limit=50");
+          setActiveItems(activeRes.items);
+        }
+      } catch (error) {
+        notify({
+          tone: "danger",
+          title: "Load failed",
+          description: getErrorMessage(error, "Unable to load sessions."),
+        });
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [notify, buildQueryString, items.length],
+  );
 
   // Initial load or on filter change
   useEffect(() => {
     load(true);
-  }, [debouncedSearch, statusFilter, teacherFilter, collegeFilter, majorFilter, sortBy, minEngagement, maxEngagement, activityModeFilter]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    teacherFilter,
+    collegeFilter,
+    majorFilter,
+    sortBy,
+    minEngagement,
+    maxEngagement,
+    activityModeFilter,
+  ]);
 
   // Auto-refresh active sessions only (every 30s)
   useEffect(() => {
     const intervalId = setInterval(async () => {
-        try {
-            const activeRes = await getSessions("?is_active=true&limit=50");
-            setActiveItems(activeRes.items);
-            // Also refresh current items to update live engagement scores in the list
-            const currentQuery = buildQueryString(0, items.length || PAGE_SIZE);
-            const refreshRes = await getSessions(currentQuery);
-            setItems(refreshRes.items);
-            setTotalItems(refreshRes.total);
-        } catch (e) {
-            console.error("Polling failed", e);
-        }
+      try {
+        const activeRes = await getSessions("?is_active=true&limit=50");
+        setActiveItems(activeRes.items);
+        // Also refresh current items to update live engagement scores in the list
+        const currentQuery = buildQueryString(0, items.length || PAGE_SIZE);
+        const refreshRes = await getSessions(currentQuery);
+        setItems(refreshRes.items);
+        setTotalItems(refreshRes.total);
+      } catch (e) {
+        console.error("Polling failed", e);
+      }
     }, 30000);
     return () => clearInterval(intervalId);
   }, [buildQueryString, items.length]);
@@ -292,12 +361,21 @@ export default function SessionsPage() {
   ];
 
   const collegeOptions = useMemo(
-    () => [{ value: "all" as const, label: "All Colleges" }, ...colleges.map((college) => ({ value: college.id, label: college.name }))],
+    () => [
+      { value: "all" as const, label: "All Colleges" },
+      ...colleges.map((college) => ({
+        value: college.id,
+        label: college.name,
+      })),
+    ],
     [colleges],
   );
 
   const majorOptions = useMemo(
-    () => [{ value: "all" as const, label: "All Majors" }, ...majors.map((major) => ({ value: major.id, label: major.name }))],
+    () => [
+      { value: "all" as const, label: "All Majors" },
+      ...majors.map((major) => ({ value: major.id, label: major.name })),
+    ],
     [majors],
   );
 
@@ -316,11 +394,25 @@ export default function SessionsPage() {
   const openDetail = useCallback(
     async (sessionId: number) => {
       setSelectedSessionId(sessionId);
+      setDetectorStatus(null);
       setIsDetailOpen(true);
       setLoadingDetail(true);
       try {
-        const res = await getSessionDetail(sessionId, "?minutes=180&logs_limit=200");
+        const res = await getSessionDetail(
+          sessionId,
+          "?minutes=180&logs_limit=200",
+        );
         setDetail(res);
+        if (res.session.is_active) {
+          try {
+            setDetectorStatus(await getSessionDetectorStatus(sessionId));
+          } catch (statusError) {
+            console.error("Detector status failed", statusError);
+            setDetectorStatus(null);
+          }
+        } else {
+          setDetectorStatus(null);
+        }
       } catch (error) {
         notify({
           tone: "danger",
@@ -334,6 +426,28 @@ export default function SessionsPage() {
     [notify],
   );
 
+  useEffect(() => {
+    if (!isDetailOpen || !selectedSessionId || !detail?.session.is_active)
+      return;
+
+    let cancelled = false;
+    const refreshDetectorStatus = async () => {
+      try {
+        const status = await getSessionDetectorStatus(selectedSessionId);
+        if (!cancelled) setDetectorStatus(status);
+      } catch (error) {
+        console.error("Detector status polling failed", error);
+      }
+    };
+
+    refreshDetectorStatus();
+    const intervalId = setInterval(refreshDetectorStatus, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [detail?.session.is_active, isDetailOpen, selectedSessionId]);
+
   const exportPDF = () => {
     if (typeof window === "undefined") return;
     const doc = new jsPDF({ orientation: "landscape" });
@@ -346,10 +460,10 @@ export default function SessionsPage() {
 
     // Function to get color based on engagement percentage
     const getEngagementColor = (engagement: number) => {
-        if (engagement >= 80) return [34, 197, 94]; // green-500
-        if (engagement >= 60) return [251, 191, 36]; // amber-500
-        if (engagement >= 40) return [249, 115, 22]; // orange-500
-        return [239, 68, 68]; // red-500
+      if (engagement >= 80) return [34, 197, 94]; // green-500
+      if (engagement >= 60) return [251, 191, 36]; // amber-500
+      if (engagement >= 40) return [249, 115, 22]; // orange-500
+      return [239, 68, 68]; // red-500
     };
 
     const img = new Image();
@@ -368,7 +482,9 @@ export default function SessionsPage() {
         // Reorder table data to put engagement last
         const tableData = items.map((s) => [
           s.id,
-          currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
+          currentActorUserId !== null && s.teacher_id === currentActorUserId
+            ? "You"
+            : teacherName(s),
           `${s.subject_name} (${s.section_name})`,
           s.students_present,
           s.activity_mode,
@@ -381,11 +497,30 @@ export default function SessionsPage() {
         ]);
 
         autoTable(doc, {
-          head: [["ID", "Teacher", "Subject & Section", "Studs", "Mode", "Task", "Sleep", "Phone", "Off", "Invis", "Eng%"]],
+          head: [
+            [
+              "ID",
+              "Teacher",
+              "Subject & Section",
+              "Studs",
+              "Mode",
+              "Task",
+              "Sleep",
+              "Phone",
+              "Off",
+              "Invis",
+              "Eng%",
+            ],
+          ],
           body: tableData,
           startY: 75,
           theme: "striped",
-          headStyles: { fillColor: [34, 197, 94], textColor: 255, fontSize: 9, fontStyle: "bold" }, // Green header
+          headStyles: {
+            fillColor: [34, 197, 94],
+            textColor: 255,
+            fontSize: 9,
+            fontStyle: "bold",
+          }, // Green header
           bodyStyles: { fontSize: 8 },
           alternateRowStyles: { fillColor: [245, 247, 250] },
           columnStyles: {
@@ -398,21 +533,29 @@ export default function SessionsPage() {
           },
           didDrawCell: (data: any) => {
             // Color code the engagement column (now index 10)
-            if (data.column.index === 10 && data.section === 'body') {
-                const engagementValue = parseFloat(data.cell.text);
-                if (!isNaN(engagementValue)) {
-                    const engagementColor = getEngagementColor(engagementValue);
-                    doc.setTextColor(engagementColor[0], engagementColor[1], engagementColor[2]);
-                    doc.setFont('helvetica', 'bold');
-                }
+            if (data.column.index === 10 && data.section === "body") {
+              const engagementValue = parseFloat(data.cell.text);
+              if (!isNaN(engagementValue)) {
+                const engagementColor = getEngagementColor(engagementValue);
+                doc.setTextColor(
+                  engagementColor[0],
+                  engagementColor[1],
+                  engagementColor[2],
+                );
+                doc.setFont("helvetica", "bold");
+              }
             }
-          }
+          },
         });
 
-        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
+        doc.save(
+          `sessions_report_${new Date().toISOString().split("T")[0]}.pdf`,
+        );
         setIsExportModalOpen(false);
       } catch {
-        doc.save(`sessions_report_${new Date().toISOString().split("T")[0]}.pdf`);
+        doc.save(
+          `sessions_report_${new Date().toISOString().split("T")[0]}.pdf`,
+        );
         setIsExportModalOpen(false);
       }
     };
@@ -424,10 +567,27 @@ export default function SessionsPage() {
   };
 
   const exportCSV = () => {
-    const headers = ["ID", "Teacher", "Subject", "Section", "Students", "Mode", "Start Time", "End Time", "Engagement%", "On Task Avg", "Sleeping Avg", "Phone Avg", "Off Task Avg", "Not Visible Avg"];
+    const headers = [
+      "ID",
+      "Teacher",
+      "Subject",
+      "Section",
+      "Students",
+      "Mode",
+      "Start Time",
+      "End Time",
+      "Engagement%",
+      "On Task Avg",
+      "Sleeping Avg",
+      "Phone Avg",
+      "Off Task Avg",
+      "Not Visible Avg",
+    ];
     const rows = items.map((s) => [
       s.id,
-      currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s),
+      currentActorUserId !== null && s.teacher_id === currentActorUserId
+        ? "You"
+        : teacherName(s),
       s.subject_name.replace(/,/g, " "),
       s.section_name.replace(/,/g, " "),
       s.students_present,
@@ -442,12 +602,17 @@ export default function SessionsPage() {
       s.not_visible.toFixed(2),
     ]);
 
-    const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const csvContent = [headers, ...rows]
+      .map((row) => row.join(","))
+      .join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `sessions_report_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute(
+      "download",
+      `sessions_report_${new Date().toISOString().split("T")[0]}.csv`,
+    );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -501,23 +666,39 @@ export default function SessionsPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
                             {s.teacher_profile_picture_url ? (
-                              <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
+                              <img
+                                src={s.teacher_profile_picture_url}
+                                alt={teacherName(s)}
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
-                              <span className="text-[8px] font-bold uppercase text-muted-foreground">{teacherName(s).charAt(0)}</span>
+                              <span className="text-[8px] font-bold uppercase text-muted-foreground">
+                                {teacherName(s).charAt(0)}
+                              </span>
                             )}
                           </div>
-                          <span>{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
+                          <span>
+                            {currentActorUserId !== null &&
+                            s.teacher_id === currentActorUserId
+                              ? "You"
+                              : teacherName(s)}
+                          </span>
                         </div>
                       </TD>
                       <TD>{s.subject_name}</TD>
                       <TD>{s.section_name}</TD>
                       <TD>{s.students_present}</TD>
                       <TD>
-                        <Badge tone="default" className="bg-primary/10 text-primary border-primary/20 text-[9px] uppercase font-bold py-0.5">
+                        <Badge
+                          tone="default"
+                          className="bg-primary/10 text-primary border-primary/20 text-[9px] uppercase font-bold py-0.5"
+                        >
                           {s.activity_mode}
                         </Badge>
                       </TD>
-                      <TD className="font-bold text-primary">{s.average_engagement}%</TD>
+                      <TD className="font-bold text-primary">
+                        {s.average_engagement}%
+                      </TD>
                     </TR>
                   ))}
                 </TBody>
@@ -530,7 +711,8 @@ export default function SessionsPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0">
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" /> Session Intelligence
+                <BarChart3 className="h-4 w-4 text-primary" /> Session
+                Intelligence
               </CardTitle>
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
                 Monitoring patterns & behaviors
@@ -539,7 +721,7 @@ export default function SessionsPage() {
             {!loading && (
               <div className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shadow-sm transition-all hover:bg-primary/15">
                 <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">
-                  {totalItems} {totalItems === 1 ? 'Session' : 'Sessions'} Found
+                  {totalItems} {totalItems === 1 ? "Session" : "Sessions"} Found
                 </p>
               </div>
             )}
@@ -588,7 +770,12 @@ export default function SessionsPage() {
                   align="right"
                 />
 
-                <Button variant="outline" size="sm" onClick={() => setIsExportModalOpen(true)} className="h-8 gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsExportModalOpen(true)}
+                  className="h-8 gap-1.5"
+                >
                   <FileDown className="h-3.5 w-3.5" />
                   Export
                 </Button>
@@ -601,7 +788,9 @@ export default function SessionsPage() {
                 label="Status"
                 value={statusFilter}
                 options={statusOptions}
-                onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+                onChange={(value) =>
+                  setStatusFilter(value as typeof statusFilter)
+                }
                 widthClassName="min-w-[170px]"
               />
 
@@ -623,7 +812,9 @@ export default function SessionsPage() {
                   label="Major"
                   value={majorFilter ?? "all"}
                   options={majorOptions}
-                  onChange={(value) => setMajorFilter(value === "all" ? null : Number(value))}
+                  onChange={(value) =>
+                    setMajorFilter(value === "all" ? null : Number(value))
+                  }
                   widthClassName="min-w-[210px]"
                 />
               ) : null}
@@ -640,7 +831,11 @@ export default function SessionsPage() {
                   />
                 </div>
                 {teacherFilter ? (
-                  <button type="button" onClick={() => setTeacherFilter(null)} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setTeacherFilter(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 ) : null}
@@ -678,7 +873,13 @@ export default function SessionsPage() {
                 widthClassName="min-w-[170px]"
               />
 
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAllFilters}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={clearAllFilters}
+              >
                 Clear all
               </Button>
             </div>
@@ -719,44 +920,72 @@ export default function SessionsPage() {
                           onClick={() => openDetail(s.id)}
                         >
                           <TD className="py-4">
-                            <span className="rounded bg-muted px-2 py-1 font-mono text-xs font-bold">#{s.id}</span>
+                            <span className="rounded bg-muted px-2 py-1 font-mono text-xs font-bold">
+                              #{s.id}
+                            </span>
                           </TD>
                           <TD>
                             <div className="flex items-center gap-3">
                               <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted ring-2 ring-transparent transition-all group-hover:ring-primary/20">
                                 {s.teacher_profile_picture_url ? (
-                                  <img src={s.teacher_profile_picture_url} alt={teacherName(s)} className="h-full w-full object-cover" />
+                                  <img
+                                    src={s.teacher_profile_picture_url}
+                                    alt={teacherName(s)}
+                                    className="h-full w-full object-cover"
+                                  />
                                 ) : (
-                                  <span className="text-sm font-bold uppercase text-muted-foreground">{teacherName(s).charAt(0)}</span>
+                                  <span className="text-sm font-bold uppercase text-muted-foreground">
+                                    {teacherName(s).charAt(0)}
+                                  </span>
                                 )}
                               </div>
-                              <span className="text-sm font-semibold">{currentActorUserId !== null && s.teacher_id === currentActorUserId ? "You" : teacherName(s)}</span>
+                              <span className="text-sm font-semibold">
+                                {currentActorUserId !== null &&
+                                s.teacher_id === currentActorUserId
+                                  ? "You"
+                                  : teacherName(s)}
+                              </span>
                             </div>
                           </TD>
                           <TD>
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium">{s.subject_name}</span>
-                              <span className="text-xs text-muted-foreground">{s.section_name}</span>
+                              <span className="text-sm font-medium">
+                                {s.subject_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {s.section_name}
+                              </span>
                             </div>
                           </TD>
-                           <TD className="text-center">
-                            <Badge tone="default" className="text-[10px] uppercase font-bold border-border/60">
+                          <TD className="text-center">
+                            <Badge
+                              tone="default"
+                              className="text-[10px] uppercase font-bold border-border/60"
+                            >
                               {s.activity_mode}
                             </Badge>
                           </TD>
                           <TD className="text-center">
                             <span className="inline-flex items-center gap-1 text-sm font-medium">
                               {s.students_present}
-                              <span className="text-[10px] font-normal text-muted-foreground">studs</span>
+                              <span className="text-[10px] font-normal text-muted-foreground">
+                                studs
+                              </span>
                             </span>
                           </TD>
                           <TD>
                             <div className="flex flex-col gap-0.5 text-[11px]">
                               <span className="text-muted-foreground">
-                                Start: <span className="font-medium text-foreground">{fmt(s.start_time)}</span>
+                                Start:{" "}
+                                <span className="font-medium text-foreground">
+                                  {fmt(s.start_time)}
+                                </span>
                               </span>
                               <span className="text-muted-foreground">
-                                End: <span className="font-medium text-foreground">{fmt(s.end_time)}</span>
+                                End:{" "}
+                                <span className="font-medium text-foreground">
+                                  {fmt(s.end_time)}
+                                </span>
                               </span>
                             </div>
                           </TD>
@@ -773,12 +1002,19 @@ export default function SessionsPage() {
                                       : "border-danger/40 bg-danger/10 text-danger",
                               )}
                             >
-                              <span className="text-sm font-black leading-none tracking-tighter">{s.average_engagement.toFixed(1)}%</span>
-                              <span className="mt-0.5 text-[9px] font-bold uppercase opacity-80">Engagement</span>
+                              <span className="text-sm font-black leading-none tracking-tighter">
+                                {s.average_engagement.toFixed(1)}%
+                              </span>
+                              <span className="mt-0.5 text-[9px] font-bold uppercase opacity-80">
+                                Engagement
+                              </span>
                             </div>
                           </TD>
                           <TD>
-                            <Badge tone={s.is_active ? "success" : "default"} className="text-[9px] font-bold uppercase tracking-wider gap-1.5 flex items-center w-fit">
+                            <Badge
+                              tone={s.is_active ? "success" : "default"}
+                              className="text-[9px] font-bold uppercase tracking-wider gap-1.5 flex items-center w-fit"
+                            >
                               {s.is_active && (
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
@@ -802,7 +1038,11 @@ export default function SessionsPage() {
                       disabled={loadingMore}
                       className="min-w-[200px] gap-2 rounded-xl"
                     >
-                      {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load More Sessions"}
+                      {loadingMore ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Load More Sessions"
+                      )}
                     </Button>
                   </div>
                 )}
@@ -810,8 +1050,14 @@ export default function SessionsPage() {
             ) : (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-20">
                 <Search className="mb-3 h-10 w-10 text-muted-foreground/20" />
-                <p className="text-sm font-medium text-muted-foreground">No sessions match your current filters.</p>
-                <Button variant="ghost" onClick={clearAllFilters} className="mt-2 text-primary">
+                <p className="text-sm font-medium text-muted-foreground">
+                  No sessions match your current filters.
+                </p>
+                <Button
+                  variant="ghost"
+                  onClick={clearAllFilters}
+                  className="mt-2 text-primary"
+                >
                   Clear filters
                 </Button>
               </div>
@@ -834,7 +1080,7 @@ export default function SessionsPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : detail ? (
-          <SessionDetailView detail={detail} />
+          <SessionDetailView detail={detail} detectorStatus={detectorStatus} />
         ) : (
           <p className="text-sm text-muted-foreground">No detail available.</p>
         )}
@@ -856,7 +1102,9 @@ export default function SessionsPage() {
               <FileText className="h-6 w-6 text-primary" />
             </div>
             <span className="text-sm font-bold">PDF Report</span>
-            <span className="mt-1 text-[10px] text-muted-foreground">Branded & Formatted</span>
+            <span className="mt-1 text-[10px] text-muted-foreground">
+              Branded & Formatted
+            </span>
           </button>
 
           <button
@@ -867,7 +1115,9 @@ export default function SessionsPage() {
               <FileSpreadsheet className="h-6 w-6 text-success" />
             </div>
             <span className="text-sm font-bold">CSV Spreadsheet</span>
-            <span className="mt-1 text-[10px] text-muted-foreground">Raw Data & Excel</span>
+            <span className="mt-1 text-[10px] text-muted-foreground">
+              Raw Data & Excel
+            </span>
           </button>
         </div>
       </Modal>

@@ -643,6 +643,13 @@ def get_session_detail(
     }
 
 
+def get_session_detector_status(db: Session, session_id: int) -> dict[str, Any]:
+    session = db.query(ClassSession.id).filter(ClassSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return detector_service.get_webcam_detector_status(session_id)
+
+
 def list_alerts(
     db: Session,
     skip: int = 0,

@@ -148,7 +148,8 @@ export type AdminSection = {
   created_at: string | null;
 };
 
-export type AdminClassAssignmentStatus = "assigned" | "unassigned_teacher" | "invalid_mapping";
+export type AdminClassAssignmentStatus =
+  "assigned" | "unassigned_teacher" | "invalid_mapping";
 
 export type AdminClassSectionRef = {
   id: number;
@@ -284,6 +285,15 @@ export type AdminSessionDetail = {
   logs: SessionLogPoint[];
   mode_events: SessionModeEvent[];
   metrics_rollup: SessionMetricPoint[];
+};
+
+export type DetectorStatus = {
+  status: string;
+  state: string;
+  message: string;
+  missing: string[];
+  failure_count: number;
+  updated_at: number | null;
 };
 
 export type ModelOption = {
