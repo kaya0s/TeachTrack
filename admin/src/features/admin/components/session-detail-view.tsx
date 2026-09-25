@@ -40,19 +40,26 @@ type BehaviorPieSlice = {
 export function SessionDetailView({
   detail,
   detectorStatus,
+  showDetectorPreview = false,
 }: {
   detail: AdminSessionDetail;
   detectorStatus?: DetectorStatus | null;
+  showDetectorPreview?: boolean;
 }) {
   const [hoveredLogRow, setHoveredLogRow] =
     useState<BehaviorLogChartRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const teacherDisplayName =
     detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
 
   useEffect(() => {
-    if (!detail.session.is_active) {
-      setPreviewUrl(null);
+    if (!showDetectorPreview || !detail.session.is_active) {
+      setPreviewUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return null;
+      });
+      setPreviewLoading(false);
       return;
     }
 
@@ -61,6 +68,7 @@ export function SessionDetailView({
 
     const refreshPreview = async () => {
       try {
+        setPreviewLoading(true);
         const blob = await getSessionDetectorPreview(detail.session.id);
         if (cancelled) return;
         if (!blob) {
@@ -85,6 +93,8 @@ export function SessionDetailView({
           });
           currentUrl = null;
         }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
       }
     };
 
@@ -95,7 +105,7 @@ export function SessionDetailView({
       window.clearInterval(intervalId);
       if (currentUrl) URL.revokeObjectURL(currentUrl);
     };
-  }, [detail.session.id, detail.session.is_active]);
+  }, [detail.session.id, detail.session.is_active, showDetectorPreview]);
 
   const exportSingleSessionPDF = () => {
     const { jsPDF } = require("jspdf");
@@ -323,8 +333,11 @@ export function SessionDetailView({
         <DetectorStatusBanner detectorStatus={detectorStatus} />
       ) : null}
 
-      {detail.session.is_active ? (
-        <DetectorPreviewPanel previewUrl={previewUrl} />
+      {showDetectorPreview && detail.session.is_active ? (
+        <DetectorPreviewPanel
+          previewUrl={previewUrl}
+          loading={previewLoading}
+        />
       ) : null}
 
       <div className="flex items-center justify-between gap-4 px-1">
@@ -556,7 +569,13 @@ export function SessionDetailView({
   );
 }
 
-function DetectorPreviewPanel({ previewUrl }: { previewUrl: string | null }) {
+function DetectorPreviewPanel({
+  previewUrl,
+  loading,
+}: {
+  previewUrl: string | null;
+  loading: boolean;
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border/50 bg-muted/10 px-5 py-4">
@@ -573,7 +592,9 @@ function DetectorPreviewPanel({ previewUrl }: { previewUrl: string | null }) {
           />
         ) : (
           <p className="text-sm font-medium text-muted-foreground">
-            Waiting for camera preview...
+            {loading
+              ? "Loading camera preview..."
+              : "Waiting for camera preview..."}
           </p>
         )}
       </div>

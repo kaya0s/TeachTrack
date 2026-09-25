@@ -1080,7 +1080,11 @@ export default function SessionsPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : detail ? (
-          <SessionDetailView detail={detail} detectorStatus={detectorStatus} />
+          <SessionDetailView
+            detail={detail}
+            detectorStatus={detectorStatus}
+            showDetectorPreview
+          />
         ) : (
           <p className="text-sm text-muted-foreground">No detail available.</p>
         )}
