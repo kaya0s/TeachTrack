@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routers.admin import router as admin_router
-from app.api.v1.routers import auth_router, users_router, classrooms_router, sessions_router, notifications_router,demo_router
+from app.api.v1.routers import auth_router, users_router, classrooms_router, sessions_router, notifications_router
 from app.core.config import settings
 from app.core.exceptions import unhandled_exception_handler
 from app.core.logging import RequestIdFilter, configure_logging
@@ -42,7 +42,6 @@ app.include_router(sessions_router.router, prefix=f"{settings.API_V1_STR}/sessio
 app.include_router(sessions_router.models_router, prefix=f"{settings.API_V1_STR}/models", tags=["models"])
 app.include_router(notifications_router.router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
 app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin")
-app.include_router(demo_router.router, prefix=f"{settings.API_V1_STR}", tags=["demo"])
 
 
 @app.get("/healthz", tags=["system"])
