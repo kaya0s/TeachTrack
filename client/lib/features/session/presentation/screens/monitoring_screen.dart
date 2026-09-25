@@ -503,7 +503,11 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   _buildDetectionSnapshot(context, _latestAlertWithSnapshot!),
                   const SizedBox(height: 20),
                 ],
-                _buildStatusBanner(context, active.activityMode),
+                _buildStatusBanner(
+                  context,
+                  active.activityMode,
+                  session.detectorStatus,
+                ),
                 const SizedBox(height: 16),
                 if (metrics == null)
                   const Center(child: CircularProgressIndicator())
@@ -778,21 +782,40 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     );
   }
 
-  Widget _buildStatusBanner(BuildContext context, String mode) {
+  Widget _buildStatusBanner(
+    BuildContext context,
+    String mode,
+    DetectorStatusModel? detectorStatus,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final isExam = mode == 'EXAM';
+    final isWaiting = detectorStatus?.isWaiting == true;
+    final message = detectorStatus?.message ??
+        (isExam
+            ? "EXAM MONITORING: Enhanced suspicious behavior tracking active."
+            : "AI detection is active. Metrics update automatically.");
+    final icon = isWaiting
+        ? Icons.sync_problem_rounded
+        : (isExam ? Icons.security_rounded : Icons.sensors_rounded);
+    final accent = isWaiting
+        ? Colors.amber.shade800
+        : (isExam ? Colors.orange.shade800 : cs.primary);
 
     return Card(
-      color: isExam
-          ? Colors.orange.withOpacity(0.12)
-          : cs.primaryContainer.withOpacity(0.5),
+      color: isWaiting
+          ? Colors.amber.withValues(alpha: 0.14)
+          : isExam
+              ? Colors.orange.withValues(alpha: 0.12)
+              : cs.primaryContainer.withValues(alpha: 0.5),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isExam
-              ? Colors.orange.withOpacity(0.2)
-              : cs.primary.withOpacity(0.1),
+          color: isWaiting
+              ? Colors.amber.withValues(alpha: 0.3)
+              : isExam
+                  ? Colors.orange.withValues(alpha: 0.2)
+                  : cs.primary.withValues(alpha: 0.1),
         ),
       ),
       child: Padding(
@@ -800,20 +823,21 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         child: Row(
           children: [
             Icon(
-              isExam ? Icons.security_rounded : Icons.sensors_rounded,
-              color: isExam ? Colors.orange.shade800 : cs.primary,
+              icon,
+              color: accent,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                isExam
-                    ? "EXAM MONITORING: Enhanced suspicious behavior tracking active."
-                    : "AI detection is active. Metrics update automatically.",
+                message,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color:
-                      isExam ? Colors.orange.shade900 : cs.onPrimaryContainer,
+                  color: isWaiting
+                      ? Colors.amber.shade900
+                      : isExam
+                          ? Colors.orange.shade900
+                          : cs.onPrimaryContainer,
                 ),
               ),
             ),

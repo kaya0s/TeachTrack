@@ -292,6 +292,37 @@ class MlModelOptionModel {
       .replaceAll('_', ' ');
 }
 
+class DetectorStatusModel {
+  final String status;
+  final String state;
+  final String message;
+  final List<String> missing;
+  final int failureCount;
+
+  DetectorStatusModel({
+    required this.status,
+    required this.state,
+    required this.message,
+    required this.missing,
+    required this.failureCount,
+  });
+
+  factory DetectorStatusModel.fromJson(Map<String, dynamic> json) {
+    final missingRaw = json['missing'] as List<dynamic>? ?? [];
+    return DetectorStatusModel(
+      status: json['status'] as String? ?? 'stopped',
+      state: json['state'] as String? ?? json['status'] as String? ?? 'stopped',
+      message: json['message'] as String? ?? 'Detection status unavailable',
+      missing: missingRaw.map((item) => item.toString()).toList(),
+      failureCount: (json['failure_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  bool get isRunning => state == 'running';
+  bool get isWaiting =>
+      state == 'waiting' || state == 'recovering' || state == 'initializing';
+}
+
 class MlModelSelectionModel {
   final String currentModelFile;
   final List<MlModelOptionModel> models;

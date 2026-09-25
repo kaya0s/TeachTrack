@@ -16,6 +16,7 @@ class SessionProvider extends ChangeNotifier {
   bool _metricsRequestInFlight = false;
   String? _error;
   Timer? _metricsTimer;
+  Timer? _detectorStatusTimer;
   List<SessionSummaryModel> _history = [];
   bool _historyLoading = false;
   String? _historyError;
@@ -25,6 +26,7 @@ class SessionProvider extends ChangeNotifier {
   String? _currentModelFile;
   bool _modelsLoading = false;
   String? _modelsError;
+  DetectorStatusModel? _detectorStatus;
 
   SessionModel? get activeSession => _activeSession;
   SessionMetricsModel? get metrics => _metrics;
@@ -38,6 +40,7 @@ class SessionProvider extends ChangeNotifier {
   String? get currentModelFile => _currentModelFile;
   bool get modelsLoading => _modelsLoading;
   String? get modelsError => _modelsError;
+  DetectorStatusModel? get detectorStatus => _detectorStatus;
 
   Future<void> checkActiveSession() async {
     _isLoading = true;
@@ -50,6 +53,8 @@ class SessionProvider extends ChangeNotifier {
       } else {
         _metrics = null;
         _metricsTimer?.cancel();
+        _detectorStatusTimer?.cancel();
+        _detectorStatus = null;
         await ForegroundSessionService.stop();
       }
     } catch (e) {
@@ -57,6 +62,8 @@ class SessionProvider extends ChangeNotifier {
       _activeSession = null;
       _metrics = null;
       _metricsTimer?.cancel();
+      _detectorStatusTimer?.cancel();
+      _detectorStatus = null;
       await ForegroundSessionService.stop();
     } finally {
       _isLoading = false;
@@ -99,6 +106,8 @@ class SessionProvider extends ChangeNotifier {
       _activeSession = null;
       _metrics = null;
       _metricsTimer?.cancel();
+      _detectorStatusTimer?.cancel();
+      _detectorStatus = null;
       await ForegroundSessionService.stop();
       await fetchSessionHistory(includeActive: false);
       notifyListeners();
@@ -139,6 +148,7 @@ class SessionProvider extends ChangeNotifier {
     _activeSession = null;
     _metrics = null;
     _metricsTimer?.cancel();
+    _detectorStatusTimer?.cancel();
     _isLoading = false;
     _isSwitchingMode = false;
     _metricsRequestInFlight = false;
@@ -161,6 +171,15 @@ class SessionProvider extends ChangeNotifier {
     fetchMetrics(); // Initial fetch
     _metricsTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       fetchMetrics();
+    });
+    startDetectorStatusPolling();
+  }
+
+  void startDetectorStatusPolling() {
+    _detectorStatusTimer?.cancel();
+    fetchDetectorStatus();
+    _detectorStatusTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      fetchDetectorStatus();
     });
   }
 
@@ -279,8 +298,23 @@ class SessionProvider extends ChangeNotifier {
     if (_activeSession == null) return;
     try {
       await _repository.heartbeatServerDetector(_activeSession!.id);
+      await fetchDetectorStatus();
     } catch (e) {
       debugPrint("Error heartbeating server detector: $e");
+    }
+  }
+
+  Future<void> fetchDetectorStatus() async {
+    final activeSession = _activeSession;
+    if (activeSession == null) return;
+    try {
+      final status =
+          await _repository.getServerDetectorStatus(activeSession.id);
+      if (_activeSession?.id != activeSession.id) return;
+      _detectorStatus = status;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error fetching detector status: $e");
     }
   }
 
@@ -321,6 +355,7 @@ class SessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _metricsTimer?.cancel();
+    _detectorStatusTimer?.cancel();
     super.dispose();
   }
 }

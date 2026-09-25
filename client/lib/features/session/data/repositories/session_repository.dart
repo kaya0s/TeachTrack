@@ -119,15 +119,25 @@ class SessionRepository {
   }
 
   Future<void> startServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/start/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/start');
   }
 
   Future<void> stopServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/stop/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/stop');
   }
 
   Future<void> heartbeatServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/heartbeat/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/heartbeat');
+  }
+
+  Future<DetectorStatusModel> getServerDetectorStatus(int sessionId) async {
+    final response =
+        await _apiClient.get('/sessions/$sessionId/detector/status');
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Invalid detector status response');
+    }
+    return DetectorStatusModel.fromJson(data);
   }
 
   Future<MlModelSelectionModel> getAvailableModels() async {
