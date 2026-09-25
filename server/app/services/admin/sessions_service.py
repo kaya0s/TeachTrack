@@ -654,7 +654,7 @@ def get_session_detector_preview(db: Session, session_id: int) -> bytes | None:
     session = db.query(ClassSession.id).filter(ClassSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return detector_service.get_detector_preview_frame(session_id)
+    return detector_service.request_detector_preview_frame(session_id)
 
 
 def list_alerts(

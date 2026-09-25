@@ -594,7 +594,7 @@ function DetectorPreviewPanel({
           <p className="text-sm font-medium text-muted-foreground">
             {loading
               ? "Loading camera preview..."
-              : "Waiting for camera preview..."}
+              : "Waiting for the next detector frame..."}
           </p>
         )}
       </div>

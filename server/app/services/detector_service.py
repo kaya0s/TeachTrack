@@ -39,7 +39,9 @@ _detectors: dict[int, dict] = {}
 _detectors_lock = threading.Lock()
 DETECTOR_RETRY_SECONDS = 3.0
 _preview_frames: dict[int, bytes] = {}
+_preview_watch_until: dict[int, float] = {}
 _preview_lock = threading.Lock()
+PREVIEW_WATCH_TTL_SECONDS = 6.0
 
 _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
@@ -136,6 +138,7 @@ def _release_capture(cap: cv2.VideoCapture | None) -> None:
 def _clear_preview_frame(session_id: int) -> None:
     with _preview_lock:
         _preview_frames.pop(session_id, None)
+        _preview_watch_until.pop(session_id, None)
 
 
 def _store_preview_frame(session_id: int, frame: np.ndarray) -> None:
@@ -149,6 +152,21 @@ def _store_preview_frame(session_id: int, frame: np.ndarray) -> None:
 def get_detector_preview_frame(session_id: int) -> bytes | None:
     with _preview_lock:
         return _preview_frames.get(session_id)
+
+
+def request_detector_preview_frame(session_id: int) -> bytes | None:
+    with _preview_lock:
+        _preview_watch_until[session_id] = time.time() + PREVIEW_WATCH_TTL_SECONDS
+        return _preview_frames.get(session_id)
+
+
+def _is_preview_watched(session_id: int) -> bool:
+    with _preview_lock:
+        watch_until = _preview_watch_until.get(session_id, 0.0)
+        if watch_until < time.time():
+            _preview_watch_until.pop(session_id, None)
+            return False
+        return True
 
 
 def _open_camera(camera_index: int) -> cv2.VideoCapture:
@@ -370,13 +388,13 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 time.sleep(DETECTOR_RETRY_SECONDS)
                 continue
 
-            if detection_settings["server_camera_preview"]:
+            if detection_settings["server_camera_preview"] and _is_preview_watched(session_id):
                 try:
                     annotated = results[0].plot()
                     _store_preview_frame(session_id, annotated)
                 except Exception as exc:
                     logger.error(f"Preview error for session {session_id}: {exc}")
-            else:
+            elif not detection_settings["server_camera_preview"]:
                 _clear_preview_frame(session_id)
 
             counts = _empty_behavior_counts()
