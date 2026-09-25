@@ -1329,7 +1329,7 @@ export default function DashboardPage() {
                 {detailError}
               </p>
             )}
-            <SessionDetailView detail={detail} />
+            <SessionDetailView detail={detail} showDetectorPreview />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">

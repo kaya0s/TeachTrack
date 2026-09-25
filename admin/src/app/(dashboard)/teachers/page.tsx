@@ -930,7 +930,7 @@ export default function TeachersPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : selectedSessionDetail ? (
-          <SessionDetailView detail={selectedSessionDetail} />
+          <SessionDetailView detail={selectedSessionDetail} showDetectorPreview />
         ) : (
           <p className="text-sm text-muted-foreground">No detail available.</p>
         )}

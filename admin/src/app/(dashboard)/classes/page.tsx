@@ -757,7 +757,7 @@ export default function ClassesPage() {
             <Skeleton className="h-64 w-full" />
           </div>
         ) : sessionDetail ? (
-          <SessionDetailView detail={sessionDetail} />
+          <SessionDetailView detail={sessionDetail} showDetectorPreview />
         ) : (
           <p className="text-sm text-muted-foreground">Unable to load session data.</p>
         )}
