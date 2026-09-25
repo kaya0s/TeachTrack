@@ -187,7 +187,7 @@ def get_webcam_detector_status(
     current_user=Depends(deps.get_current_active_user),
 ) -> Any:
     session_lifecycle_service.get_active_session_or_404(db, session_id, current_user.id)
-    return {"status": detector_service.get_webcam_detector_status(session_id)}
+    return detector_service.get_webcam_detector_status(session_id)
 
 
 @router.post("/{session_id}/detect", status_code=200)

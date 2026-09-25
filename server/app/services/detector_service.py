@@ -37,6 +37,7 @@ _model = None
 _model_lock = threading.Lock()
 _detectors: dict[int, dict] = {}
 _detectors_lock = threading.Lock()
+DETECTOR_RETRY_SECONDS = 3.0
 
 _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
@@ -69,6 +70,80 @@ def _runtime_detection_settings() -> dict[str, Any]:
     return settings_service.get_detection_settings()
 
 
+def _friendly_waiting_message(missing: set[str]) -> str:
+    if missing == {"camera", "model"}:
+        return "Waiting for camera and detection model..."
+    if "camera" in missing:
+        return "Waiting for camera..."
+    if "model" in missing:
+        return "Waiting for detection model..."
+    return "Initializing detection..."
+
+
+def _set_detector_status(
+    session_id: int,
+    state: str,
+    message: str,
+    missing: set[str] | None = None,
+    technical_error: str | None = None,
+) -> None:
+    with _detectors_lock:
+        entry = _detectors.get(session_id)
+        if not entry:
+            return
+        previous_state = entry.get("state")
+        previous_message = entry.get("message")
+        entry["state"] = state
+        entry["status"] = state
+        entry["message"] = message
+        entry["missing"] = sorted(missing or set())
+        entry["updated_at"] = time.time()
+        if technical_error:
+            entry["last_error"] = technical_error
+            entry["failure_count"] = int(entry.get("failure_count", 0)) + 1
+        elif state == "running":
+            entry["failure_count"] = 0
+            entry["last_error"] = None
+        if previous_state != state or previous_message != message:
+            logger.info("Detector session %s status: %s - %s", session_id, state, message)
+
+
+def _detector_should_continue(session_id: int, stop_event: threading.Event) -> bool:
+    if stop_event.is_set():
+        return False
+    with _detectors_lock:
+        entry = _detectors.get(session_id)
+        last_heartbeat = entry.get("last_heartbeat") if entry else None
+    detection_settings = _runtime_detection_settings()
+    if last_heartbeat is None:
+        return False
+    if (time.time() - last_heartbeat) > detection_settings["detector_heartbeat_timeout_seconds"]:
+        logger.info(f"Detector heartbeat expired for session {session_id}. Stopping.")
+        return False
+    return True
+
+
+def _release_capture(cap: cv2.VideoCapture | None) -> None:
+    if cap is not None:
+        try:
+            cap.release()
+        except Exception:
+            pass
+
+
+def _open_camera(camera_index: int) -> cv2.VideoCapture:
+    backend = cv2.CAP_V4L2 if os.name == "posix" else cv2.CAP_ANY
+    cap = cv2.VideoCapture(camera_index, backend)
+    if not cap.isOpened():
+        _release_capture(cap)
+        raise RuntimeError(f"Could not open webcam index {camera_index}")
+    ret, _ = cap.read()
+    if not ret:
+        _release_capture(cap)
+        raise RuntimeError(f"Could not read from webcam index {camera_index}")
+    return cap
+
+
 def _get_model() -> YOLO:
     global _model
     _ensure_current_model_exists()
@@ -79,6 +154,12 @@ def _get_model() -> YOLO:
                     raise RuntimeError(f"Model not found at {_current_model_path}")
                 _model = YOLO(str(_current_model_path))
     return _model
+
+
+def _clear_cached_model() -> None:
+    global _model
+    with _model_lock:
+        _model = None
 
 
 def _list_weight_files() -> list[Path]:
@@ -188,46 +269,87 @@ def test_detection(raw: bytes) -> list[dict]:
 
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_log_fn: Callable) -> None:
-    detection_settings = _runtime_detection_settings()
-    if not detection_settings["server_camera_enabled"]:
-        logger.warning(f"Detector not started for session {session_id}: SERVER_CAMERA_ENABLED=false")
-        return
-
-    try:
-        model = _get_model()
-    except Exception as exc:
-        logger.error(f"Detector failed to load model for session {session_id}: {exc}")
-        return
-
-    cap = cv2.VideoCapture(detection_settings["server_camera_index"])
-    if not cap.isOpened():
-        logger.error(
-            f"Detector failed to open webcam index {detection_settings['server_camera_index']} for session {session_id}"
-        )
-        return
-
+    cap: cv2.VideoCapture | None = None
+    model = None
     last_send_time = 0.0
     try:
-        while not stop_event.is_set():
-            with _detectors_lock:
-                entry = _detectors.get(session_id)
-                last_heartbeat = entry.get("last_heartbeat") if entry else None
-
+        _set_detector_status(session_id, "initializing", "Initializing detection...")
+        while _detector_should_continue(session_id, stop_event):
             detection_settings = _runtime_detection_settings()
-            if last_heartbeat is None or (time.time() - last_heartbeat) > detection_settings["detector_heartbeat_timeout_seconds"]:
-                logger.info(f"Detector heartbeat expired for session {session_id}. Stopping.")
-                break
+            missing: set[str] = set()
 
+            if not detection_settings["server_camera_enabled"]:
+                missing.add("camera")
+                _release_capture(cap)
+                cap = None
+
+            if model is None:
+                try:
+                    _set_detector_status(session_id, "initializing", "Reinitializing detection model...")
+                    model = _get_model()
+                except Exception as exc:
+                    missing.add("model")
+                    _set_detector_status(
+                        session_id,
+                        "waiting",
+                        _friendly_waiting_message(missing),
+                        missing,
+                        str(exc),
+                    )
+
+            if cap is None and "camera" not in missing:
+                try:
+                    _set_detector_status(session_id, "initializing", "Reconnecting to camera...")
+                    cap = _open_camera(int(detection_settings["server_camera_index"]))
+                except Exception as exc:
+                    missing.add("camera")
+                    _set_detector_status(
+                        session_id,
+                        "waiting",
+                        _friendly_waiting_message(missing),
+                        missing,
+                        str(exc),
+                    )
+
+            if missing:
+                time.sleep(DETECTOR_RETRY_SECONDS)
+                continue
+
+            _set_detector_status(session_id, "running", "Detection resumed")
             ret, frame = cap.read()
             if not ret:
-                time.sleep(0.2)
+                _release_capture(cap)
+                cap = None
+                _set_detector_status(
+                    session_id,
+                    "recovering",
+                    "Camera unavailable — waiting for camera...",
+                    {"camera"},
+                    "Failed to read frame from camera",
+                )
+                time.sleep(DETECTOR_RETRY_SECONDS)
                 continue
 
             current_time = time.time()
             if current_time - last_send_time < detection_settings["detect_interval_seconds"]:
+                time.sleep(0.01)
                 continue
 
-            results = model(frame, imgsz=int(detection_settings["detection_imgsz"]), verbose=False)
+            try:
+                results = model(frame, imgsz=int(detection_settings["detection_imgsz"]), verbose=False)
+            except Exception as exc:
+                _clear_cached_model()
+                model = None
+                _set_detector_status(
+                    session_id,
+                    "recovering",
+                    "Detection model unavailable — waiting for model...",
+                    {"model"},
+                    str(exc),
+                )
+                time.sleep(DETECTOR_RETRY_SECONDS)
+                continue
+
             if detection_settings["server_camera_preview"]:
                 try:
                     annotated = results[0].plot()
@@ -317,19 +439,17 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
 
             last_send_time = current_time
     finally:
-        cap.release()
-        if detection_settings["server_camera_preview"]:
+        _release_capture(cap)
+        detection_settings = _runtime_detection_settings()
+        if detection_settings.get("server_camera_preview"):
             try:
                 cv2.destroyAllWindows()
             except Exception:
                 pass
+        _set_detector_status(session_id, "stopped", "Detection stopped")
 
 
 def start_webcam_detector(session_id: int, process_log_fn: Callable) -> str:
-    detection_settings = _runtime_detection_settings()
-    if not detection_settings["server_camera_enabled"]:
-        raise ValueError("Server camera disabled by SERVER_CAMERA_ENABLED")
-
     with _detectors_lock:
         existing = _detectors.get(session_id)
         if existing and existing["thread"].is_alive():
@@ -342,7 +462,18 @@ def start_webcam_detector(session_id: int, process_log_fn: Callable) -> str:
             args=(session_id, stop_event, process_log_fn),
             daemon=True,
         )
-        _detectors[session_id] = {"thread": thread, "stop": stop_event, "last_heartbeat": time.time()}
+        _detectors[session_id] = {
+            "thread": thread,
+            "stop": stop_event,
+            "last_heartbeat": time.time(),
+            "state": "initializing",
+            "status": "initializing",
+            "message": "Initializing detection...",
+            "missing": [],
+            "failure_count": 0,
+            "last_error": None,
+            "updated_at": time.time(),
+        }
         thread.start()
     return "started"
 
@@ -369,12 +500,26 @@ def heartbeat_webcam_detector(session_id: int) -> str:
     return "ok"
 
 
-def get_webcam_detector_status(session_id: int) -> str:
+def get_webcam_detector_status(session_id: int) -> dict[str, Any]:
     with _detectors_lock:
         existing = _detectors.get(session_id)
         if existing and existing["thread"].is_alive():
-            return "running"
-    return "stopped"
+            return {
+                "status": existing.get("status", "running"),
+                "state": existing.get("state", "running"),
+                "message": existing.get("message", "AI detection is active. Metrics update automatically."),
+                "missing": existing.get("missing", []),
+                "failure_count": existing.get("failure_count", 0),
+                "updated_at": existing.get("updated_at"),
+            }
+    return {
+        "status": "stopped",
+        "state": "stopped",
+        "message": "Detection stopped",
+        "missing": [],
+        "failure_count": 0,
+        "updated_at": None,
+    }
 
 
 def stop_detector_if_running(session_id: int) -> None:
