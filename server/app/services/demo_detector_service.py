@@ -27,15 +27,19 @@ from app.services.detector_service import (
 from app.db.database import SessionLocal
 from app.models.session import ClassSession
 from app.schemas.session import BehaviorLogCreate
-from app.services.admin import settings_service
 from app.services.snapshot_service import snapshot_service
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Demo video configuration - CHANGE THIS PATH TO YOUR VIDEO FILE
-DEMO_VIDEO_PATH = r"C:\Users\kayaos\Desktop\1.mp4"  # <-- UPDATE THIS PATH
+DEFAULT_DEMO_VIDEO_PATH = r"C:\Users\kayaos\Desktop\1.mp4"
 _demo_video_cap: Optional[cv2.VideoCapture] = None
 _demo_video_lock = threading.Lock()
+
+
+def _demo_video_path() -> Path:
+    configured_path = (settings.DEMO_VIDEO_PATH or DEFAULT_DEMO_VIDEO_PATH).strip()
+    return Path(configured_path).expanduser()
 
 
 def _get_demo_video_cap() -> cv2.VideoCapture:
@@ -43,10 +47,10 @@ def _get_demo_video_cap() -> cv2.VideoCapture:
     global _demo_video_cap
     with _demo_video_lock:
         if _demo_video_cap is None:
-            video_path = Path(DEMO_VIDEO_PATH)
+            video_path = _demo_video_path()
             
             if not video_path.exists():
-                raise FileNotFoundError(f"Demo video not found at: {DEMO_VIDEO_PATH}")
+                raise FileNotFoundError(f"Demo video not found at: {video_path}")
             
             _demo_video_cap = cv2.VideoCapture(str(video_path))
             if not _demo_video_cap.isOpened():
@@ -286,7 +290,7 @@ def get_demo_video_info() -> dict:
         duration = frame_count / fps if fps > 0 else 0
         
         return {
-            "video_path": DEMO_VIDEO_PATH,
+            "video_path": str(_demo_video_path()),
             "fps": fps,
             "frame_count": frame_count,
             "width": width,
@@ -296,7 +300,7 @@ def get_demo_video_info() -> dict:
         }
     except Exception as exc:
         return {
-            "video_path": DEMO_VIDEO_PATH,
+            "video_path": str(_demo_video_path()),
             "status": "error",
             "error": str(exc)
         }

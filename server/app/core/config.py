@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     SERVER_CAMERA_ENABLED: bool = True
     SERVER_CAMERA_PREVIEW: bool = False
     SERVER_CAMERA_INDEX: int = 0
+    DEMO_VIDEO_PATH: str = ""
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.5
     DETECTION_IMGSZ: int = 960
     ALERT_COOLDOWN_MINUTES: int = 5
