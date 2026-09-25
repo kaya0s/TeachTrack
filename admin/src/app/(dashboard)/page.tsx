@@ -1296,7 +1296,7 @@ export default function DashboardPage() {
             ? `${activeSessionInView.subject_name} • ${activeSessionInView.section_name}`
             : "Behavior analytics and historical data"
         }
-        widthClassName="max-w-5xl"
+        widthClassName={activeSessionInView?.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {activeSessionInView?.is_active && (
           <div className="mb-4 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border/50">

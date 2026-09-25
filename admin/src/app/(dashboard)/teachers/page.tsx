@@ -921,7 +921,7 @@ export default function TeachersPage() {
         onClose={() => setIsSessionDrawerOpen(false)}
         title="Session Intelligence View"
         description="Detailed behavior analytics and historical trends."
-        widthClassName="max-w-5xl"
+        widthClassName={selectedSessionDetail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingSessionDetail ? (
           <div className="space-y-3">

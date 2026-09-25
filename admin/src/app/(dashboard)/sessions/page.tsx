@@ -1071,7 +1071,7 @@ export default function SessionsPage() {
         onClose={() => setIsDetailOpen(false)}
         title={`Intelligence View #${selectedSessionId ?? "-"}`}
         description="Detailed behavior analytics and historical trends."
-        widthClassName="max-w-5xl"
+        widthClassName={detail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingDetail ? (
           <div className="space-y-3">

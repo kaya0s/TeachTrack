@@ -746,7 +746,7 @@ export default function ClassesPage() {
         onClose={() => setIsSessionDetailOpen(false)}
         title={`Session Intelligence #${selectedSessionId ?? "-"}`}
         description="Automated behavior analysis and trend reporting."
-        widthClassName="max-w-5xl"
+        widthClassName={sessionDetail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >
         {loadingSessionDetail ? (
           <div className="space-y-4">
