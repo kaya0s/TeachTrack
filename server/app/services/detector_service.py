@@ -43,6 +43,9 @@ _preview_watch_until: dict[int, float] = {}
 _preview_lock = threading.Lock()
 PREVIEW_WATCH_TTL_SECONDS = 6.0
 STREAM_FRAME_MIN_INTERVAL_SECONDS = 0.1
+PREVIEW_CAMERA_WIDTH = 640
+PREVIEW_CAMERA_HEIGHT = 480
+PREVIEW_CAMERA_FPS = 30
 
 _last_snapshot_time: dict[int, float] = {}
 _snapshot_lock = threading.Lock()
@@ -150,6 +153,50 @@ def _store_preview_frame(session_id: int, frame: np.ndarray) -> None:
         _preview_frames[session_id] = encoded.tobytes()
 
 
+def _draw_preview_detections(
+    frame: np.ndarray,
+    detections: list[dict[str, Any]],
+    threshold: float,
+) -> np.ndarray:
+    preview = frame.copy()
+    colors = {
+        "on_task": (34, 197, 94),
+        "sleeping": (239, 68, 68),
+        "using_phone": (245, 158, 11),
+        "off_task": (59, 130, 246),
+        "not_visible": (148, 163, 184),
+    }
+    for detection in detections:
+        confidence = float(detection["confidence"])
+        if confidence < threshold:
+            continue
+        label = str(detection["label"])
+        x1, y1, x2, y2 = [int(v) for v in detection["box"]]
+        color = colors.get(label, (34, 197, 94))
+        cv2.rectangle(preview, (x1, y1), (x2, y2), color, 2)
+        text = f"{label} {confidence:.2f}"
+        text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        text_y = max(0, y1 - text_size[1] - 6)
+        cv2.rectangle(
+            preview,
+            (x1, text_y),
+            (x1 + text_size[0] + 8, text_y + text_size[1] + 6),
+            color,
+            -1,
+        )
+        cv2.putText(
+            preview,
+            text,
+            (x1 + 4, text_y + text_size[1] + 2),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+    return preview
+
+
 def request_detector_preview_frame(session_id: int) -> bytes | None:
     with _preview_lock:
         _preview_watch_until[session_id] = time.time() + PREVIEW_WATCH_TTL_SECONDS
@@ -181,6 +228,12 @@ def _open_camera(camera_index: int) -> cv2.VideoCapture:
     if not cap.isOpened():
         _release_capture(cap)
         raise RuntimeError(f"Could not open webcam index {camera_index}")
+    if os.name == "posix":
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, PREVIEW_CAMERA_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, PREVIEW_CAMERA_HEIGHT)
+    cap.set(cv2.CAP_PROP_FPS, PREVIEW_CAMERA_FPS)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     ret, _ = cap.read()
     if not ret:
         _release_capture(cap)
@@ -317,6 +370,7 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
     model = None
     last_send_time = 0.0
     last_preview_time = 0.0
+    latest_preview_detections: list[dict[str, Any]] = []
     try:
         _set_detector_status(session_id, "initializing", "Initializing detection...")
         while _detector_should_continue(session_id, stop_event):
@@ -376,10 +430,15 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 continue
 
             current_time = time.time()
-            if detection_settings["server_camera_preview"] and _is_preview_watched(session_id):
-                if current_time - last_preview_time >= STREAM_FRAME_MIN_INTERVAL_SECONDS:
-                    _store_preview_frame(session_id, frame)
-                    last_preview_time = current_time
+            preview_enabled = detection_settings["server_camera_preview"] and _is_preview_watched(session_id)
+            if preview_enabled and current_time - last_preview_time >= STREAM_FRAME_MIN_INTERVAL_SECONDS:
+                preview_frame = _draw_preview_detections(
+                    frame,
+                    latest_preview_detections,
+                    float(detection_settings["detection_confidence_threshold"]),
+                )
+                _store_preview_frame(session_id, preview_frame)
+                last_preview_time = current_time
 
             if current_time - last_send_time < detection_settings["detect_interval_seconds"]:
                 time.sleep(0.01)
@@ -400,27 +459,29 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
                 time.sleep(DETECTOR_RETRY_SECONDS)
                 continue
 
-            if detection_settings["server_camera_preview"] and _is_preview_watched(session_id):
-                try:
-                    annotated = results[0].plot()
-                    _store_preview_frame(session_id, annotated)
-                except Exception as exc:
-                    logger.error(f"Preview error for session {session_id}: {exc}")
-            elif not detection_settings["server_camera_preview"]:
+            if not detection_settings["server_camera_preview"]:
                 _clear_preview_frame(session_id)
 
             counts = _empty_behavior_counts()
             phone_detections = []
+            latest_preview_detections = []
             for box in results[0].boxes:
                 cls_id = int(box.cls[0])
                 conf = float(box.conf[0])
+                bbox = box.xyxy[0].cpu().numpy().tolist()
+                latest_preview_detections.append(
+                    {
+                        "box": bbox,
+                        "label": str(model.names[cls_id]).strip(),
+                        "confidence": conf,
+                    }
+                )
                 if conf < detection_settings["detection_confidence_threshold"]:
                     continue
                 class_name = str(model.names[cls_id]).strip()
                 if class_name in counts:
                     counts[class_name] += 1
                     if class_name == "using_phone" and snapshot_service.is_configured():
-                        bbox = box.xyxy[0].cpu().numpy().tolist()  # [x1, y1, x2, y2]
                         phone_detections.append({"bbox": bbox, "label": "Phone", "confidence": conf})
 
             log_data = BehaviorLogCreate(**counts)
