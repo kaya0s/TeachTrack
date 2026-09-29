@@ -145,6 +145,13 @@ function teacherInitials(teacher: AdminTeacher): string {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
+function missingTeacherHierarchy(teacher: AdminTeacher): string[] {
+  const missing: string[] = [];
+  if (teacher.college_id == null) missing.push("college");
+  if (teacher.department_id == null) missing.push("department");
+  return missing;
+}
+
 type ActiveFilter = "all" | "active" | "disabled";
 type AssignmentFilter = "all" | "assigned" | "unassigned";
 
@@ -571,6 +578,7 @@ export default function TeachersPage() {
                 <TBody>
                   {filteredItems.map((row) => {
                     const classCount = assignmentMaps.classMap.get(row.id)?.length ?? 0;
+                    const missingAssignments = missingTeacherHierarchy(row);
                     return (
                       <TR key={row.id} className="cursor-pointer" onClick={() => openDetails(row)}>
                         <TD>{row.id}</TD>
@@ -595,7 +603,19 @@ export default function TeachersPage() {
                         <TD>{row.college_name ?? "-"}</TD>
                         <TD>{row.department_name ?? "-"}</TD>
                         <TD><Badge tone={classCount > 0 ? "success" : "default"}>{classCount}</Badge></TD>
-                        <TD><Badge tone={row.is_active ? "success" : "danger"}>{row.is_active ? "Active" : "Disabled"}</Badge></TD>
+                        <TD>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge tone={row.is_active ? "success" : "danger"}>{row.is_active ? "Active" : "Disabled"}</Badge>
+                            {missingAssignments.length > 0 ? (
+                              <Badge
+                                tone="warning"
+                                title={`Missing ${missingAssignments.join(" and ")}`}
+                              >
+                                Needs Action
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </TD>
                         <TD className="text-right pr-2" onClick={(e) => e.stopPropagation()}>
                           <TeacherActionMenu
                             onViewDetails={() => openDetails(row)}
@@ -640,6 +660,15 @@ export default function TeachersPage() {
                 <p className="mt-1 text-xs text-muted-foreground">{activeTeacher.department_name ?? "No department"}</p>
                 <p className="text-xs text-muted-foreground">{activeTeacher.college_name ?? "No college"}</p>
                 <Badge tone={activeTeacher.is_active ? "success" : "danger"} className="mt-3">{activeTeacher.is_active ? "Active" : "Disabled"}</Badge>
+                {missingTeacherHierarchy(activeTeacher).length > 0 ? (
+                  <Badge
+                    tone="warning"
+                    className="mt-3"
+                    title={`Missing ${missingTeacherHierarchy(activeTeacher).join(" and ")}`}
+                  >
+                    Needs Action: assign {missingTeacherHierarchy(activeTeacher).join(" and ")}
+                  </Badge>
+                ) : null}
               </div>
 
               <div className="mt-4 space-y-2">

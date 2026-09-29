@@ -22,6 +22,20 @@ def _to_float(value: Any) -> float:
     return float(value)
 
 
+def _ensure_teacher_assignment(
+    assignment: SectionSubjectAssignment,
+    section: ClassSection,
+    teacher_id: int,
+) -> None:
+    assigned_teacher_id = assignment.teacher_id
+    if assigned_teacher_id is None:
+        assigned_teacher_id = section.teacher_id
+    if assigned_teacher_id is None:
+        raise HTTPException(status_code=403, detail="This class is not assigned to a teacher")
+    if assigned_teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="You are not assigned to this section and subject")
+
+
 def start_session(db: Session, session_in: SessionCreate, current_user) -> SessionSchema:
     if session_in.students_present <= 0:
         raise HTTPException(status_code=400, detail="students_present must be greater than 0")
@@ -44,8 +58,7 @@ def start_session(db: Session, session_in: SessionCreate, current_user) -> Sessi
     )
     if not assignment:
         raise HTTPException(status_code=400, detail="Selected subject is not assigned to the selected section")
-    if assignment.teacher_id is not None and assignment.teacher_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You are not assigned to this section and subject")
+    _ensure_teacher_assignment(assignment, section, current_user.id)
 
     session = ClassSession(
         **session_in.dict(),
