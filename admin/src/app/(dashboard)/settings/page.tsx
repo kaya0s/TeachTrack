@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { getSettings, testDetection, updateSettings } from "@/features/admin/api";
-import type { AdminDetectionBox, AdminSettings, AdminSettingsUpdate } from "@/features/admin/types";
+import type { AdminDetectionBox, AdminSettings, AdminSettingsUpdate, AdminWeightsSet } from "@/features/admin/types";
 
 type ValidationResult = {
   errors: Record<string, string>;
@@ -962,19 +962,22 @@ export default function SettingsPage() {
                   });
 
                   // Check Weights
-                  Object.keys(current.engagement_weights).forEach((k) => {
-                    const key = k as keyof AdminSettings["engagement_weights"];
-                    if (current.engagement_weights[key] !== initial.engagement_weights[key]) {
-                      changes.push(
-                        <div key={`weight-${key}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
-                          <span className="text-muted-foreground font-medium capitalize">{key.replace(/_/g, ' ')} Weight</span>
-                          <span className="flex items-center gap-2">
-                            <span className="text-muted-foreground/60 line-through">{initial.engagement_weights[key]}</span>
-                            <span className="text-warning font-bold">{current.engagement_weights[key]}</span>
-                          </span>
-                        </div>
-                      );
-                    }
+                  Object.keys(current.engagement_weights).forEach((modeName) => {
+                    const mode = modeName as keyof AdminSettings["engagement_weights"];
+                    Object.keys(current.engagement_weights[mode]).forEach((weightName) => {
+                      const weight = weightName as keyof AdminWeightsSet;
+                      if (current.engagement_weights[mode][weight] !== initial.engagement_weights[mode][weight]) {
+                        changes.push(
+                          <div key={`weight-${mode}-${weight}`} className="flex items-center justify-between text-xs border-b border-warning/10 pb-1 last:border-0 last:pb-0">
+                            <span className="text-muted-foreground font-medium capitalize">{mode.toLowerCase()} {weight.replace(/_/g, ' ')} Weight</span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-muted-foreground/60 line-through">{initial.engagement_weights[mode][weight]}</span>
+                              <span className="text-warning font-bold">{current.engagement_weights[mode][weight]}</span>
+                            </span>
+                          </div>
+                        );
+                      }
+                    });
                   });
 
                   // Check Ops
@@ -1046,4 +1049,3 @@ export default function SettingsPage() {
     </>
   );
 }
-
