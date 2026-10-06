@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { GoogleLogin, GoogleOAuthProvider, type CredentialResponse } from "@react-oauth/google";
 
-import { Activity, Bell, Chrome, Settings, Users } from "lucide-react";
+import { Activity, Bell, Settings, Users } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import Particles from "./Particles";
@@ -15,6 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   forgotPassword,
   login,
+  loginWithGoogle,
   resetPasswordWithCode,
   verifyResetCode,
 } from "@/features/admin/api";
@@ -24,6 +26,7 @@ type Mode = "login" | "forgot";
 
 const DARK_PARTICLE_COLORS = ["#ffffff"];
 const LIGHT_PARTICLE_COLORS = ["#1e40af", "#3b82f6", "#6366f1"];
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -75,6 +78,36 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onGoogleLoginSuccess(response: CredentialResponse) {
+    setError(null);
+    if (!response.credential) {
+      const message = "Google did not return a sign-in credential. Please try again.";
+      setError(message);
+      notify({ tone: "danger", title: "Google sign-in failed", description: message });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await loginWithGoogle(response.credential);
+      setToken(res.access_token);
+      notify({ tone: "success", title: "Login successful", description: "Redirecting to dashboard..." });
+      router.replace("/");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Google sign-in failed.";
+      setError(message);
+      notify({ tone: "danger", title: "Google sign-in failed", description: message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function onGoogleLoginError() {
+    const message = "Google sign-in was cancelled or could not be completed.";
+    setError(message);
+    notify({ tone: "danger", title: "Google sign-in failed", description: message });
   }
 
   async function onSendCode(event: FormEvent) {
@@ -257,10 +290,24 @@ export default function LoginPage() {
                       or
                       <span className="h-px flex-1 bg-border" />
                     </div>
-                    <Button type="button" variant="outline" className="h-10 w-full" disabled={loading}>
-                      <Chrome className="mr-2 h-4 w-4" />
-                      Continue with Google
-                    </Button>
+                    {GOOGLE_CLIENT_ID ? (
+                      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                        <div className={`flex min-h-10 justify-center ${loading ? "pointer-events-none opacity-60" : ""}`}>
+                          <GoogleLogin
+                            onSuccess={onGoogleLoginSuccess}
+                            onError={onGoogleLoginError}
+                            text="continue_with"
+                            shape="rectangular"
+                            size="large"
+                            theme={isDark ? "filled_black" : "outline"}
+                          />
+                        </div>
+                      </GoogleOAuthProvider>
+                    ) : (
+                      <Button type="button" variant="outline" className="h-10 w-full" disabled>
+                        Google sign-in is not configured
+                      </Button>
+                    )}
                     <button
                       type="button"
                       className="w-full text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"

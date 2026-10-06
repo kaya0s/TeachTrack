@@ -65,6 +65,8 @@ def login_google(db: Session, google_in: GoogleLogin) -> dict[str, str]:
 
         if not user.is_active:
             raise HTTPException(status_code=400, detail="Inactive user")
+        if google_in.admin_portal and not user.is_superuser:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required")
 
         access_token_expires = timedelta(
             minutes=settings_service.get_security_settings(db)["access_token_expire_minutes"]

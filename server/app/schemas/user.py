@@ -69,3 +69,4 @@ class ResetPassword(BaseModel):
 
 class GoogleLogin(BaseModel):
     id_token: str
+    admin_portal: bool = False

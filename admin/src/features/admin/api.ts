@@ -99,7 +99,7 @@ export async function loginWithGoogle(idToken: string) {
   return httpRequest("/login/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id_token: idToken }),
+    body: JSON.stringify({ id_token: idToken, admin_portal: true }),
   });
 }
 
@@ -220,7 +220,7 @@ export async function getSessionDetectorStreamUrl(
     throw new Error("Invalid detector stream token");
   }
   const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
   return `${baseUrl}/admin/sessions/${sessionId}/detector/stream?token=${encodeURIComponent(token)}`;
 }
 
