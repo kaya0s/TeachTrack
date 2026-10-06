@@ -37,10 +37,12 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
     });
   }
 
-  void _startMonitoring(BuildContext context, SubjectModel subject, SectionModel section) async {
+  void _startMonitoring(
+      BuildContext context, SubjectModel subject, SectionModel section) async {
     final sessionProvider = context.read<SessionProvider>();
-    final sessionParams = await showSessionStartDialog(context, initialStudents: 20);
-    
+    final sessionParams =
+        await showSessionStartDialog(context, initialStudents: 20);
+
     if (sessionParams == null) return;
 
     if (!context.mounted) return;
@@ -62,7 +64,7 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
       subject.id,
       section.id,
       sessionParams.studentsPresent,
-      sessionParams.activityMode,
+      activityMode: sessionParams.activityMode,
     );
 
     if (success) {
@@ -76,12 +78,14 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
       if (success) {
         // Redirection to Dashboard's Active Session Tab
         if (context.mounted) {
-           context.read<NavigationProvider>().setIndex(2);
-           Navigator.popUntil(context, (route) => route.isFirst);
+          context.read<NavigationProvider>().setIndex(2);
+          Navigator.popUntil(context, (route) => route.isFirst);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to start session: ${sessionProvider.error}")),
+          SnackBar(
+              content:
+                  Text("Failed to start session: ${sessionProvider.error}")),
         );
       }
     }
@@ -102,7 +106,9 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
               orElse: () => widget.subject,
             );
             final imageUrl = resolveImageUrl(currentSubject.coverImageUrl);
-            final history = session.history.where((s) => s.subjectId == currentSubject.id).toList();
+            final history = session.history
+                .where((s) => s.subjectId == currentSubject.id)
+                .toList();
 
             final theme = Theme.of(context);
             return Column(
@@ -117,16 +123,22 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
                   indicatorColor: theme.colorScheme.primary,
                   indicatorWeight: 3,
                   labelColor: theme.colorScheme.primary,
-                  unselectedLabelColor: theme.colorScheme.secondary.withValues(alpha: 0.55),
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.4),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  unselectedLabelColor:
+                      theme.colorScheme.secondary.withValues(alpha: 0.55),
+                  labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 0.4),
+                  unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13),
                   tabs: [
                     Tab(
                       height: 52,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.insights_rounded, size: 20, color: theme.colorScheme.primary),
+                          Icon(Icons.insights_rounded,
+                              size: 20, color: theme.colorScheme.primary),
                           const SizedBox(width: 8),
                           const Text("OVERVIEW"),
                         ],
@@ -137,7 +149,8 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.history_rounded, size: 20, color: theme.colorScheme.primary),
+                          Icon(Icons.history_rounded,
+                              size: 20, color: theme.colorScheme.primary),
                           const SizedBox(width: 8),
                           const Text("HISTORY"),
                         ],
@@ -152,14 +165,17 @@ class _SubjectDetailsScreenState extends State<SubjectDetailsScreen> {
                         subject: currentSubject,
                         history: history,
                         dateFormat: _dateFormat,
-                        onStartMonitoring: (section) => _startMonitoring(context, currentSubject, section),
+                        onStartMonitoring: (section) =>
+                            _startMonitoring(context, currentSubject, section),
                       ),
                       SubjectHistoryTab(
                         history: history,
-                        isLoading: session.historyLoading && session.history.isEmpty,
+                        isLoading:
+                            session.historyLoading && session.history.isEmpty,
                         error: session.historyError,
                         dateFormat: _dateFormat,
-                        onRetry: () => session.fetchSessionHistory(includeActive: false),
+                        onRetry: () =>
+                            session.fetchSessionHistory(includeActive: false),
                       ),
                     ],
                   ),

@@ -73,8 +73,14 @@ class SessionRepository {
     return SessionMetricsModel.fromJson(data);
   }
 
-  Future<List<SessionSummaryModel>> getSessionHistory(
-      {bool includeActive = false, int limit = 50}) async {
+  Future<List<SessionSummaryModel>> getSessionHistory({
+    int? subjectId,
+    int? sectionId,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool includeActive = false,
+    int limit = 50,
+  }) async {
     final response = await _apiClient.get(
       '/sessions',
       queryParameters: {
@@ -87,6 +93,11 @@ class SessionRepository {
     return data
         .whereType<Map<String, dynamic>>()
         .map(SessionSummaryModel.fromJson)
+        .where((session) =>
+            (subjectId == null || session.subjectId == subjectId) &&
+            (sectionId == null || session.sectionId == sectionId) &&
+            (startDate == null || !session.startTime.isBefore(startDate)) &&
+            (endDate == null || !session.startTime.isAfter(endDate)))
         .toList();
   }
 
@@ -119,19 +130,20 @@ class SessionRepository {
   }
 
   Future<void> startServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/start/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/start');
   }
 
   Future<void> stopServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/stop/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/stop');
   }
 
   Future<void> heartbeatServerDetector(int sessionId) async {
-    await _apiClient.post('/demo/detector/heartbeat/$sessionId');
+    await _apiClient.post('/sessions/$sessionId/detector/heartbeat');
   }
 
   Future<DetectorStatusModel> getServerDetectorStatus(int sessionId) async {
-    final response = await _apiClient.get('/demo/detector/status/$sessionId');
+    final response =
+        await _apiClient.get('/sessions/$sessionId/detector/status');
     final data = response.data;
     if (data is! Map<String, dynamic>) {
       throw Exception('Invalid detector status response');

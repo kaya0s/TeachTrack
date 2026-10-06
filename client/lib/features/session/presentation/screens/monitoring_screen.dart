@@ -7,10 +7,12 @@ import 'package:teachtrack/features/classroom/domain/models/classroom_models.dar
 import 'package:teachtrack/features/classroom/presentation/providers/classroom_provider.dart';
 import 'package:teachtrack/features/session/domain/models/session_models.dart';
 import 'package:teachtrack/features/session/presentation/providers/session_provider.dart';
+import 'package:teachtrack/features/session/presentation/screens/session_detail_screen.dart';
 import '../widgets/engagement_card.dart';
 import '../widgets/session_kpi_grid_view.dart';
 import '../widgets/behavior_snapshot_chart.dart';
 import '../widgets/behavior_trend_chart.dart';
+import '../widgets/session_mode_switcher.dart';
 import 'package:intl/intl.dart';
 import 'package:teachtrack/core/utils/image_url_resolver.dart';
 
@@ -29,6 +31,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   Timer? _heartbeatTimer;
   Timer? _detectorStatusBannerTimer;
   bool _switchingMode = false;
+  bool _openingCompletedSession = false;
 
   int? _lastAlertId;
   AlertModel? _latestAlertWithSnapshot;
@@ -226,8 +229,11 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     });
   }
 
-  void _confirmStop(BuildContext context, SessionProvider session) {
-    showDialog(
+  Future<void> _confirmStop(
+      BuildContext context, SessionProvider session) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final shouldStop = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -236,13 +242,10 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
             "This will stop real-time monitoring and save behavioral analytics for this session."),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text("CANCEL")),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("CANCEL")),
           FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx); // Close dialog
-              await session.stopSession();
-              // Auto-pop logic in builder will trigger once session.activeSession is null
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.error),
             child: const Text("STOP SESSION"),
@@ -250,32 +253,47 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         ],
       ),
     );
+    if (shouldStop != true || !mounted) return;
+
+    setState(() => _openingCompletedSession = true);
+    final completedSession = await session.stopSession();
+    if (!mounted) return;
+
+    if (completedSession == null) {
+      setState(() => _openingCompletedSession = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content:
+              Text(session.error ?? 'Unable to open the completed session.'),
+        ),
+      );
+      return;
+    }
+
+    final detailRoute = MaterialPageRoute<void>(
+      builder: (_) => SessionDetailScreen(session: completedSession),
+    );
+    if (widget.isEmbedded) {
+      await navigator.push(detailRoute);
+    } else {
+      await navigator.pushReplacement(detailRoute);
+    }
   }
 
   Future<void> _changeMode(
       BuildContext context, SessionProvider session, String mode) async {
-    if (session.activeSession?.activityMode == mode || _switchingMode) return;
+    if (session.activeSession?.activityMode == mode ||
+        _switchingMode ||
+        session.isSwitchingMode) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     if (mode == 'EXAM') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Switch to exam mode?'),
-          content: const Text(
-            'Enhanced tracking will apply to all new detections. The session will remain live.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('SWITCH'),
-            ),
-          ],
-        ),
-      );
+      final confirmed = await _showExamConfirmationDialog(context);
       if (confirmed != true || !mounted) return;
     }
 
@@ -283,11 +301,42 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     final changed = await session.switchSessionMode(mode);
     if (!mounted) return;
     setState(() => _switchingMode = false);
-    ScaffoldMessenger.of(context).showSnackBar(
+
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
-        content: Text(changed
-            ? 'Live mode changed to $mode.'
-            : (session.error ?? 'Unable to change live mode.')),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        backgroundColor:
+            isDark ? const Color(0xFF27272A) : const Color(0xFF0F172A),
+        content: Row(
+          children: [
+            Icon(
+              mode == 'EXAM' ? Icons.shield_rounded : Icons.school_rounded,
+              color: mode == 'EXAM'
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFF3B82F6),
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                changed
+                    ? (mode == 'EXAM'
+                        ? 'Exam Mode activated • Vigilant monitoring live'
+                        : 'Lecture Mode activated • Standard tracking active')
+                    : (session.error ?? 'Unable to change session mode.'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -298,10 +347,15 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
       builder: (context, session, classroom, child) {
         if (session.activeSession == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && !widget.isEmbedded) {
+            if (mounted && !widget.isEmbedded && !_openingCompletedSession) {
               Navigator.of(context).popUntil((route) => route.isFirst);
             }
           });
+          if (_openingCompletedSession) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
           return const Scaffold(
             body: Center(
               child: Column(
@@ -390,34 +444,6 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
               ],
             ),
             actions: [
-              PopupMenuButton<String>(
-                enabled: !_switchingMode && !session.isSwitchingMode,
-                tooltip: 'Change live mode',
-                onSelected: (mode) => _changeMode(context, session, mode),
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'LECTURE', child: Text('Lecture')),
-                  PopupMenuItem(value: 'EXAM', child: Text('Exam')),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_switchingMode)
-                        const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                      else
-                        const Icon(Icons.tune_rounded, size: 18),
-                      const SizedBox(width: 4),
-                      Text(active.activityMode,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
                 child: FilledButton.icon(
@@ -454,8 +480,12 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (active.activityMode == 'EXAM')
-                  _buildExamAlertPanel(context),
+                SessionModeSwitcher(
+                  currentMode: active.activityMode,
+                  isSwitching: _switchingMode || session.isSwitchingMode,
+                  onModeChanged: (mode) => _changeMode(context, session, mode),
+                ),
+                const SizedBox(height: 16),
                 if (subject != null || section != null) ...[
                   Card(
                     elevation: 0,
@@ -572,31 +602,32 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
     switch (mode) {
       case 'EXAM':
-        color = Colors.red;
-        icon = Icons.assignment_turned_in_rounded;
+        color = const Color(0xFFEF4444);
+        icon = Icons.shield_rounded;
         break;
       default:
-        color = Colors.blue;
+        color = const Color(0xFF2563EB);
         icon = Icons.school_rounded;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
           Text(
             mode,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
               color: color,
             ),
           ),
@@ -605,63 +636,140 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     );
   }
 
-  Widget _buildModeSelector(
-      BuildContext context, SessionProvider session, String currentMode) {
-    final color = _modeColor(currentMode);
-    final disabled = _switchingMode || session.isSwitchingMode;
+  Future<bool?> _showExamConfirmationDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: PopupMenuButton<String>(
-        enabled: !disabled,
-        tooltip: 'Change live monitoring mode',
-        onSelected: (mode) => _changeMode(context, session, mode),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        itemBuilder: (context) => [
-          _modeMenuItem(
-              'LECTURE', 'Lecture', Icons.school_rounded, currentMode),
-          _modeMenuItem(
-              'EXAM', 'Exam', Icons.assignment_turned_in_rounded, currentMode),
-        ],
-        child: Container(
-          constraints: const BoxConstraints(minWidth: 112),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.45)),
-          ),
-          child: Row(
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: isDark ? const Color(0xFF18181B) : Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (disabled)
-                SizedBox(
-                  width: 15,
-                  height: 15,
-                  child:
-                      CircularProgressIndicator(strokeWidth: 2, color: color),
-                )
-              else
-                Icon(Icons.tune_rounded, size: 16, color: color),
-              const SizedBox(width: 6),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text('MODE',
-                      style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: color)),
-                  Text(_modeLabel(currentMode),
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          color: color)),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.shield_rounded,
+                      color: Color(0xFFEF4444),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Switch to Exam Mode?',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Enhanced tracking will activate',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.secondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(width: 3),
-              Icon(Icons.expand_more_rounded, size: 16, color: color),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF27272A).withValues(alpha: 0.5)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _dialogFeatureRow(
+                      icon: Icons.search_rounded,
+                      text: 'Prohibited items & notes detection',
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 8),
+                    _dialogFeatureRow(
+                      icon: Icons.visibility_outlined,
+                      text: 'Off-task & peer glance monitoring',
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 8),
+                    _dialogFeatureRow(
+                      icon: Icons.videocam_rounded,
+                      text: 'Camera stream & session stay live',
+                      theme: theme,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color:
+                              theme.colorScheme.outline.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Text(
+                        'Keep Lecture',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      icon: const Icon(Icons.shield_rounded, size: 16),
+                      label: const Text(
+                        'Switch to Exam',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -669,57 +777,25 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     );
   }
 
-  PopupMenuItem<String> _modeMenuItem(
-      String value, String label, IconData icon, String currentMode) {
-    final selected = value == currentMode;
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label)),
-          if (selected) const Icon(Icons.check_rounded, size: 18),
-        ],
-      ),
-    );
-  }
-
-  String _modeLabel(String mode) {
-    return mode;
-  }
-
-  Color _modeColor(String mode) {
-    switch (mode) {
-      case 'EXAM':
-        return Colors.red;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  Widget _buildExamAlertPanel(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withOpacity(0.15)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.gavel_rounded, color: Colors.red, size: 20),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'EXAM MODE ACTIVE: Enhanced tracking for prohibited items and off-task behaviors.',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: Colors.red),
+  Widget _dialogFeatureRow({
+    required IconData icon,
+    required String text,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: theme.colorScheme.secondary),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -868,8 +944,9 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   Widget _buildAlertList(BuildContext context, SessionMetricsModel? metrics) {
-    if (metrics == null || metrics.alerts.isEmpty)
+    if (metrics == null || metrics.alerts.isEmpty) {
       return const SizedBox.shrink();
+    }
     final cs = Theme.of(context).colorScheme;
 
     return Column(

@@ -44,6 +44,7 @@ class SessionProvider extends ChangeNotifier {
 
   Future<void> checkActiveSession() async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
     try {
       _activeSession = await _repository.getActiveSession();
@@ -51,20 +52,10 @@ class SessionProvider extends ChangeNotifier {
         startMetricsPolling();
         await ForegroundSessionService.startOrUpdate(session: _activeSession!);
       } else {
-        _metrics = null;
-        _metricsTimer?.cancel();
-        _detectorStatusTimer?.cancel();
-        _detectorStatus = null;
         await ForegroundSessionService.stop();
       }
     } catch (e) {
       _error = e.toString();
-      _activeSession = null;
-      _metrics = null;
-      _metricsTimer?.cancel();
-      _detectorStatusTimer?.cancel();
-      _detectorStatus = null;
-      await ForegroundSessionService.stop();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -74,9 +65,9 @@ class SessionProvider extends ChangeNotifier {
   Future<bool> startSession(
     int subjectId,
     int sectionId,
-    int studentsPresent,
+    int studentsPresent, {
     String? activityMode,
-  ) async {
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -99,10 +90,12 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> stopSession() async {
-    if (_activeSession == null) return;
+  Future<SessionSummaryModel?> stopSession() async {
+    final activeSession = _activeSession;
+    if (activeSession == null) return null;
+    final sessionId = activeSession.id;
     try {
-      await _repository.stopSession(_activeSession!.id);
+      await _repository.stopSession(sessionId);
       _activeSession = null;
       _metrics = null;
       _metricsTimer?.cancel();
@@ -111,9 +104,19 @@ class SessionProvider extends ChangeNotifier {
       await ForegroundSessionService.stop();
       await fetchSessionHistory(includeActive: false);
       notifyListeners();
+
+      try {
+        return await fetchSessionSummaryById(sessionId, forceRefresh: true);
+      } catch (_) {
+        for (final item in _history) {
+          if (item.id == sessionId) return item;
+        }
+        return null;
+      }
     } catch (e) {
       _error = e.toString();
       notifyListeners();
+      return null;
     }
   }
 
@@ -190,37 +193,45 @@ class SessionProvider extends ChangeNotifier {
     _metricsRequestInFlight = true;
     try {
       final metrics = await _repository.getSessionMetrics(activeSession.id);
-      if (_activeSession?.id != activeSession.id) return;
       _metrics = metrics;
-      await ForegroundSessionService.startOrUpdate(
-        session: _activeSession!,
-        metrics: _metrics,
-      );
+      _error = null;
       notifyListeners();
     } catch (e) {
-      debugPrint("Error fetching metrics: $e");
+      _error = e.toString();
+      notifyListeners();
     } finally {
       _metricsRequestInFlight = false;
     }
   }
 
-  Future<void> fetchSessionHistory({bool includeActive = false}) async {
+  Future<void> fetchSessionHistory({
+    int? subjectId,
+    int? sectionId,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool includeActive = false,
+  }) async {
     _historyLoading = true;
     _historyError = null;
     notifyListeners();
     try {
-      _history =
-          await _repository.getSessionHistory(includeActive: includeActive);
+      final history = await _repository.getSessionHistory(
+        subjectId: subjectId,
+        sectionId: sectionId,
+        startDate: startDate,
+        endDate: endDate,
+        includeActive: includeActive,
+      );
+      _history = history;
+      for (final summary in history) {
+        _sessionSummaryCache[summary.id] = summary;
+      }
     } catch (e) {
       _historyError = e.toString();
     } finally {
       _historyLoading = false;
       notifyListeners();
     }
-  }
-
-  SessionMetricsModel? getCachedSessionMetrics(int sessionId) {
-    return _historyMetricsCache[sessionId];
   }
 
   Future<SessionMetricsModel> fetchSessionMetricsById(

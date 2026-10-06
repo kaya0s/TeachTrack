@@ -26,7 +26,7 @@ class _SubjectListTileState extends State<SubjectListTile> {
 
   Future<void> _startMonitoring(BuildContext context) async {
     if (_isStarting) return;
-    
+
     // Show section picker if multiple sections exist
     SectionModel? selectedSection;
     if (widget.subject.sections.length == 1) {
@@ -34,14 +34,16 @@ class _SubjectListTileState extends State<SubjectListTile> {
     } else {
       selectedSection = await showModalBottomSheet<SectionModel>(
         context: context,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (context) => _SectionPicker(subject: widget.subject),
       );
     }
 
     if (selectedSection == null) return;
 
-    final studentsPresent = await showStudentsPresentDialog(context, initialValue: 20);
+    final studentsPresent =
+        await showStudentsPresentDialog(context, initialValue: 20);
     if (studentsPresent == null) return;
 
     setState(() => _isStarting = true);
@@ -50,7 +52,7 @@ class _SubjectListTileState extends State<SubjectListTile> {
       widget.subject.id,
       selectedSection.id,
       studentsPresent,
-      'LECTURE',
+      activityMode: 'LECTURE',
     );
 
     if (!mounted) return;
@@ -60,7 +62,8 @@ class _SubjectListTileState extends State<SubjectListTile> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => MonitoringScreen(sessionId: session.activeSession!.id),
+          builder: (context) =>
+              MonitoringScreen(sessionId: session.activeSession!.id),
         ),
       );
     } else {
@@ -112,12 +115,14 @@ class _SubjectListTileState extends State<SubjectListTile> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: imageUrl != null
-                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildFallback())
+                        ? Image.network(imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildFallback())
                         : _buildFallback(),
                   ),
                 ),
                 const SizedBox(width: 14),
-                
+
                 // Details
                 Expanded(
                   child: Column(
@@ -125,11 +130,13 @@ class _SubjectListTileState extends State<SubjectListTile> {
                     children: [
                       Text(
                         widget.subject.name,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (widget.subject.code != null && widget.subject.code!.isNotEmpty) ...[
+                      if (widget.subject.code != null &&
+                          widget.subject.code!.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
                           widget.subject.code!.toUpperCase(),
@@ -151,11 +158,13 @@ class _SubjectListTileState extends State<SubjectListTile> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.groups_rounded, size: 12, color: theme.colorScheme.secondary),
+                          Icon(Icons.groups_rounded,
+                              size: 12, color: theme.colorScheme.secondary),
                           const SizedBox(width: 4),
                           Text(
                             "${widget.subject.sections.length} sections",
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.colorScheme.secondary),
                             maxLines: 1,
                           ),
                         ],
@@ -163,7 +172,7 @@ class _SubjectListTileState extends State<SubjectListTile> {
                     ],
                   ),
                 ),
-                
+
                 // Action
                 Icon(
                   Icons.chevron_right_rounded,
@@ -179,7 +188,8 @@ class _SubjectListTileState extends State<SubjectListTile> {
   }
 
   Widget _buildFallback() {
-    return const Center(child: Icon(Icons.class_rounded, color: Colors.grey, size: 28));
+    return const Center(
+        child: Icon(Icons.class_rounded, color: Colors.grey, size: 28));
   }
 }
 
@@ -195,7 +205,8 @@ class _SectionPicker extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Select Section', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Select Section',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           Flexible(
             child: ListView.builder(

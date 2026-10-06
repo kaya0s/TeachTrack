@@ -55,11 +55,12 @@ class _SubjectCardState extends State<SubjectCard> {
     );
   }
 
-  Future<void> _startMonitoringFromCard(SectionModel section, BuildContext sheetContext, StateSetter setSheetState) async {
+  Future<void> _startMonitoringFromCard(SectionModel section,
+      BuildContext sheetContext, StateSetter setSheetState) async {
     if (_isStarting) return;
     final studentsPresent = await _askStudentsPresent(context);
     if (studentsPresent == null) return;
-    
+
     setState(() => _isStarting = true);
     setSheetState(() => _isStarting = true);
 
@@ -68,11 +69,11 @@ class _SubjectCardState extends State<SubjectCard> {
       widget.subject.id,
       section.id,
       studentsPresent,
-      'LECTURE',
+      activityMode: 'LECTURE',
     );
 
     if (!mounted) return;
-    
+
     setState(() => _isStarting = false);
     setSheetState(() => _isStarting = false);
 
@@ -119,14 +120,16 @@ class _SubjectCardState extends State<SubjectCard> {
             Expanded(
               flex: 6,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(18)),
                 child: imageUrl == null
                     ? _SubjectImagePlaceholder(title: subject.name)
                     : Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        errorBuilder: (_, __, ___) => _SubjectImagePlaceholder(title: subject.name),
+                        errorBuilder: (_, __, ___) =>
+                            _SubjectImagePlaceholder(title: subject.name),
                       ),
               ),
             ),
@@ -149,9 +152,11 @@ class _SubjectCardState extends State<SubjectCard> {
                     if (subject.code != null && subject.code!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                          color: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -184,11 +189,13 @@ class _SubjectCardState extends State<SubjectCard> {
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.groups_rounded, size: 14, color: theme.textTheme.bodySmall?.color),
+                        Icon(Icons.groups_rounded,
+                            size: 14, color: theme.textTheme.bodySmall?.color),
                         const SizedBox(width: 4),
                         Text(
                           "${subject.sections.length} sections",
-                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                          style:
+                              theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                         ),
                         Icon(
                           Icons.chevron_right_rounded,
@@ -208,7 +215,7 @@ class _SubjectCardState extends State<SubjectCard> {
   }
 
   Future<void> _showSectionsPicker(BuildContext context) async {
-     // ... modal bottom sheet logic from original _SubjectCard ...
+    // ... modal bottom sheet logic from original _SubjectCard ...
   }
 }
 
@@ -236,7 +243,10 @@ class _SubjectImagePlaceholder extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color, color.withBlue(color.blue + 30).withGreen(color.green + 10)],
+          colors: [
+            color,
+            color.withBlue(color.blue + 30).withGreen(color.green + 10)
+          ],
         ),
       ),
       child: Center(
