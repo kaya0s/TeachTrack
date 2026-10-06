@@ -12,7 +12,7 @@ type HttpRequestOptions = RequestInit & {
 
 export async function httpRequest(url: string, options: HttpRequestOptions = {}) {
   const { suppressAuthRedirect = false, ...requestOptions } = options;
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
   const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
   const authEndpoints = [
     "/login/access-token",

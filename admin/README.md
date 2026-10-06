@@ -21,3 +21,22 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+## Stable ngrok endpoint
+
+The admin app proxies `/api/v1/*` to the local FastAPI server configured by
+`API_PROXY_TARGET`. This allows one ngrok domain to serve both the admin portal
+and API requests.
+
+Start FastAPI on port 8000 and the production admin app on port 3000, then run:
+
+```bash
+ngrok http 3000 --url https://YOUR-STATIC-DOMAIN.ngrok.app
+```
+
+Configure the Flutter client with the same hostname:
+
+```ini
+BASE_URL=https://YOUR-STATIC-DOMAIN.ngrok.app
+API_VERSION=/api/v1
+```
