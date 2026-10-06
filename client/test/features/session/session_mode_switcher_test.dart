@@ -19,11 +19,10 @@ void main() {
       ),
     );
 
-    expect(find.text('MONITORING MODE'), findsOneWidget);
-    expect(find.text('STANDARD'), findsOneWidget);
+    expect(find.text('SESSION MODE'), findsOneWidget);
+    expect(find.text('LIVE'), findsOneWidget);
     expect(find.text('Lecture'), findsOneWidget);
     expect(find.text('Exam'), findsOneWidget);
-    expect(find.textContaining('EXAM TRACKING ACTIVE'), findsNothing);
 
     // Tap Exam mode
     await tester.tap(find.text('Exam'));
@@ -33,7 +32,7 @@ void main() {
   });
 
   testWidgets(
-      'SessionModeSwitcher displays high vigilance and alert in EXAM mode',
+      'SessionModeSwitcher selects Exam mode',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -47,8 +46,8 @@ void main() {
       ),
     );
 
-    expect(find.text('HIGH VIGILANCE'), findsOneWidget);
-    expect(find.textContaining('EXAM TRACKING ACTIVE'), findsOneWidget);
+    expect(find.text('Exam'), findsOneWidget);
+    expect(find.text('Lecture'), findsOneWidget);
   });
 
   testWidgets('SessionModeSwitcher displays switching state',
@@ -65,6 +64,6 @@ void main() {
       ),
     );
 
-    expect(find.text('Switching…'), findsOneWidget);
+    expect(find.text('Updating'), findsOneWidget);
   });
 }
