@@ -227,7 +227,7 @@ def _open_camera(camera_index: int) -> cv2.VideoCapture:
     cap = cv2.VideoCapture(camera_index, backend)
     if not cap.isOpened():
         _release_capture(cap)
-        raise RuntimeError(f"Could not open webcam index {camera_index}")
+        raise RuntimeError(f"Could not open webcam index {camera_index} (device /dev/video{camera_index} on Linux)")
     if os.name == "posix":
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, PREVIEW_CAMERA_WIDTH)
@@ -367,6 +367,7 @@ def test_detection(raw: bytes) -> list[dict]:
 
 def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_log_fn: Callable) -> None:
     cap: cv2.VideoCapture | None = None
+    open_camera_index: int | None = None
     model = None
     last_send_time = 0.0
     last_preview_time = 0.0
@@ -375,12 +376,19 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
         _set_detector_status(session_id, "initializing", "Initializing detection...")
         while _detector_should_continue(session_id, stop_event):
             detection_settings = _runtime_detection_settings()
+            camera_index = int(detection_settings["server_camera_index"])
             missing: set[str] = set()
+
+            if cap is not None and open_camera_index != camera_index:
+                _release_capture(cap)
+                cap = None
+                open_camera_index = None
 
             if not detection_settings["server_camera_enabled"]:
                 missing.add("camera")
                 _release_capture(cap)
                 cap = None
+                open_camera_index = None
 
             if model is None:
                 try:
@@ -398,14 +406,15 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
 
             if cap is None and "camera" not in missing:
                 try:
-                    _set_detector_status(session_id, "initializing", "Reconnecting to camera...")
-                    cap = _open_camera(int(detection_settings["server_camera_index"]))
+                    _set_detector_status(session_id, "initializing", f"Connecting to camera index {camera_index}...")
+                    cap = _open_camera(camera_index)
+                    open_camera_index = camera_index
                 except Exception as exc:
                     missing.add("camera")
                     _set_detector_status(
                         session_id,
                         "waiting",
-                        _friendly_waiting_message(missing),
+                        f"Waiting for camera index {camera_index}...",
                         missing,
                         str(exc),
                     )
@@ -419,10 +428,11 @@ def _run_webcam_detector(session_id: int, stop_event: threading.Event, process_l
             if not ret:
                 _release_capture(cap)
                 cap = None
+                open_camera_index = None
                 _set_detector_status(
                     session_id,
                     "recovering",
-                    "Camera unavailable — waiting for camera...",
+                    f"Camera index {camera_index} unavailable — waiting for camera...",
                     {"camera"},
                     "Failed to read frame from camera",
                 )
