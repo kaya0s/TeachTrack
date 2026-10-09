@@ -564,6 +564,15 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 ],
                 if (metrics == null)
                   const Center(child: CircularProgressIndicator())
+                else if (active.activityMode == 'EXAM')
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Exam monitoring is active. Phone detections appear as alerts.',
+                      ),
+                    ),
+                  )
                 else ...[
                   SessionKpiGridView(metrics: metrics),
                   const SizedBox(height: 24),

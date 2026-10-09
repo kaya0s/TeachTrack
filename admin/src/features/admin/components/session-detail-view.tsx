@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -37,6 +37,14 @@ type BehaviorPieSlice = {
   color: string;
 };
 
+const behaviorColors = {
+  onTask: "#2e7d32",
+  sleeping: "#d32f2f",
+  usingPhone: "#f57c00",
+  offTask: "#6a1b9a",
+  notVisible: "#9e9e9e",
+};
+
 export function SessionDetailView({
   detail,
   detectorStatus,
@@ -48,8 +56,11 @@ export function SessionDetailView({
 }) {
   const [hoveredLogRow, setHoveredLogRow] =
     useState<BehaviorLogChartRow | null>(null);
+  const handleHoverRowChange = useCallback((row: BehaviorLogChartRow | null) => {
+    setHoveredLogRow(row);
+  }, []);
   const [previewStreamUrl, setPreviewStreamUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(true);
   const teacherDisplayName =
     detail.session.teacher_fullname?.trim() || detail.session.teacher_username;
 
@@ -282,24 +293,28 @@ export function SessionDetailView({
       {
         label: "On task",
         value: pieSource.on_task,
-        color: "hsl(var(--success))",
+        color: behaviorColors.onTask,
       },
       {
         label: "Sleeping",
         value: pieSource.sleeping,
-        color: "hsl(var(--danger))",
+        color: behaviorColors.sleeping,
       },
       {
         label: "Using phone",
         value: pieSource.using_phone,
-        color: "hsl(var(--warning))",
+        color: behaviorColors.usingPhone,
       },
       {
         label: "Off task",
         value: pieSource.off_task,
-        color: "hsl(var(--primary))",
+        color: behaviorColors.offTask,
       },
-      { label: "Not visible", value: pieSource.not_visible, color: "#94a3b8" },
+      {
+        label: "Not visible",
+        value: pieSource.not_visible,
+        color: behaviorColors.notVisible,
+      },
     ];
   }, [pieSource]);
 
@@ -370,7 +385,13 @@ export function SessionDetailView({
             </div>
             <div className="rounded-lg border border-border/70 bg-card/70 p-3">
               <p className="text-xs text-muted-foreground">Status</p>
-              <p className="font-medium font-semibold text-primary">
+              <p
+                className={
+                  detail.session.is_active
+                    ? "font-semibold text-success"
+                    : "font-semibold text-muted-foreground"
+                }
+              >
                 {detail.session.is_active ? "Active" : "Completed"}
               </p>
             </div>
@@ -428,9 +449,7 @@ export function SessionDetailView({
               xLabel={(row) => String(row.time)}
               hoverMode="x-axis"
               showHoverLine
-              onHoverRowChange={(row) =>
-                setHoveredLogRow(row as BehaviorLogChartRow | null)
-              }
+              onHoverRowChange={handleHoverRowChange}
               centerMode="mean"
               smoothCurves
               showPoints={false}
@@ -438,26 +457,26 @@ export function SessionDetailView({
                 {
                   key: "on_task",
                   label: "On task",
-                  colorClass: "bg-success",
-                  stroke: "hsl(var(--success))",
+                  colorClass: "bg-[#2e7d32]",
+                  stroke: behaviorColors.onTask,
                 },
                 {
                   key: "sleeping",
                   label: "Sleeping",
-                  colorClass: "bg-danger",
-                  stroke: "hsl(var(--danger))",
+                  colorClass: "bg-[#d32f2f]",
+                  stroke: behaviorColors.sleeping,
                 },
                 {
                   key: "using_phone",
                   label: "Using Phone",
-                  colorClass: "bg-warning",
-                  stroke: "hsl(var(--warning))",
+                  colorClass: "bg-[#f57c00]",
+                  stroke: behaviorColors.usingPhone,
                 },
                 {
                   key: "off_task",
                   label: "Off Task",
-                  colorClass: "bg-primary",
-                  stroke: "hsl(var(--primary))",
+                  colorClass: "bg-[#6a1b9a]",
+                  stroke: behaviorColors.offTask,
                 },
               ]}
               heightClassName="h-72"
@@ -568,12 +587,30 @@ function DetectorPreviewPanel({
   streamUrl: string | null;
   loading: boolean;
 }) {
+  const [streamState, setStreamState] = useState<"connecting" | "live" | "error">(
+    "connecting",
+  );
+
+  useEffect(() => {
+    setStreamState("connecting");
+  }, [streamUrl]);
+
+  const displayState = !streamUrl && !loading ? "error" : streamState;
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border/50 bg-muted/10 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-border/50 bg-muted/10 px-5 py-4">
         <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Camera Preview
+          Live Camera Preview
         </h4>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${displayState === "live" ? "border-success/30 bg-success/10 text-success" : displayState === "error" ? "border-danger/30 bg-danger/10 text-danger" : "border-warning/30 bg-warning/10 text-warning"}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${displayState === "live" ? "bg-success animate-pulse" : displayState === "error" ? "bg-danger" : "bg-warning"}`}
+          />
+          {displayState === "live" ? "Live" : displayState === "error" ? "Unavailable" : "Connecting"}
+        </span>
       </div>
       <div className="flex aspect-video items-center justify-center bg-muted/30">
         {streamUrl ? (
@@ -581,12 +618,14 @@ function DetectorPreviewPanel({
             src={streamUrl}
             alt="Live detector preview"
             className="h-full w-full object-contain"
+            onLoad={() => setStreamState("live")}
+            onError={() => setStreamState("error")}
           />
         ) : (
           <p className="text-sm font-medium text-muted-foreground">
             {loading
-              ? "Loading camera preview..."
-              : "Waiting for the next detector frame..."}
+              ? "Connecting to camera preview..."
+              : "Camera preview unavailable."}
           </p>
         )}
       </div>

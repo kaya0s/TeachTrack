@@ -159,12 +159,13 @@ def _draw_preview_detections(
     threshold: float,
 ) -> np.ndarray:
     preview = frame.copy()
+    # OpenCV expects BGR; these match the behavior colors in the admin charts.
     colors = {
-        "on_task": (34, 197, 94),
-        "sleeping": (239, 68, 68),
-        "using_phone": (245, 158, 11),
-        "off_task": (59, 130, 246),
-        "not_visible": (148, 163, 184),
+        "on_task": (50, 125, 46),  # #2e7d32
+        "sleeping": (47, 47, 211),  # #d32f2f
+        "using_phone": (0, 124, 245),  # #f57c00
+        "off_task": (154, 27, 106),  # #6a1b9a
+        "not_visible": (158, 158, 158),  # #9e9e9e
     }
     for detection in detections:
         confidence = float(detection["confidence"])
@@ -172,7 +173,7 @@ def _draw_preview_detections(
             continue
         label = str(detection["label"])
         x1, y1, x2, y2 = [int(v) for v in detection["box"]]
-        color = colors.get(label, (34, 197, 94))
+        color = colors.get(label, colors["on_task"])
         cv2.rectangle(preview, (x1, y1), (x2, y2), color, 2)
         text = f"{label} {confidence:.2f}"
         text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)

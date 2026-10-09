@@ -394,6 +394,7 @@ export default function SessionsPage() {
   const openDetail = useCallback(
     async (sessionId: number) => {
       setSelectedSessionId(sessionId);
+      setDetail(null);
       setDetectorStatus(null);
       setIsDetailOpen(true);
       setLoadingDetail(true);
@@ -425,6 +426,34 @@ export default function SessionsPage() {
     },
     [notify],
   );
+
+  useEffect(() => {
+    if (!isDetailOpen || !selectedSessionId || !detail?.session.is_active) return;
+
+    let cancelled = false;
+    let refreshing = false;
+    const refreshDetail = async () => {
+      if (refreshing || document.visibilityState !== "visible") return;
+      refreshing = true;
+      try {
+        const updated = await getSessionDetail(
+          selectedSessionId,
+          "?minutes=180&logs_limit=200",
+        );
+        if (!cancelled) setDetail(updated);
+      } catch (error) {
+        console.error("Live session detail refresh failed", error);
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const intervalId = window.setInterval(refreshDetail, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [detail?.session.is_active, isDetailOpen, selectedSessionId]);
 
   useEffect(() => {
     if (!isDetailOpen || !selectedSessionId || !detail?.session.is_active)
@@ -1069,7 +1098,7 @@ export default function SessionsPage() {
       <Drawer
         open={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        title={`Intelligence View #${selectedSessionId ?? "-"}`}
+        title={`Detection View #${selectedSessionId ?? "-"}`}
         description="Detailed behavior analytics and historical trends."
         widthClassName={detail?.session.is_active ? "max-w-[92vw]" : "max-w-5xl"}
       >

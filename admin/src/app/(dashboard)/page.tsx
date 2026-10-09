@@ -1288,7 +1288,7 @@ export default function DashboardPage() {
         onClose={() => setIsDetailOpen(false)}
         title={
           activeSessionInView
-            ? `Intelligence View #${activeSessionInView.id}`
+            ? `Detection View #${activeSessionInView.id}`
             : "Session details"
         }
         description={
